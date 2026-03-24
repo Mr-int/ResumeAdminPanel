@@ -133,7 +133,7 @@ export function StudentDetail() {
     <div className="page">
       <p style={{ marginBottom: '1rem' }}>
         <Link to="/students" style={{ color: 'var(--text-secondary)' }}>
-          {"<- Students"}
+          в†ђ РЎС‚СѓРґРµРЅС‚С‹
         </Link>
       </p>
 

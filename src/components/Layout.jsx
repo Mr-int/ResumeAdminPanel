@@ -1,13 +1,15 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+﻿import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import './Layout.css';
 
 const nav = [
-  { to: '/', label: 'Обзор', end: true },
-  { to: '/users', label: 'Пользователи' },
-  { to: '/students', label: 'Студенты' },
-  { to: '/recruiters', label: 'Рекрутеры' },
-  { to: '/requests', label: 'Заявки' },
+  { to: '/', label: 'РћР±Р·РѕСЂ', end: true },
+  { to: '/users', label: 'РџРѕР»СЊР·РѕРІР°С‚РµР»Рё' },
+  { to: '/students', label: 'РЎС‚СѓРґРµРЅС‚С‹' },
+  { to: '/skills', label: 'РќР°РІС‹РєРё' },
+  { to: '/skills', label: 'РќР°РІС‹РєРё' },
+  { to: '/recruiters', label: 'Р РµРєСЂСѓС‚РµСЂС‹' },
+  { to: '/requests', label: 'Р—Р°СЏРІРєРё' },
 ];
 
 export function Layout() {
@@ -26,7 +28,7 @@ export function Layout() {
           <span className="sidebar__logo" aria-hidden />
           <div>
             <div className="sidebar__title">Resume</div>
-            <div className="sidebar__subtitle">Админ-панель</div>
+            <div className="sidebar__subtitle">РђРґРјРёРЅ-РїР°РЅРµР»СЊ</div>
           </div>
         </div>
         <nav className="sidebar__nav">
@@ -44,7 +46,7 @@ export function Layout() {
           ))}
         </nav>
         <button type="button" className="sidebar__logout" onClick={handleLogout}>
-          Выйти
+          Р’С‹Р№С‚Рё
         </button>
       </aside>
       <main className="main">
@@ -53,3 +55,4 @@ export function Layout() {
     </div>
   );
 }
+
