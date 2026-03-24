@@ -12,6 +12,10 @@ import {
   contactFieldsFromStudentDto,
   contactFieldsToApiPayload,
 } from '../utils/studentContact.js';
+import {
+  buildExperienceCreateBody,
+  buildInstitutionCreateBody,
+} from '../utils/experienceInstitutionPayload.js';
 import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
 import { StudentCreateExtendedBlocks } from '../components/StudentCreateExtendedBlocks.jsx';
 
@@ -213,30 +217,21 @@ export function StudentDetail() {
     const rows = extDraft.experienceRows.filter(
       (r) =>
         r.position?.trim() &&
-        r.companyId !== '' &&
-        !Number.isNaN(Number(r.companyId))
+        (r.companyName ?? r.company ?? '').trim()
     );
     if (!rows.length) {
       setExtendedMsg({
         type: 'err',
-        text: 'Для опыта нужны компания (ID) и должность',
+        text: 'Для опыта укажите компанию и должность',
       });
       return;
     }
     setCommitting((c) => ({ ...c, experience: true }));
     try {
       for (const r of rows) {
-        await experienceApi.createExperience({
-          companyId: Number(r.companyId),
-          studentId: id,
-          experience: {
-            id: 0,
-            position: r.position.trim(),
-            additionalInfo: (r.additionalInfo || '').trim(),
-            startDate: r.startDate || '',
-            endDate: r.endDate || '',
-          },
-        });
+        await experienceApi.createExperience(
+          buildExperienceCreateBody(id, r)
+        );
       }
       setExtDraft((p) => ({ ...p, experienceRows: [] }));
       setExtendedMsg({ type: 'ok', text: 'Опыт добавлен в профиль' });
@@ -252,8 +247,7 @@ export function StudentDetail() {
     setExtendedMsg(null);
     const rows = extDraft.institutionRows.filter(
       (r) =>
-        r.educationId !== '' &&
-        !Number.isNaN(Number(r.educationId)) &&
+        (r.institutionName ?? r.institution ?? '').trim() &&
         r.startYear !== '' &&
         r.endYear !== '' &&
         !Number.isNaN(Number(r.startYear)) &&
@@ -262,22 +256,16 @@ export function StudentDetail() {
     if (!rows.length) {
       setExtendedMsg({
         type: 'err',
-        text: 'Заполните education ID и оба года для institution',
+        text: 'Укажите заведение и оба года обучения',
       });
       return;
     }
     setCommitting((c) => ({ ...c, institution: true }));
     try {
       for (const r of rows) {
-        await institutionApi.createInstitution({
-          educationId: Number(r.educationId),
-          studentId: id,
-          institution: {
-            id: 0,
-            startYear: Number(r.startYear),
-            endYear: Number(r.endYear),
-          },
-        });
+        await institutionApi.createInstitution(
+          buildInstitutionCreateBody(id, r)
+        );
       }
       setExtDraft((p) => ({ ...p, institutionRows: [] }));
       setExtendedMsg({ type: 'ok', text: 'Заведения добавлены в профиль' });

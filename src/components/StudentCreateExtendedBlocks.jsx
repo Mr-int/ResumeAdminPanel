@@ -15,9 +15,15 @@ function normalizePortfolio(raw) {
 
 function normalizeExperience(raw) {
   const e = raw?.experience && typeof raw.experience === 'object' ? raw.experience : raw;
+  const companyName =
+    (typeof raw?.companyName === 'string' && raw.companyName.trim()) ||
+    (typeof raw?.company === 'string' && raw.company.trim()) ||
+    (typeof e?.companyName === 'string' && e.companyName.trim()) ||
+    '';
   return {
     id: raw?.id,
     companyId: raw?.companyId != null ? String(raw.companyId) : '',
+    companyName,
     position: e?.position ?? raw?.position ?? '',
     additionalInfo: e?.additionalInfo ?? raw?.additionalInfo ?? '',
     startDate: e?.startDate ?? raw?.startDate ?? '',
@@ -27,9 +33,16 @@ function normalizeExperience(raw) {
 
 function normalizeInstitution(raw) {
   const ins = raw?.institution && typeof raw.institution === 'object' ? raw.institution : raw;
+  const institutionName =
+    (typeof raw?.institutionName === 'string' && raw.institutionName.trim()) ||
+    (typeof ins?.institutionName === 'string' && ins.institutionName.trim()) ||
+    (typeof raw?.institution === 'string' && raw.institution.trim()) ||
+    (typeof ins?.institution === 'string' && ins.institution.trim()) ||
+    '';
   return {
     id: raw?.id,
     educationId: raw?.educationId != null ? String(raw.educationId) : '',
+    institutionName,
     startYear: ins?.startYear ?? raw?.startYear ?? '',
     endYear: ins?.endYear ?? raw?.endYear ?? '',
   };
@@ -227,7 +240,7 @@ export function StudentCreateExtendedBlocks({
                 experienceRows: [
                   ...p.experienceRows,
                   {
-                    companyId: '',
+                    companyName: '',
                     position: '',
                     additionalInfo: '',
                     startDate: '',
@@ -246,18 +259,16 @@ export function StudentCreateExtendedBlocks({
           form.experienceRows.map((row, idx) => (
             <div key={idx} className="extended-block__row">
               <div className="form-row">
-                <div className="field">
-                  <label>ID компании</label>
+                <div className="field" style={{ minWidth: 180, flex: 1 }}>
+                  <label>Компания</label>
                   <input
-                    type="number"
-                    min="0"
-                    value={row.companyId}
+                    value={row.companyName ?? ''}
                     onChange={(e) =>
                       setForm((p) => {
                         const next = [...p.experienceRows];
                         next[idx] = {
                           ...next[idx],
-                          companyId: e.target.value,
+                          companyName: e.target.value,
                         };
                         return { ...p, experienceRows: next };
                       })
@@ -369,9 +380,9 @@ export function StudentCreateExtendedBlocks({
               return (
                 <div key={kid} className="extended-block__row extended-block__row--saved">
                   <div className="form-row">
-                    <div className="field">
-                      <label>ID компании</label>
-                      <input readOnly value={row.companyId} />
+                    <div className="field" style={{ minWidth: 180, flex: 1 }}>
+                      <label>Компания</label>
+                      <input readOnly value={row.companyName} />
                     </div>
                     <div className="field" style={{ minWidth: 160, flex: 1 }}>
                       <label>Должность</label>
@@ -420,7 +431,7 @@ export function StudentCreateExtendedBlocks({
                 institutionRows: [
                   ...p.institutionRows,
                   {
-                    educationId: '',
+                    institutionName: '',
                     startYear: '',
                     endYear: '',
                   },
@@ -437,18 +448,16 @@ export function StudentCreateExtendedBlocks({
           form.institutionRows.map((row, idx) => (
             <div key={idx} className="extended-block__row">
               <div className="form-row">
-                <div className="field">
-                  <label>ID образования (education)</label>
+                <div className="field" style={{ minWidth: 200, flex: 1 }}>
+                  <label>Заведение</label>
                   <input
-                    type="number"
-                    min="0"
-                    value={row.educationId}
+                    value={row.institutionName ?? ''}
                     onChange={(e) =>
                       setForm((p) => {
                         const next = [...p.institutionRows];
                         next[idx] = {
                           ...next[idx],
-                          educationId: e.target.value,
+                          institutionName: e.target.value,
                         };
                         return { ...p, institutionRows: next };
                       })
@@ -524,13 +533,14 @@ export function StudentCreateExtendedBlocks({
             <p className="extended-block__saved">Уже в профиле</p>
             {existingInstitutions.map((raw) => {
               const row = normalizeInstitution(raw);
-              const kid = row.id != null ? `i-${row.id}` : `i-${row.educationId}`;
+              const kid =
+                row.id != null ? `i-${row.id}` : `i-${row.institutionName || row.educationId}`;
               return (
                 <div key={kid} className="extended-block__row extended-block__row--saved">
                   <div className="form-row">
-                    <div className="field">
-                      <label>ID образования (education)</label>
-                      <input readOnly value={row.educationId} />
+                    <div className="field" style={{ minWidth: 200, flex: 1 }}>
+                      <label>Заведение</label>
+                      <input readOnly value={row.institutionName} />
                     </div>
                     <div className="field">
                       <label>Год начала</label>
