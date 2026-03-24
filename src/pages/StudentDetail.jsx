@@ -5,22 +5,10 @@ import * as experienceApi from '../api/experience.js';
 import * as institutionApi from '../api/institutions.js';
 import * as educationApi from '../api/education.js';
 import * as portfolioApi from '../api/portfolio.js';
-import { API_BASE } from '../config.js';
+import * as skillsApi from '../api/skills.js';
+import * as specialitiesApi from '../api/specialities.js';
 import { compressImageForUpload } from '../utils/compressImage.js';
-
-function photoUrl(path) {
-  if (!path) return null;
-  return `${API_BASE}/main/photo/${encodeURIComponent(path)}`;
-}
-
-function parseIds(value) {
-  return value
-    .split(',')
-    .map((x) => x.trim())
-    .filter(Boolean)
-    .map((x) => Number(x))
-    .filter((x) => Number.isInteger(x) && x >= 0);
-}
+import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
 
 export function StudentDetail() {
   const { id } = useParams();
@@ -31,6 +19,10 @@ export function StudentDetail() {
   const [msg, setMsg] = useState(null);
   const [mediaMsg, setMediaMsg] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [skillsOptions, setSkillsOptions] = useState([]);
+  const [specialityOptions, setSpecialityOptions] = useState([]);
+  const [optionsError, setOptionsError] = useState(null);
   const [extendedMsg, setExtendedMsg] = useState(null);
   const [experienceForm, setExperienceForm] = useState({
     companyId: '',
@@ -57,24 +49,63 @@ export function StudentDetail() {
   const [form, setForm] = useState({
     city: '', hhLink: '', birthDate: '', bio: '', course: 'NEW', busyness: 'FREE',
     firstName: '', lastName: '', email: '', phoneNumber: '', telegramUsername: '',
-    specialityId: '', skillsIds: '',
+    specialityId: '', skillsIds: [],
   });
 
   async function loadStudent() {
     setLoading(true);
     setError(null);
+    setOptionsError(null);
     try {
-      const { data } = await studentsApi.getStudent(id);
+      const [{ data }, { data: specRes }, { data: skillsRes }] = await Promise.all([
+        studentsApi.getStudent(id),
+        specialitiesApi.filterSpecialities({}, 0, 500, ['id,asc']),
+        skillsApi.filterSkills({}, 0, 500, ['id,asc']),
+      ]);
       setStudent(data);
+      const specList = specRes?.data ?? [];
+      const skillsList = skillsRes?.data ?? [];
+      setSpecialityOptions(specList);
+      setSkillsOptions(skillsList);
+
+      let specialityId = '';
+      if (data.specialityId != null && data.specialityId !== '') {
+        specialityId = String(data.specialityId);
+      } else {
+        const specName =
+          typeof data.speciality === 'string' ? data.speciality.trim() : '';
+        const match = specList.find((s) => s.name === specName);
+        if (match) specialityId = String(match.id);
+      }
+
       setForm({
         city: data.city ?? '', hhLink: data.hhLink ?? '', birthDate: data.birthDate ?? '',
         bio: data.bio ?? '', course: data.course ?? 'NEW', busyness: data.busyness ?? 'FREE',
         firstName: data.firstName ?? '', lastName: data.lastName ?? '', email: data.email ?? '',
         phoneNumber: data.phoneNumber ?? '', telegramUsername: data.telegramUsername ?? '',
-        specialityId: '', skillsIds: (data.skills ?? []).map((s) => s.id).join(','),
+        specialityId,
+        skillsIds: (data.skills ?? []).map((s) => s.id),
       });
     } catch (e) {
-      setError(e.message);
+      setOptionsError(e.message);
+      try {
+        const { data } = await studentsApi.getStudent(id);
+        setStudent(data);
+        setForm({
+          city: data.city ?? '', hhLink: data.hhLink ?? '', birthDate: data.birthDate ?? '',
+          bio: data.bio ?? '', course: data.course ?? 'NEW', busyness: data.busyness ?? 'FREE',
+          firstName: data.firstName ?? '', lastName: data.lastName ?? '', email: data.email ?? '',
+          phoneNumber: data.phoneNumber ?? '', telegramUsername: data.telegramUsername ?? '',
+          specialityId:
+            data.specialityId != null && data.specialityId !== ''
+              ? String(data.specialityId)
+              : '',
+          skillsIds: (data.skills ?? []).map((s) => s.id),
+        });
+      } catch (e2) {
+        setError(e2.message);
+        setStudent(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -100,9 +131,11 @@ export function StudentDetail() {
     setMsg(null);
     setSaving(true);
     try {
-      const skillsIds = parseIds(form.skillsIds);
-      if (!skillsIds.length) throw new Error('Provide at least one skills id');
-      if (form.specialityId === '') throw new Error('specialityId is required for PUT');
+      const skillsIds = form.skillsIds
+        .map((x) => Number(x))
+        .filter((x) => Number.isInteger(x) && x >= 0);
+      if (!skillsIds.length) throw new Error('Укажите хотя бы один навык');
+      if (form.specialityId === '') throw new Error('Выберите специальность');
 
       await studentsApi.updateStudent(id, {
         city: form.city || undefined,
@@ -120,7 +153,7 @@ export function StudentDetail() {
         skillsIds,
       });
 
-      setMsg({ type: 'ok', text: 'Student updated' });
+      setMsg({ type: 'ok', text: 'Профиль сохранён' });
       await loadStudent();
     } catch (e) {
       setMsg({ type: 'err', text: e.message });
@@ -136,6 +169,7 @@ export function StudentDetail() {
       return;
     }
     setMediaMsg(null);
+    setPhotoUploading(true);
     try {
       let fileToSend = photoFile;
       if (photoFile.type.startsWith('image/')) {
@@ -151,6 +185,8 @@ export function StudentDetail() {
       await loadStudent();
     } catch (e) {
       setMediaMsg({ type: 'err', text: e.message });
+    } finally {
+      setPhotoUploading(false);
     }
   }
 
@@ -257,67 +293,94 @@ export function StudentDetail() {
     return <div className="page"><div className="alert alert--error">{error ?? 'Not found'}</div><Link to="/students" className="btn btn--ghost">Back to list</Link></div>;
   }
 
-  const src = photoUrl(student.imagePath);
-
   return (
     <div className="page">
-      <p style={{ marginBottom: '1rem' }}><Link to="/students" style={{ color: 'var(--text-secondary)' }}>Back to students</Link></p>
-      <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-        {src ? <img src={src} alt="" style={{ width: 160, height: 160, borderRadius: 12, objectFit: 'cover', border: '1px solid var(--border)' }} /> : null}
-        <div>
-          <h1 className="page__title" style={{ marginBottom: '0.25rem' }}>{student.firstName} {student.lastName}</h1>
-          <p className="page__lead" style={{ marginBottom: '0.75rem' }}>{student.speciality} - {student.course} - {student.busyness}</p>
+      <p style={{ marginBottom: '1rem' }}><Link to="/students" style={{ color: 'var(--text-secondary)' }}>К списку студентов</Link></p>
+      <div style={{ marginBottom: '1rem' }}>
+        <h1 className="page__title" style={{ marginBottom: '0.25rem' }}>{student.firstName} {student.lastName}</h1>
+        <p className="page__lead" style={{ margin: 0 }}>{student.course} · {student.busyness}{student.speciality ? ` · ${student.speciality}` : ''}</p>
+      </div>
+
+      <div className="panel">
+        <h2 className="panel__title">Профиль (фото + PUT /student/{'{id}'})</h2>
+        {optionsError ? <div className="alert alert--error">Справочники (навыки/специальности): {optionsError}</div> : null}
+        <div className="profile-edit-layout">
+          <div className="profile-edit-layout__photo">
+            {mediaMsg?.type === 'ok' ? <div className="alert alert--success">{mediaMsg.text}</div> : null}
+            {mediaMsg?.type === 'err' ? <div className="alert alert--error">{mediaMsg.text}</div> : null}
+            <StudentPhotoBlock
+              imagePath={student.imagePath}
+              studentId={Number(id)}
+              firstName={student.firstName}
+              title="Фото"
+            >
+              <form className="student-photo-block__upload" onSubmit={handlePhotoUpload}>
+                <div className="field">
+                  <label htmlFor="student-photo-file">Файл изображения</label>
+                  <input
+                    id="student-photo-file"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+                  />
+                </div>
+                <button type="submit" className="btn btn--primary" disabled={photoUploading}>
+                  {photoUploading ? 'Загрузка…' : 'Загрузить / сменить фото'}
+                </button>
+              </form>
+            </StudentPhotoBlock>
+            <p className="page__lead" style={{ margin: '0.75rem 0 0' }}>
+              Перед отправкой изображение сжимается. Ошибка 413 — увеличьте лимит тела запроса на сервере (nginx / приложение).
+            </p>
+          </div>
+          <div className="profile-edit-layout__form">
+            {msg?.type === 'ok' ? <div className="alert alert--success">{msg.text}</div> : null}
+            {msg?.type === 'err' ? <div className="alert alert--error">{msg.text}</div> : null}
+            <form onSubmit={handleUpdate}>
+              <div className="form-row">
+                <div className="field"><label>Имя</label><input required value={form.firstName} onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))} /></div>
+                <div className="field"><label>Фамилия</label><input required value={form.lastName} onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))} /></div>
+                <div className="field"><label>Дата рождения</label><input type="date" required value={form.birthDate} onChange={(e) => setForm((p) => ({ ...p, birthDate: e.target.value }))} /></div>
+              </div>
+              <div className="form-row">
+                <div className="field"><label>Курс</label><select value={form.course} onChange={(e) => setForm((p) => ({ ...p, course: e.target.value }))}><option value="NEW">NEW</option><option value="FIRST">FIRST</option><option value="SECOND">SECOND</option><option value="THIRD">THIRD</option><option value="FOURTH">FOURTH</option></select></div>
+                <div className="field"><label>Занятость</label><select value={form.busyness} onChange={(e) => setForm((p) => ({ ...p, busyness: e.target.value }))}><option value="FREE">FREE</option><option value="FREELANCE">FREELANCE</option><option value="EMPLOYED">EMPLOYED</option></select></div>
+                <div className="field">
+                  <label>Специальность</label>
+                  <select
+                    required
+                    value={form.specialityId}
+                    onChange={(e) => setForm((p) => ({ ...p, specialityId: e.target.value }))}
+                  >
+                    <option value="">Не выбрано</option>
+                    {specialityOptions.map((s) => (
+                      <option key={s.id} value={String(s.id)}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="field skill-picker-field">
+                <label>Навыки</label>
+                <SkillPicker
+                  options={skillsOptions}
+                  selectedIds={form.skillsIds}
+                  onChange={(ids) => setForm((p) => ({ ...p, skillsIds: ids }))}
+                />
+              </div>
+              <div className="form-row">
+                <div className="field"><label>Город</label><input value={form.city} onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))} /></div>
+                <div className="field"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} /></div>
+                <div className="field"><label>Телефон</label><input value={form.phoneNumber} onChange={(e) => setForm((p) => ({ ...p, phoneNumber: e.target.value }))} /></div>
+                <div className="field"><label>Telegram</label><input value={form.telegramUsername} onChange={(e) => setForm((p) => ({ ...p, telegramUsername: e.target.value }))} /></div>
+              </div>
+              <div className="form-row">
+                <div className="field" style={{ minWidth: 300, flex: 1 }}><label>HH</label><input value={form.hhLink} onChange={(e) => setForm((p) => ({ ...p, hhLink: e.target.value }))} /></div>
+                <div className="field" style={{ minWidth: 300, flex: 1 }}><label>Bio</label><input value={form.bio} onChange={(e) => setForm((p) => ({ ...p, bio: e.target.value }))} /></div>
+                <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Сохранение…' : 'Сохранить'}</button>
+              </div>
+            </form>
+          </div>
         </div>
-      </div>
-
-      <div className="panel" style={{ marginTop: '1rem' }}>
-        <h2 className="panel__title">Фото (POST /student/photo/{'{id}'})</h2>
-        {mediaMsg?.type === 'ok' ? <div className="alert alert--success">{mediaMsg.text}</div> : null}
-        {mediaMsg?.type === 'err' ? <div className="alert alert--error">{mediaMsg.text}</div> : null}
-        <form className="form-row" onSubmit={handlePhotoUpload}>
-          <div className="field">
-            <label>Файл</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
-            />
-          </div>
-          <button type="submit" className="btn btn--primary">Загрузить фото</button>
-        </form>
-        <p className="page__lead" style={{ margin: '0.75rem 0 0' }}>
-          Перед отправкой фото автоматически уменьшается и сохраняется как JPEG. Ошибка 413 означает жёсткий лимит на сервере; тогда нужно увеличить лимит загрузки в nginx или в приложении.
-        </p>
-      </div>
-
-      <div className="panel" style={{ marginTop: '1.5rem' }}>
-        <h2 className="panel__title">Full update (PUT /student/{'{id}'})</h2>
-        {msg?.type === 'ok' ? <div className="alert alert--success">{msg.text}</div> : null}
-        {msg?.type === 'err' ? <div className="alert alert--error">{msg.text}</div> : null}
-        <form onSubmit={handleUpdate}>
-          <div className="form-row">
-            <div className="field"><label>First name</label><input required value={form.firstName} onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))} /></div>
-            <div className="field"><label>Last name</label><input required value={form.lastName} onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))} /></div>
-            <div className="field"><label>Birth date</label><input type="date" required value={form.birthDate} onChange={(e) => setForm((p) => ({ ...p, birthDate: e.target.value }))} /></div>
-          </div>
-          <div className="form-row">
-            <div className="field"><label>Course</label><select value={form.course} onChange={(e) => setForm((p) => ({ ...p, course: e.target.value }))}><option value="NEW">NEW</option><option value="FIRST">FIRST</option><option value="SECOND">SECOND</option><option value="THIRD">THIRD</option><option value="FOURTH">FOURTH</option></select></div>
-            <div className="field"><label>Busyness</label><select value={form.busyness} onChange={(e) => setForm((p) => ({ ...p, busyness: e.target.value }))}><option value="FREE">FREE</option><option value="FREELANCE">FREELANCE</option><option value="EMPLOYED">EMPLOYED</option></select></div>
-            <div className="field"><label>Speciality ID</label><input type="number" min="0" required value={form.specialityId} onChange={(e) => setForm((p) => ({ ...p, specialityId: e.target.value }))} /></div>
-            <div className="field" style={{ minWidth: 280 }}><label>Skills IDs (comma separated)</label><input required value={form.skillsIds} onChange={(e) => setForm((p) => ({ ...p, skillsIds: e.target.value }))} placeholder="1,2,10" /></div>
-          </div>
-          <div className="form-row">
-            <div className="field"><label>City</label><input value={form.city} onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))} /></div>
-            <div className="field"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} /></div>
-            <div className="field"><label>Phone</label><input value={form.phoneNumber} onChange={(e) => setForm((p) => ({ ...p, phoneNumber: e.target.value }))} /></div>
-            <div className="field"><label>Telegram username</label><input value={form.telegramUsername} onChange={(e) => setForm((p) => ({ ...p, telegramUsername: e.target.value }))} /></div>
-          </div>
-          <div className="form-row">
-            <div className="field" style={{ minWidth: 300, flex: 1 }}><label>HH Link</label><input value={form.hhLink} onChange={(e) => setForm((p) => ({ ...p, hhLink: e.target.value }))} /></div>
-            <div className="field" style={{ minWidth: 300, flex: 1 }}><label>Bio</label><input value={form.bio} onChange={(e) => setForm((p) => ({ ...p, bio: e.target.value }))} /></div>
-            <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
-          </div>
-        </form>
       </div>
 
       <div className="panel">

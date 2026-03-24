@@ -4,6 +4,8 @@ import * as studentsApi from '../api/students.js';
 import * as skillsApi from '../api/skills.js';
 import * as specialitiesApi from '../api/specialities.js';
 import { API_BASE } from '../config.js';
+import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
+import { compressImageForUpload } from '../utils/compressImage.js';
 
 const PAGE_SIZE = 12;
 
@@ -24,6 +26,10 @@ export function Students() {
   const [skillsOptions, setSkillsOptions] = useState([]);
   const [specialityOptions, setSpecialityOptions] = useState([]);
   const [optionsError, setOptionsError] = useState(null);
+  const [createdStudent, setCreatedStudent] = useState(null);
+  const [createPhotoFile, setCreatePhotoFile] = useState(null);
+  const [createPhotoUploading, setCreatePhotoUploading] = useState(false);
+  const [createPhotoMsg, setCreatePhotoMsg] = useState(null);
   const [createForm, setCreateForm] = useState({
     city: '',
     hhLink: '',
@@ -96,9 +102,19 @@ export function Students() {
     loadOptions();
   }, []);
 
+  function extractCreatedStudentId(data) {
+    if (data == null) return null;
+    if (typeof data === 'object' && 'id' in data && data.id != null) {
+      return Number(data.id);
+    }
+    if (typeof data === 'number' && Number.isInteger(data)) return data;
+    return null;
+  }
+
   async function handleCreate(e) {
     e.preventDefault();
     setCreateMsg(null);
+    setCreatePhotoMsg(null);
     try {
       const skillsIds = createForm.skillsIds
         .map((x) => Number(x))
@@ -125,16 +141,31 @@ export function Students() {
             : Number(createForm.specialityId),
         skillsIds,
       };
+      let resData;
       if (createMode === 'extended') {
         payload.portfolios = JSON.parse(createForm.portfoliosJson || '[]');
         payload.experiences = JSON.parse(createForm.experiencesJson || '[]');
         payload.institutions = JSON.parse(createForm.institutionsJson || '[]');
         payload.educations = JSON.parse(createForm.educationsJson || '[]');
-        await studentsApi.createExtendedStudent(payload);
+        ({ data: resData } = await studentsApi.createExtendedStudent(payload));
       } else {
-        await studentsApi.createStudent(payload);
+        ({ data: resData } = await studentsApi.createStudent(payload));
       }
+      const newId = extractCreatedStudentId(resData);
       setCreateMsg({ type: 'ok', text: 'Студент создан' });
+      if (newId != null) {
+        setCreatedStudent({
+          id: newId,
+          imagePath:
+            typeof resData === 'object' && resData?.imagePath != null
+              ? resData.imagePath
+              : null,
+          firstName: createForm.firstName.trim(),
+        });
+        setCreatePhotoFile(null);
+      } else {
+        setCreatedStudent(null);
+      }
       setCreateForm({
         city: '',
         hhLink: '',
@@ -158,6 +189,49 @@ export function Students() {
       await load();
     } catch (e) {
       setCreateMsg({ type: 'err', text: e.message });
+    }
+  }
+
+  async function handleCreatePhotoUpload(e) {
+    e.preventDefault();
+    setCreatePhotoMsg(null);
+    if (!createdStudent?.id) {
+      setCreatePhotoMsg({ type: 'err', text: 'Нет ID студента' });
+      return;
+    }
+    if (!createPhotoFile) {
+      setCreatePhotoMsg({ type: 'err', text: 'Выберите файл фото' });
+      return;
+    }
+    setCreatePhotoUploading(true);
+    try {
+      let fileToSend = createPhotoFile;
+      if (createPhotoFile.type.startsWith('image/')) {
+        try {
+          fileToSend = await compressImageForUpload(createPhotoFile);
+        } catch {
+          fileToSend = createPhotoFile;
+        }
+      }
+      await studentsApi.uploadStudentPhoto(createdStudent.id, fileToSend);
+      setCreatePhotoFile(null);
+      setCreatePhotoMsg({ type: 'ok', text: 'Фото загружено' });
+      const { data: fresh } = await studentsApi.getStudent(createdStudent.id);
+      if (fresh && typeof fresh === 'object') {
+        setCreatedStudent((prev) =>
+          prev
+            ? {
+                ...prev,
+                imagePath: fresh.imagePath ?? prev.imagePath,
+              }
+            : prev
+        );
+      }
+      await load();
+    } catch (err) {
+      setCreatePhotoMsg({ type: 'err', text: err.message });
+    } finally {
+      setCreatePhotoUploading(false);
     }
   }
 
@@ -308,28 +382,16 @@ export function Students() {
                   ))}
                 </select>
               </div>
-              <div className="field" style={{ minWidth: 300 }}>
-                <label>Skills (по названию)</label>
-                <select
-                  required
-                  multiple
-                  value={createForm.skillsIds.map(String)}
-                  onChange={(e) =>
-                    setCreateForm((p) => ({
-                      ...p,
-                      skillsIds: Array.from(e.target.selectedOptions, (o) =>
-                        Number(o.value)
-                      ),
-                    }))
-                  }
-                >
-                  {skillsOptions.map((s) => (
-                    <option key={s.id} value={String(s.id)}>
-                      {s.name} (ID: {s.id})
-                    </option>
-                  ))}
-                </select>
-              </div>
+            </div>
+            <div className="field skill-picker-field">
+              <label>Навыки</label>
+              <SkillPicker
+                options={skillsOptions}
+                selectedIds={createForm.skillsIds}
+                onChange={(ids) =>
+                  setCreateForm((p) => ({ ...p, skillsIds: ids }))
+                }
+              />
             </div>
             <div className="form-row">
               <div className="field">
@@ -444,6 +506,62 @@ export function Students() {
               </>
             ) : null}
           </form>
+        ) : null}
+        {createdStudent ? (
+          <div className="created-student-photo panel panel--nested">
+            <h3 className="panel__title panel__title--small">
+              Фото студента (ID: {createdStudent.id})
+            </h3>
+            {createPhotoMsg?.type === 'ok' ? (
+              <div className="alert alert--success">{createPhotoMsg.text}</div>
+            ) : null}
+            {createPhotoMsg?.type === 'err' ? (
+              <div className="alert alert--error">{createPhotoMsg.text}</div>
+            ) : null}
+            <StudentPhotoBlock
+              imagePath={createdStudent.imagePath}
+              studentId={createdStudent.id}
+              firstName={createdStudent.firstName}
+              title="Превью"
+            >
+              <form
+                className="student-photo-block__upload"
+                onSubmit={handleCreatePhotoUpload}
+              >
+                <div className="field">
+                  <label htmlFor="create-student-photo-file">Файл изображения</label>
+                  <input
+                    id="create-student-photo-file"
+                    key={createdStudent.id}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) =>
+                      setCreatePhotoFile(e.target.files?.[0] ?? null)
+                    }
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="btn btn--primary"
+                  disabled={createPhotoUploading}
+                >
+                  {createPhotoUploading ? 'Загрузка…' : 'Загрузить / сменить фото'}
+                </button>
+              </form>
+            </StudentPhotoBlock>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              style={{ marginTop: '0.75rem' }}
+              onClick={() => {
+                setCreatedStudent(null);
+                setCreatePhotoMsg(null);
+                setCreatePhotoFile(null);
+              }}
+            >
+              Скрыть блок фото
+            </button>
+          </div>
         ) : null}
       </div>
 

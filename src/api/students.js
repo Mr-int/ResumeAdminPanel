@@ -42,6 +42,6 @@ export function patchStudent(id, body) {
 
 export function uploadStudentPhoto(id, file) {
   const body = new FormData();
-  body.append('file', file);
+  body.append('avatarFile', file);
   return apiFetch(`/student/photo/${id}`, { method: 'POST', body });
 }
