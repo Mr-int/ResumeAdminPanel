@@ -37,10 +37,14 @@ export async function apiFetch(path, options = {}) {
   }
 
   if (!res.ok) {
-    const msg =
+    let msg =
       typeof data === 'object' && data && (data.message || data.error)
         ? data.message || data.error
         : `HTTP ${res.status}`;
+    if (res.status === 413) {
+      msg =
+        'Файл слишком большой для сервера (413). Попробуйте другое фото или уменьшите размер. Если ошибка повторяется, на стороне API нужно увеличить лимит тела запроса (например client_max_body_size в nginx).';
+    }
     const err = new Error(typeof msg === 'string' ? msg : `HTTP ${res.status}`);
     err.status = res.status;
     err.body = data;

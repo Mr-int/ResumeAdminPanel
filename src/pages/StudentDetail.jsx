@@ -6,6 +6,7 @@ import * as institutionApi from '../api/institutions.js';
 import * as educationApi from '../api/education.js';
 import * as portfolioApi from '../api/portfolio.js';
 import { API_BASE } from '../config.js';
+import { compressImageForUpload } from '../utils/compressImage.js';
 
 function photoUrl(path) {
   if (!path) return null;
@@ -31,11 +32,27 @@ export function StudentDetail() {
   const [mediaMsg, setMediaMsg] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
   const [extendedMsg, setExtendedMsg] = useState(null);
-  const [jsonDrafts, setJsonDrafts] = useState({
-    experience: '{}',
-    institution: '{}',
-    education: '{}',
-    portfolio: '{}',
+  const [experienceForm, setExperienceForm] = useState({
+    companyId: '',
+    position: '',
+    additionalInfo: '',
+    startDate: '',
+    endDate: '',
+  });
+  const [institutionForm, setInstitutionForm] = useState({
+    educationId: '',
+    startYear: '',
+    endYear: '',
+  });
+  const [educationForm, setEducationForm] = useState({
+    institution: '',
+    additionalInfo: '',
+    webUrl: '',
+  });
+  const [portfolioForm, setPortfolioForm] = useState({
+    name: '',
+    link: '',
+    additionalInfo: '',
   });
   const [form, setForm] = useState({
     city: '', hhLink: '', birthDate: '', bio: '', course: 'NEW', busyness: 'FREE',
@@ -120,7 +137,15 @@ export function StudentDetail() {
     }
     setMediaMsg(null);
     try {
-      await studentsApi.uploadStudentPhoto(id, photoFile);
+      let fileToSend = photoFile;
+      if (photoFile.type.startsWith('image/')) {
+        try {
+          fileToSend = await compressImageForUpload(photoFile);
+        } catch {
+          fileToSend = photoFile;
+        }
+      }
+      await studentsApi.uploadStudentPhoto(id, fileToSend);
       setPhotoFile(null);
       setMediaMsg({ type: 'ok', text: 'Фото обновлено' });
       await loadStudent();
@@ -129,18 +154,83 @@ export function StudentDetail() {
     }
   }
 
-  async function createExtendedPart(kind) {
+  async function createExperience() {
     setExtendedMsg(null);
     try {
-      const draft = jsonDrafts[kind];
-      const parsed = JSON.parse(draft || '{}');
-      const payload = { ...parsed, studentId: parsed.studentId ?? id };
-      if (kind === 'experience') await experienceApi.createExperience(payload);
-      if (kind === 'institution') await institutionApi.createInstitution(payload);
-      if (kind === 'education') await educationApi.createEducation(payload);
-      if (kind === 'portfolio') await portfolioApi.createPortfolio(payload);
-      setExtendedMsg({ type: 'ok', text: `${kind} добавлен` });
-      setJsonDrafts((p) => ({ ...p, [kind]: '{}' }));
+      await experienceApi.createExperience({
+        companyId: Number(experienceForm.companyId),
+        studentId: id,
+        experience: {
+          id: 0,
+          position: experienceForm.position.trim(),
+          additionalInfo: experienceForm.additionalInfo || '',
+          startDate: experienceForm.startDate,
+          endDate: experienceForm.endDate,
+        },
+      });
+      setExperienceForm({
+        companyId: '',
+        position: '',
+        additionalInfo: '',
+        startDate: '',
+        endDate: '',
+      });
+      setExtendedMsg({ type: 'ok', text: 'experience добавлен' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    }
+  }
+
+  async function createInstitution() {
+    setExtendedMsg(null);
+    try {
+      await institutionApi.createInstitution({
+        educationId: Number(institutionForm.educationId),
+        studentId: id,
+        institution: {
+          id: 0,
+          startYear: Number(institutionForm.startYear),
+          endYear: Number(institutionForm.endYear),
+        },
+      });
+      setInstitutionForm({ educationId: '', startYear: '', endYear: '' });
+      setExtendedMsg({ type: 'ok', text: 'institution добавлен' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    }
+  }
+
+  async function createEducation() {
+    setExtendedMsg(null);
+    try {
+      await educationApi.createEducation({
+        id: 0,
+        institution: educationForm.institution.trim(),
+        additionalInfo: educationForm.additionalInfo || '',
+        webUrl: educationForm.webUrl || '',
+      });
+      setEducationForm({ institution: '', additionalInfo: '', webUrl: '' });
+      setExtendedMsg({ type: 'ok', text: 'education добавлен' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    }
+  }
+
+  async function createPortfolio() {
+    setExtendedMsg(null);
+    try {
+      await portfolioApi.createPortfolio({
+        id: 0,
+        name: portfolioForm.name.trim(),
+        link: portfolioForm.link || '',
+        additionalInfo: portfolioForm.additionalInfo || '',
+        studentId: id,
+      });
+      setPortfolioForm({ name: '', link: '', additionalInfo: '' });
+      setExtendedMsg({ type: 'ok', text: 'portfolio добавлен' });
       await loadStudent();
     } catch (e) {
       setExtendedMsg({ type: 'err', text: e.message });
@@ -195,6 +285,9 @@ export function StudentDetail() {
           </div>
           <button type="submit" className="btn btn--primary">Загрузить фото</button>
         </form>
+        <p className="page__lead" style={{ margin: '0.75rem 0 0' }}>
+          Перед отправкой фото автоматически уменьшается и сохраняется как JPEG. Ошибка 413 означает жёсткий лимит на сервере; тогда нужно увеличить лимит загрузки в nginx или в приложении.
+        </p>
       </div>
 
       <div className="panel" style={{ marginTop: '1.5rem' }}>
@@ -233,18 +326,52 @@ export function StudentDetail() {
         {extendedMsg?.type === 'err' ? <div className="alert alert--error">{extendedMsg.text}</div> : null}
 
         <div className="form-row">
-          <div className="field" style={{ minWidth: 320, flex: 1 }}>
-            <label>Experience JSON object</label>
+          <div className="field">
+            <label>Experience: Company ID</label>
             <input
-              value={jsonDrafts.experience}
+              type="number"
+              min="0"
+              value={experienceForm.companyId}
+              onChange={(e) => setExperienceForm((p) => ({ ...p, companyId: e.target.value }))}
+            />
+          </div>
+          <div className="field">
+            <label>Position</label>
+            <input
+              value={experienceForm.position}
+              onChange={(e) => setExperienceForm((p) => ({ ...p, position: e.target.value }))}
+            />
+          </div>
+          <div className="field">
+            <label>Start date</label>
+            <input
+              type="date"
+              value={experienceForm.startDate}
+              onChange={(e) => setExperienceForm((p) => ({ ...p, startDate: e.target.value }))}
+            />
+          </div>
+          <div className="field">
+            <label>End date</label>
+            <input
+              type="date"
+              value={experienceForm.endDate}
+              onChange={(e) => setExperienceForm((p) => ({ ...p, endDate: e.target.value }))}
+            />
+          </div>
+          <button type="button" className="btn btn--primary" onClick={createExperience}>
+            Добавить Experience
+          </button>
+        </div>
+        <div className="form-row" style={{ marginTop: '-0.5rem' }}>
+          <div className="field" style={{ minWidth: 320, flex: 1 }}>
+            <label>Additional info</label>
+            <input
+              value={experienceForm.additionalInfo}
               onChange={(e) =>
-                setJsonDrafts((p) => ({ ...p, experience: e.target.value }))
+                setExperienceForm((p) => ({ ...p, additionalInfo: e.target.value }))
               }
             />
           </div>
-          <button type="button" className="btn btn--primary" onClick={() => createExtendedPart('experience')}>
-            Добавить Experience
-          </button>
         </div>
         <div className="table-wrap" style={{ marginBottom: '1rem' }}>
           <table className="data">
@@ -264,16 +391,40 @@ export function StudentDetail() {
         </div>
 
         <div className="form-row">
-          <div className="field" style={{ minWidth: 320, flex: 1 }}>
-            <label>Institution JSON object</label>
+          <div className="field">
+            <label>Institution: Education ID</label>
             <input
-              value={jsonDrafts.institution}
+              type="number"
+              min="0"
+              value={institutionForm.educationId}
               onChange={(e) =>
-                setJsonDrafts((p) => ({ ...p, institution: e.target.value }))
+                setInstitutionForm((p) => ({ ...p, educationId: e.target.value }))
               }
             />
           </div>
-          <button type="button" className="btn btn--primary" onClick={() => createExtendedPart('institution')}>
+          <div className="field">
+            <label>Start year</label>
+            <input
+              type="number"
+              min="1900"
+              value={institutionForm.startYear}
+              onChange={(e) =>
+                setInstitutionForm((p) => ({ ...p, startYear: e.target.value }))
+              }
+            />
+          </div>
+          <div className="field">
+            <label>End year</label>
+            <input
+              type="number"
+              min="1900"
+              value={institutionForm.endYear}
+              onChange={(e) =>
+                setInstitutionForm((p) => ({ ...p, endYear: e.target.value }))
+              }
+            />
+          </div>
+          <button type="button" className="btn btn--primary" onClick={createInstitution}>
             Добавить Institution
           </button>
         </div>
@@ -295,18 +446,38 @@ export function StudentDetail() {
         </div>
 
         <div className="form-row">
-          <div className="field" style={{ minWidth: 320, flex: 1 }}>
-            <label>Education JSON object</label>
+          <div className="field">
+            <label>Education: Institution</label>
             <input
-              value={jsonDrafts.education}
+              value={educationForm.institution}
               onChange={(e) =>
-                setJsonDrafts((p) => ({ ...p, education: e.target.value }))
+                setEducationForm((p) => ({ ...p, institution: e.target.value }))
               }
             />
           </div>
-          <button type="button" className="btn btn--primary" onClick={() => createExtendedPart('education')}>
+          <div className="field" style={{ minWidth: 320, flex: 1 }}>
+            <label>Web URL</label>
+            <input
+              value={educationForm.webUrl}
+              onChange={(e) =>
+                setEducationForm((p) => ({ ...p, webUrl: e.target.value }))
+              }
+            />
+          </div>
+          <button type="button" className="btn btn--primary" onClick={createEducation}>
             Добавить Education
           </button>
+        </div>
+        <div className="form-row" style={{ marginTop: '-0.5rem' }}>
+          <div className="field" style={{ minWidth: 320, flex: 1 }}>
+            <label>Additional info</label>
+            <input
+              value={educationForm.additionalInfo}
+              onChange={(e) =>
+                setEducationForm((p) => ({ ...p, additionalInfo: e.target.value }))
+              }
+            />
+          </div>
         </div>
         <div className="table-wrap" style={{ marginBottom: '1rem' }}>
           <table className="data">
@@ -326,18 +497,38 @@ export function StudentDetail() {
         </div>
 
         <div className="form-row">
-          <div className="field" style={{ minWidth: 320, flex: 1 }}>
-            <label>Portfolio JSON object</label>
+          <div className="field">
+            <label>Portfolio: Name</label>
             <input
-              value={jsonDrafts.portfolio}
+              value={portfolioForm.name}
               onChange={(e) =>
-                setJsonDrafts((p) => ({ ...p, portfolio: e.target.value }))
+                setPortfolioForm((p) => ({ ...p, name: e.target.value }))
               }
             />
           </div>
-          <button type="button" className="btn btn--primary" onClick={() => createExtendedPart('portfolio')}>
+          <div className="field" style={{ minWidth: 320, flex: 1 }}>
+            <label>Link</label>
+            <input
+              value={portfolioForm.link}
+              onChange={(e) =>
+                setPortfolioForm((p) => ({ ...p, link: e.target.value }))
+              }
+            />
+          </div>
+          <button type="button" className="btn btn--primary" onClick={createPortfolio}>
             Добавить Portfolio
           </button>
+        </div>
+        <div className="form-row" style={{ marginTop: '-0.5rem' }}>
+          <div className="field" style={{ minWidth: 320, flex: 1 }}>
+            <label>Additional info</label>
+            <input
+              value={portfolioForm.additionalInfo}
+              onChange={(e) =>
+                setPortfolioForm((p) => ({ ...p, additionalInfo: e.target.value }))
+              }
+            />
+          </div>
         </div>
         <div className="table-wrap">
           <table className="data">
