@@ -7,6 +7,7 @@ const nav = [
   { to: '/users', label: 'Users' },
   { to: '/students', label: 'Students' },
   { to: '/skills', label: 'Skills' },
+  { to: '/specialities', label: 'Specialities' },
   { to: '/recruiters', label: 'Recruiters' },
   { to: '/requests', label: 'Requests' },
 ];
@@ -54,4 +55,3 @@ export function Layout() {
     </div>
   );
 }
-

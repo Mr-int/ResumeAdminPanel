@@ -6,6 +6,7 @@ import { Login } from './pages/Login.jsx';
 import { Recruiters } from './pages/Recruiters.jsx';
 import { Requests } from './pages/Requests.jsx';
 import { Skills } from './pages/Skills.jsx';
+import { Specialities } from './pages/Specialities.jsx';
 import { StudentDetail } from './pages/StudentDetail.jsx';
 import { Students } from './pages/Students.jsx';
 import { Users } from './pages/Users.jsx';
@@ -13,7 +14,7 @@ import { Users } from './pages/Users.jsx';
 function RequireAuth() {
   const { ready, authenticated } = useAuth();
   if (!ready) {
-    return <div className="page-loading">Р—Р°РіСЂСѓР·РєР°вЂ¦</div>;
+    return <div className="page-loading">Loading...</div>;
   }
   if (!authenticated) {
     return <Navigate to="/login" replace />;
@@ -30,8 +31,9 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/users" element={<Users />} />
           <Route path="/students" element={<Students />} />
-          <Route path="/skills" element={<Skills />} />
           <Route path="/students/:id" element={<StudentDetail />} />
+          <Route path="/skills" element={<Skills />} />
+          <Route path="/specialities" element={<Specialities />} />
           <Route path="/recruiters" element={<Recruiters />} />
           <Route path="/requests" element={<Requests />} />
         </Route>
