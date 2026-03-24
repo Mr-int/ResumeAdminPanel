@@ -39,19 +39,20 @@ export function SkillPicker({ options, selectedIds, onChange, searchPlaceholder 
         placeholder={searchPlaceholder}
         autoComplete="off"
       />
-      <div className="skill-picker__grid">
+      <ul className="skill-picker__list" role="listbox" aria-label="Навыки">
         {filtered.map((s) => (
-          <label key={s.id} className="skill-picker__item">
-            <input
-              type="checkbox"
-              checked={selectedIds.map(Number).includes(Number(s.id))}
-              onChange={() => toggle(s.id)}
-            />
-            <span>{s.name}</span>
-            <span className="skill-picker__id">#{s.id}</span>
-          </label>
+          <li key={s.id} className="skill-picker__row">
+            <label className="skill-picker__label">
+              <input
+                type="checkbox"
+                checked={selectedIds.map(Number).includes(Number(s.id))}
+                onChange={() => toggle(s.id)}
+              />
+              <span className="skill-picker__name">{s.name}</span>
+            </label>
+          </li>
         ))}
-      </div>
+      </ul>
       {filtered.length === 0 ? (
         <p className="skill-picker__empty">Ничего не найдено</p>
       ) : null}

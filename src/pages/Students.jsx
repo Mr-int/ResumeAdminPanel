@@ -6,6 +6,8 @@ import * as specialitiesApi from '../api/specialities.js';
 import { API_BASE } from '../config.js';
 import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
 import { compressImageForUpload } from '../utils/compressImage.js';
+import { buildExtendedNestedBodies } from '../utils/studentExtendedPayload.js';
+import { StudentCreateExtendedBlocks } from '../components/StudentCreateExtendedBlocks.jsx';
 
 const PAGE_SIZE = 12;
 
@@ -22,7 +24,6 @@ export function Students() {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createMsg, setCreateMsg] = useState(null);
-  const [createMode, setCreateMode] = useState('basic');
   const [skillsOptions, setSkillsOptions] = useState([]);
   const [specialityOptions, setSpecialityOptions] = useState([]);
   const [optionsError, setOptionsError] = useState(null);
@@ -44,10 +45,10 @@ export function Students() {
     telegramUsername: '',
     specialityId: '',
     skillsIds: [],
-    portfoliosJson: '[]',
-    experiencesJson: '[]',
-    institutionsJson: '[]',
-    educationsJson: '[]',
+    portfolioRows: [],
+    experienceRows: [],
+    institutionRows: [],
+    educationRows: [],
   });
 
   const load = useCallback(async () => {
@@ -123,6 +124,9 @@ export function Students() {
         throw new Error('Укажите хотя бы один навык');
       }
 
+      const { portfolios, experiences, institutions, educations } =
+        buildExtendedNestedBodies(createForm);
+
       const payload = {
         city: createForm.city || undefined,
         hhLink: createForm.hhLink || undefined,
@@ -140,17 +144,12 @@ export function Students() {
             ? undefined
             : Number(createForm.specialityId),
         skillsIds,
+        portfolios,
+        experiences,
+        institutions,
+        educations,
       };
-      let resData;
-      if (createMode === 'extended') {
-        payload.portfolios = JSON.parse(createForm.portfoliosJson || '[]');
-        payload.experiences = JSON.parse(createForm.experiencesJson || '[]');
-        payload.institutions = JSON.parse(createForm.institutionsJson || '[]');
-        payload.educations = JSON.parse(createForm.educationsJson || '[]');
-        ({ data: resData } = await studentsApi.createExtendedStudent(payload));
-      } else {
-        ({ data: resData } = await studentsApi.createStudent(payload));
-      }
+      const { data: resData } = await studentsApi.createExtendedStudent(payload);
       const newId = extractCreatedStudentId(resData);
       setCreateMsg({ type: 'ok', text: 'Студент создан' });
       if (newId != null) {
@@ -180,10 +179,10 @@ export function Students() {
         telegramUsername: '',
         specialityId: '',
         skillsIds: [],
-        portfoliosJson: '[]',
-        experiencesJson: '[]',
-        institutionsJson: '[]',
-        educationsJson: '[]',
+        portfolioRows: [],
+        experienceRows: [],
+        institutionRows: [],
+        educationRows: [],
       });
       setPage(0);
       await load();
@@ -273,7 +272,7 @@ export function Students() {
 
       <div className="panel">
         <h2 className="panel__title">
-          Создание студента ({createMode === 'extended' ? 'POST /student/extended' : 'POST /student'})
+          Создание студента (POST /student/extended)
         </h2>
         {createMsg?.type === 'ok' ? (
           <div className="alert alert--success">{createMsg.text}</div>
@@ -282,18 +281,6 @@ export function Students() {
           <div className="alert alert--error">{createMsg.text}</div>
         ) : null}
         {optionsError ? <div className="alert alert--error">{optionsError}</div> : null}
-        <div className="form-row">
-          <div className="field">
-            <label>Режим создания</label>
-            <select
-              value={createMode}
-              onChange={(e) => setCreateMode(e.target.value)}
-            >
-              <option value="basic">Базовый</option>
-              <option value="extended">Расширенный</option>
-            </select>
-          </div>
-        </div>
         <button
           type="button"
           className="btn btn--ghost"
@@ -367,7 +354,7 @@ export function Students() {
                 </select>
               </div>
               <div className="field">
-                <label>Speciality</label>
+                <label>Специальность</label>
                 <select
                   value={createForm.specialityId}
                   onChange={(e) =>
@@ -377,7 +364,7 @@ export function Students() {
                   <option value="">Не выбрано</option>
                   {specialityOptions.map((s) => (
                     <option key={s.id} value={String(s.id)}>
-                      {s.name} (ID: {s.id})
+                      {s.name}
                     </option>
                   ))}
                 </select>
@@ -454,57 +441,13 @@ export function Students() {
                   }
                 />
               </div>
+            </div>
+            <StudentCreateExtendedBlocks form={createForm} setForm={setCreateForm} />
+            <div className="form-row" style={{ marginTop: '1rem' }}>
               <button type="submit" className="btn btn--primary">
-                Создать
+                Создать студента
               </button>
             </div>
-            {createMode === 'extended' ? (
-              <>
-                <div className="form-row">
-                  <div className="field" style={{ minWidth: 320, flex: 1 }}>
-                    <label>Portfolios JSON array</label>
-                    <input
-                      value={createForm.portfoliosJson}
-                      onChange={(e) =>
-                        setCreateForm((p) => ({ ...p, portfoliosJson: e.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="field" style={{ minWidth: 320, flex: 1 }}>
-                    <label>Experiences JSON array</label>
-                    <input
-                      value={createForm.experiencesJson}
-                      onChange={(e) =>
-                        setCreateForm((p) => ({ ...p, experiencesJson: e.target.value }))
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="field" style={{ minWidth: 320, flex: 1 }}>
-                    <label>Institutions JSON array</label>
-                    <input
-                      value={createForm.institutionsJson}
-                      onChange={(e) =>
-                        setCreateForm((p) => ({ ...p, institutionsJson: e.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="field" style={{ minWidth: 320, flex: 1 }}>
-                    <label>Educations JSON array</label>
-                    <input
-                      value={createForm.educationsJson}
-                      onChange={(e) =>
-                        setCreateForm((p) => ({ ...p, educationsJson: e.target.value }))
-                      }
-                    />
-                  </div>
-                </div>
-                <p className="page__lead" style={{ marginTop: '-0.25rem' }}>
-                  Для пустого списка используйте [].
-                </p>
-              </>
-            ) : null}
           </form>
         ) : null}
         {createdStudent ? (
