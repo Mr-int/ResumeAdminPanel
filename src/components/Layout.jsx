@@ -3,13 +3,12 @@ import { useAuth } from '../context/AuthContext.jsx';
 import './Layout.css';
 
 const nav = [
-  { to: '/', label: 'РћР±Р·РѕСЂ', end: true },
-  { to: '/users', label: 'РџРѕР»СЊР·РѕРІР°С‚РµР»Рё' },
-  { to: '/students', label: 'РЎС‚СѓРґРµРЅС‚С‹' },
-  { to: '/skills', label: 'РќР°РІС‹РєРё' },
-  { to: '/skills', label: 'РќР°РІС‹РєРё' },
-  { to: '/recruiters', label: 'Р РµРєСЂСѓС‚РµСЂС‹' },
-  { to: '/requests', label: 'Р—Р°СЏРІРєРё' },
+  { to: '/', label: 'Overview', end: true },
+  { to: '/users', label: 'Users' },
+  { to: '/students', label: 'Students' },
+  { to: '/skills', label: 'Skills' },
+  { to: '/recruiters', label: 'Recruiters' },
+  { to: '/requests', label: 'Requests' },
 ];
 
 export function Layout() {
@@ -28,7 +27,7 @@ export function Layout() {
           <span className="sidebar__logo" aria-hidden />
           <div>
             <div className="sidebar__title">Resume</div>
-            <div className="sidebar__subtitle">РђРґРјРёРЅ-РїР°РЅРµР»СЊ</div>
+            <div className="sidebar__subtitle">Admin panel</div>
           </div>
         </div>
         <nav className="sidebar__nav">
@@ -46,7 +45,7 @@ export function Layout() {
           ))}
         </nav>
         <button type="button" className="sidebar__logout" onClick={handleLogout}>
-          Р’С‹Р№С‚Рё
+          Logout
         </button>
       </aside>
       <main className="main">

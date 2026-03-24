@@ -25,19 +25,9 @@ export function StudentDetail() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
   const [form, setForm] = useState({
-    city: '',
-    hhLink: '',
-    birthDate: '',
-    bio: '',
-    course: 'NEW',
-    busyness: 'FREE',
-    firstName: '',
-    lastName: '',
-    email: '',
-    phoneNumber: '',
-    telegramUsername: '',
-    specialityId: '',
-    skillsIds: '',
+    city: '', hhLink: '', birthDate: '', bio: '', course: 'NEW', busyness: 'FREE',
+    firstName: '', lastName: '', email: '', phoneNumber: '', telegramUsername: '',
+    specialityId: '', skillsIds: '',
   });
 
   async function loadStudent() {
@@ -47,19 +37,11 @@ export function StudentDetail() {
       const { data } = await studentsApi.getStudent(id);
       setStudent(data);
       setForm({
-        city: data.city ?? '',
-        hhLink: data.hhLink ?? '',
-        birthDate: data.birthDate ?? '',
-        bio: data.bio ?? '',
-        course: data.course ?? 'NEW',
-        busyness: data.busyness ?? 'FREE',
-        firstName: data.firstName ?? '',
-        lastName: data.lastName ?? '',
-        email: data.email ?? '',
-        phoneNumber: data.phoneNumber ?? '',
-        telegramUsername: data.telegramUsername ?? '',
-        specialityId: '',
-        skillsIds: (data.skills ?? []).map((s) => s.id).join(','),
+        city: data.city ?? '', hhLink: data.hhLink ?? '', birthDate: data.birthDate ?? '',
+        bio: data.bio ?? '', course: data.course ?? 'NEW', busyness: data.busyness ?? 'FREE',
+        firstName: data.firstName ?? '', lastName: data.lastName ?? '', email: data.email ?? '',
+        phoneNumber: data.phoneNumber ?? '', telegramUsername: data.telegramUsername ?? '',
+        specialityId: '', skillsIds: (data.skills ?? []).map((s) => s.id).join(','),
       });
     } catch (e) {
       setError(e.message);
@@ -68,9 +50,7 @@ export function StudentDetail() {
     }
   }
 
-  useEffect(() => {
-    loadStudent();
-  }, [id]);
+  useEffect(() => { loadStudent(); }, [id]);
 
   async function handleUpdate(e) {
     e.preventDefault();
@@ -78,10 +58,8 @@ export function StudentDetail() {
     setSaving(true);
     try {
       const skillsIds = parseIds(form.skillsIds);
-      if (!skillsIds.length) throw new Error('РЈРєР°Р¶РёС‚Рµ skillsIds (РјРёРЅРёРјСѓРј РѕРґРёРЅ id)');
-      if (form.specialityId === '') {
-        throw new Error('Р”Р»СЏ РїРѕР»РЅРѕРіРѕ PUT СѓРєР°Р¶РёС‚Рµ specialityId');
-      }
+      if (!skillsIds.length) throw new Error('Provide at least one skills id');
+      if (form.specialityId === '') throw new Error('specialityId is required for PUT');
 
       await studentsApi.updateStudent(id, {
         city: form.city || undefined,
@@ -99,7 +77,7 @@ export function StudentDetail() {
         skillsIds,
       });
 
-      setMsg({ type: 'ok', text: 'РЎС‚СѓРґРµРЅС‚ РѕР±РЅРѕРІР»РµРЅ' });
+      setMsg({ type: 'ok', text: 'Student updated' });
       await loadStudent();
     } catch (e) {
       setMsg({ type: 'err', text: e.message });
@@ -108,193 +86,54 @@ export function StudentDetail() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="page">
-        <p className="page__lead">Р—Р°РіСЂСѓР·РєР°...</p>
-      </div>
-    );
-  }
-
+  if (loading) return <div className="page"><p className="page__lead">Loading...</p></div>;
   if (error || !student) {
-    return (
-      <div className="page">
-        <div className="alert alert--error">{error ?? 'РќРµ РЅР°Р№РґРµРЅРѕ'}</div>
-        <Link to="/students" className="btn btn--ghost">
-          Рљ СЃРїРёСЃРєСѓ
-        </Link>
-      </div>
-    );
+    return <div className="page"><div className="alert alert--error">{error ?? 'Not found'}</div><Link to="/students" className="btn btn--ghost">Back to list</Link></div>;
   }
 
   const src = photoUrl(student.imagePath);
 
   return (
     <div className="page">
-      <p style={{ marginBottom: '1rem' }}>
-        <Link to="/students" style={{ color: 'var(--text-secondary)' }}>
-          в†ђ РЎС‚СѓРґРµРЅС‚С‹
-        </Link>
-      </p>
-
+      <p style={{ marginBottom: '1rem' }}><Link to="/students" style={{ color: 'var(--text-secondary)' }}>Back to students</Link></p>
       <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-        {src ? (
-          <img
-            src={src}
-            alt=""
-            style={{
-              width: 160,
-              height: 160,
-              borderRadius: 12,
-              objectFit: 'cover',
-              border: '1px solid var(--border)',
-            }}
-          />
-        ) : null}
+        {src ? <img src={src} alt="" style={{ width: 160, height: 160, borderRadius: 12, objectFit: 'cover', border: '1px solid var(--border)' }} /> : null}
         <div>
-          <h1 className="page__title" style={{ marginBottom: '0.25rem' }}>
-            {student.firstName} {student.lastName}
-          </h1>
-          <p className="page__lead" style={{ marginBottom: '0.75rem' }}>
-            {student.speciality} В· {student.course} В· {student.busyness}
-          </p>
+          <h1 className="page__title" style={{ marginBottom: '0.25rem' }}>{student.firstName} {student.lastName}</h1>
+          <p className="page__lead" style={{ marginBottom: '0.75rem' }}>{student.speciality} - {student.course} - {student.busyness}</p>
         </div>
       </div>
 
       <div className="panel" style={{ marginTop: '1.5rem' }}>
-        <h2 className="panel__title">РџРѕР»РЅРѕРµ РѕР±РЅРѕРІР»РµРЅРёРµ (PUT /student/{'{id}'})</h2>
+        <h2 className="panel__title">Full update (PUT /student/{'{id}'})</h2>
         {msg?.type === 'ok' ? <div className="alert alert--success">{msg.text}</div> : null}
         {msg?.type === 'err' ? <div className="alert alert--error">{msg.text}</div> : null}
         <form onSubmit={handleUpdate}>
           <div className="form-row">
-            <div className="field">
-              <label>РРјСЏ</label>
-              <input
-                required
-                value={form.firstName}
-                onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))}
-              />
-            </div>
-            <div className="field">
-              <label>Р¤Р°РјРёР»РёСЏ</label>
-              <input
-                required
-                value={form.lastName}
-                onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))}
-              />
-            </div>
-            <div className="field">
-              <label>Р”Р°С‚Р° СЂРѕР¶РґРµРЅРёСЏ</label>
-              <input
-                type="date"
-                required
-                value={form.birthDate}
-                onChange={(e) => setForm((p) => ({ ...p, birthDate: e.target.value }))}
-              />
-            </div>
+            <div className="field"><label>First name</label><input required value={form.firstName} onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))} /></div>
+            <div className="field"><label>Last name</label><input required value={form.lastName} onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))} /></div>
+            <div className="field"><label>Birth date</label><input type="date" required value={form.birthDate} onChange={(e) => setForm((p) => ({ ...p, birthDate: e.target.value }))} /></div>
           </div>
-
           <div className="form-row">
-            <div className="field">
-              <label>РљСѓСЂСЃ</label>
-              <select
-                value={form.course}
-                onChange={(e) => setForm((p) => ({ ...p, course: e.target.value }))}
-              >
-                <option value="NEW">NEW</option>
-                <option value="FIRST">FIRST</option>
-                <option value="SECOND">SECOND</option>
-                <option value="THIRD">THIRD</option>
-                <option value="FOURTH">FOURTH</option>
-              </select>
-            </div>
-            <div className="field">
-              <label>Р—Р°РЅСЏС‚РѕСЃС‚СЊ</label>
-              <select
-                value={form.busyness}
-                onChange={(e) => setForm((p) => ({ ...p, busyness: e.target.value }))}
-              >
-                <option value="FREE">FREE</option>
-                <option value="FREELANCE">FREELANCE</option>
-                <option value="EMPLOYED">EMPLOYED</option>
-              </select>
-            </div>
-            <div className="field">
-              <label>Speciality ID (РѕР±СЏР·. РґР»СЏ PUT)</label>
-              <input
-                type="number"
-                min="0"
-                required
-                value={form.specialityId}
-                onChange={(e) => setForm((p) => ({ ...p, specialityId: e.target.value }))}
-              />
-            </div>
-            <div className="field" style={{ minWidth: 280 }}>
-              <label>Skills IDs (С‡РµСЂРµР· Р·Р°РїСЏС‚СѓСЋ)</label>
-              <input
-                required
-                value={form.skillsIds}
-                onChange={(e) => setForm((p) => ({ ...p, skillsIds: e.target.value }))}
-                placeholder="1,2,10"
-              />
-            </div>
+            <div className="field"><label>Course</label><select value={form.course} onChange={(e) => setForm((p) => ({ ...p, course: e.target.value }))}><option value="NEW">NEW</option><option value="FIRST">FIRST</option><option value="SECOND">SECOND</option><option value="THIRD">THIRD</option><option value="FOURTH">FOURTH</option></select></div>
+            <div className="field"><label>Busyness</label><select value={form.busyness} onChange={(e) => setForm((p) => ({ ...p, busyness: e.target.value }))}><option value="FREE">FREE</option><option value="FREELANCE">FREELANCE</option><option value="EMPLOYED">EMPLOYED</option></select></div>
+            <div className="field"><label>Speciality ID</label><input type="number" min="0" required value={form.specialityId} onChange={(e) => setForm((p) => ({ ...p, specialityId: e.target.value }))} /></div>
+            <div className="field" style={{ minWidth: 280 }}><label>Skills IDs (comma separated)</label><input required value={form.skillsIds} onChange={(e) => setForm((p) => ({ ...p, skillsIds: e.target.value }))} placeholder="1,2,10" /></div>
           </div>
-
           <div className="form-row">
-            <div className="field">
-              <label>Р“РѕСЂРѕРґ</label>
-              <input
-                value={form.city}
-                onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
-              />
-            </div>
-            <div className="field">
-              <label>Email</label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-              />
-            </div>
-            <div className="field">
-              <label>РўРµР»РµС„РѕРЅ</label>
-              <input
-                value={form.phoneNumber}
-                onChange={(e) => setForm((p) => ({ ...p, phoneNumber: e.target.value }))}
-              />
-            </div>
-            <div className="field">
-              <label>Telegram username</label>
-              <input
-                value={form.telegramUsername}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, telegramUsername: e.target.value }))
-                }
-              />
-            </div>
+            <div className="field"><label>City</label><input value={form.city} onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))} /></div>
+            <div className="field"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} /></div>
+            <div className="field"><label>Phone</label><input value={form.phoneNumber} onChange={(e) => setForm((p) => ({ ...p, phoneNumber: e.target.value }))} /></div>
+            <div className="field"><label>Telegram username</label><input value={form.telegramUsername} onChange={(e) => setForm((p) => ({ ...p, telegramUsername: e.target.value }))} /></div>
           </div>
-
           <div className="form-row">
-            <div className="field" style={{ minWidth: 300, flex: 1 }}>
-              <label>HH Link</label>
-              <input
-                value={form.hhLink}
-                onChange={(e) => setForm((p) => ({ ...p, hhLink: e.target.value }))}
-              />
-            </div>
-            <div className="field" style={{ minWidth: 300, flex: 1 }}>
-              <label>Bio</label>
-              <input
-                value={form.bio}
-                onChange={(e) => setForm((p) => ({ ...p, bio: e.target.value }))}
-              />
-            </div>
-            <button type="submit" className="btn btn--primary" disabled={saving}>
-              {saving ? 'РЎРѕС…СЂР°РЅРµРЅРёРµ...' : 'РЎРѕС…СЂР°РЅРёС‚СЊ'}
-            </button>
+            <div className="field" style={{ minWidth: 300, flex: 1 }}><label>HH Link</label><input value={form.hhLink} onChange={(e) => setForm((p) => ({ ...p, hhLink: e.target.value }))} /></div>
+            <div className="field" style={{ minWidth: 300, flex: 1 }}><label>Bio</label><input value={form.bio} onChange={(e) => setForm((p) => ({ ...p, bio: e.target.value }))} /></div>
+            <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
           </div>
         </form>
       </div>
     </div>
   );
 }
+
