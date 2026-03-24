@@ -8,13 +8,19 @@ import * as portfolioApi from '../api/portfolio.js';
 import * as skillsApi from '../api/skills.js';
 import * as specialitiesApi from '../api/specialities.js';
 import { compressImageForUpload } from '../utils/compressImage.js';
-import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
 import {
-  ExperienceRecordList,
-  InstitutionRecordList,
-  EducationRecordList,
-  PortfolioRecordList,
-} from '../components/StudentExtendedRecordLists.jsx';
+  contactFieldsFromStudentDto,
+  contactFieldsToApiPayload,
+} from '../utils/studentContact.js';
+import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
+import { StudentCreateExtendedBlocks } from '../components/StudentCreateExtendedBlocks.jsx';
+
+const emptyExtDraft = () => ({
+  portfolioRows: [],
+  experienceRows: [],
+  institutionRows: [],
+  educationRows: [],
+});
 
 export function StudentDetail() {
   const { id } = useParams();
@@ -30,33 +36,41 @@ export function StudentDetail() {
   const [specialityOptions, setSpecialityOptions] = useState([]);
   const [optionsError, setOptionsError] = useState(null);
   const [extendedMsg, setExtendedMsg] = useState(null);
-  const [experienceForm, setExperienceForm] = useState({
-    companyId: '',
-    position: '',
-    additionalInfo: '',
-    startDate: '',
-    endDate: '',
-  });
-  const [institutionForm, setInstitutionForm] = useState({
-    educationId: '',
-    startYear: '',
-    endYear: '',
-  });
-  const [educationForm, setEducationForm] = useState({
-    institution: '',
-    additionalInfo: '',
-    webUrl: '',
-  });
-  const [portfolioForm, setPortfolioForm] = useState({
-    name: '',
-    link: '',
-    additionalInfo: '',
+  const [extDraft, setExtDraft] = useState(emptyExtDraft);
+  const [committing, setCommitting] = useState({
+    portfolio: false,
+    experience: false,
+    institution: false,
+    education: false,
   });
   const [form, setForm] = useState({
     city: '', hhLink: '', birthDate: '', bio: '', course: 'NEW', busyness: 'FREE',
     firstName: '', lastName: '', email: '', phoneNumber: '', telegramUsername: '',
     specialityId: '', skillsIds: [],
   });
+
+  function applyStudentToForm(data, specList) {
+    const contact = contactFieldsFromStudentDto(data);
+    let specialityId = '';
+    if (data.specialityId != null && data.specialityId !== '') {
+      specialityId = String(data.specialityId);
+    } else {
+      const specName =
+        typeof data.speciality === 'string' ? data.speciality.trim() : '';
+      const match = specList.find((s) => s.name === specName);
+      if (match) specialityId = String(match.id);
+    }
+    setForm({
+      city: data.city ?? '', hhLink: data.hhLink ?? '', birthDate: data.birthDate ?? '',
+      bio: data.bio ?? '', course: data.course ?? 'NEW', busyness: data.busyness ?? 'FREE',
+      firstName: data.firstName ?? '', lastName: data.lastName ?? '',
+      email: contact.email,
+      phoneNumber: contact.phoneNumber,
+      telegramUsername: contact.telegramUsername,
+      specialityId,
+      skillsIds: (data.skills ?? []).map((s) => s.id),
+    });
+  }
 
   async function loadStudent() {
     setLoading(true);
@@ -73,41 +87,13 @@ export function StudentDetail() {
       const skillsList = skillsRes?.data ?? [];
       setSpecialityOptions(specList);
       setSkillsOptions(skillsList);
-
-      let specialityId = '';
-      if (data.specialityId != null && data.specialityId !== '') {
-        specialityId = String(data.specialityId);
-      } else {
-        const specName =
-          typeof data.speciality === 'string' ? data.speciality.trim() : '';
-        const match = specList.find((s) => s.name === specName);
-        if (match) specialityId = String(match.id);
-      }
-
-      setForm({
-        city: data.city ?? '', hhLink: data.hhLink ?? '', birthDate: data.birthDate ?? '',
-        bio: data.bio ?? '', course: data.course ?? 'NEW', busyness: data.busyness ?? 'FREE',
-        firstName: data.firstName ?? '', lastName: data.lastName ?? '', email: data.email ?? '',
-        phoneNumber: data.phoneNumber ?? '', telegramUsername: data.telegramUsername ?? '',
-        specialityId,
-        skillsIds: (data.skills ?? []).map((s) => s.id),
-      });
+      applyStudentToForm(data, specList);
     } catch (e) {
       setOptionsError(e.message);
       try {
         const { data } = await studentsApi.getStudent(id);
         setStudent(data);
-        setForm({
-          city: data.city ?? '', hhLink: data.hhLink ?? '', birthDate: data.birthDate ?? '',
-          bio: data.bio ?? '', course: data.course ?? 'NEW', busyness: data.busyness ?? 'FREE',
-          firstName: data.firstName ?? '', lastName: data.lastName ?? '', email: data.email ?? '',
-          phoneNumber: data.phoneNumber ?? '', telegramUsername: data.telegramUsername ?? '',
-          specialityId:
-            data.specialityId != null && data.specialityId !== ''
-              ? String(data.specialityId)
-              : '',
-          skillsIds: (data.skills ?? []).map((s) => s.id),
-        });
+        applyStudentToForm(data, specialityOptions);
       } catch (e2) {
         setError(e2.message);
         setStudent(null);
@@ -152,11 +138,9 @@ export function StudentDetail() {
         busyness: form.busyness,
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
-        email: form.email || undefined,
-        phoneNumber: form.phoneNumber || undefined,
-        telegramUsername: form.telegramUsername || undefined,
         specialityId: Number(form.specialityId),
         skillsIds,
+        ...contactFieldsToApiPayload(form),
       });
 
       setMsg({ type: 'ok', text: 'Профиль сохранён' });
@@ -196,86 +180,139 @@ export function StudentDetail() {
     }
   }
 
-  async function createExperience() {
+  async function commitPortfolios() {
     setExtendedMsg(null);
+    const rows = extDraft.portfolioRows.filter((r) => r.name?.trim());
+    if (!rows.length) {
+      setExtendedMsg({ type: 'err', text: 'Укажите название хотя бы в одной строке портфолио' });
+      return;
+    }
+    setCommitting((c) => ({ ...c, portfolio: true }));
     try {
-      await experienceApi.createExperience({
-        companyId: Number(experienceForm.companyId),
-        studentId: id,
-        experience: {
+      for (const r of rows) {
+        await portfolioApi.createPortfolio({
           id: 0,
-          position: experienceForm.position.trim(),
-          additionalInfo: experienceForm.additionalInfo || '',
-          startDate: experienceForm.startDate,
-          endDate: experienceForm.endDate,
-        },
-      });
-      setExperienceForm({
-        companyId: '',
-        position: '',
-        additionalInfo: '',
-        startDate: '',
-        endDate: '',
-      });
-      setExtendedMsg({ type: 'ok', text: 'experience добавлен' });
+          name: r.name.trim(),
+          link: (r.link || '').trim(),
+          additionalInfo: (r.additionalInfo || '').trim(),
+          studentId: id,
+        });
+      }
+      setExtDraft((p) => ({ ...p, portfolioRows: [] }));
+      setExtendedMsg({ type: 'ok', text: 'Портфолио добавлено в профиль' });
       await loadStudent();
     } catch (e) {
       setExtendedMsg({ type: 'err', text: e.message });
+    } finally {
+      setCommitting((c) => ({ ...c, portfolio: false }));
     }
   }
 
-  async function createInstitution() {
+  async function commitExperiences() {
     setExtendedMsg(null);
+    const rows = extDraft.experienceRows.filter(
+      (r) =>
+        r.position?.trim() &&
+        r.companyId !== '' &&
+        !Number.isNaN(Number(r.companyId))
+    );
+    if (!rows.length) {
+      setExtendedMsg({
+        type: 'err',
+        text: 'Для опыта нужны компания (ID) и должность',
+      });
+      return;
+    }
+    setCommitting((c) => ({ ...c, experience: true }));
     try {
-      await institutionApi.createInstitution({
-        educationId: Number(institutionForm.educationId),
-        studentId: id,
-        institution: {
+      for (const r of rows) {
+        await experienceApi.createExperience({
+          companyId: Number(r.companyId),
+          studentId: id,
+          experience: {
+            id: 0,
+            position: r.position.trim(),
+            additionalInfo: (r.additionalInfo || '').trim(),
+            startDate: r.startDate || '',
+            endDate: r.endDate || '',
+          },
+        });
+      }
+      setExtDraft((p) => ({ ...p, experienceRows: [] }));
+      setExtendedMsg({ type: 'ok', text: 'Опыт добавлен в профиль' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    } finally {
+      setCommitting((c) => ({ ...c, experience: false }));
+    }
+  }
+
+  async function commitInstitutions() {
+    setExtendedMsg(null);
+    const rows = extDraft.institutionRows.filter(
+      (r) =>
+        r.educationId !== '' &&
+        !Number.isNaN(Number(r.educationId)) &&
+        r.startYear !== '' &&
+        r.endYear !== '' &&
+        !Number.isNaN(Number(r.startYear)) &&
+        !Number.isNaN(Number(r.endYear))
+    );
+    if (!rows.length) {
+      setExtendedMsg({
+        type: 'err',
+        text: 'Заполните education ID и оба года для institution',
+      });
+      return;
+    }
+    setCommitting((c) => ({ ...c, institution: true }));
+    try {
+      for (const r of rows) {
+        await institutionApi.createInstitution({
+          educationId: Number(r.educationId),
+          studentId: id,
+          institution: {
+            id: 0,
+            startYear: Number(r.startYear),
+            endYear: Number(r.endYear),
+          },
+        });
+      }
+      setExtDraft((p) => ({ ...p, institutionRows: [] }));
+      setExtendedMsg({ type: 'ok', text: 'Заведения добавлены в профиль' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    } finally {
+      setCommitting((c) => ({ ...c, institution: false }));
+    }
+  }
+
+  async function commitEducations() {
+    setExtendedMsg(null);
+    const rows = extDraft.educationRows.filter((r) => r.institution?.trim());
+    if (!rows.length) {
+      setExtendedMsg({ type: 'err', text: 'Укажите название заведения' });
+      return;
+    }
+    setCommitting((c) => ({ ...c, education: true }));
+    try {
+      for (const r of rows) {
+        await educationApi.createEducation({
           id: 0,
-          startYear: Number(institutionForm.startYear),
-          endYear: Number(institutionForm.endYear),
-        },
-      });
-      setInstitutionForm({ educationId: '', startYear: '', endYear: '' });
-      setExtendedMsg({ type: 'ok', text: 'institution добавлен' });
+          institution: r.institution.trim(),
+          additionalInfo: (r.additionalInfo || '').trim(),
+          webUrl: (r.webUrl || '').trim(),
+        });
+      }
+      setExtDraft((p) => ({ ...p, educationRows: [] }));
+      setExtendedMsg({ type: 'ok', text: 'Образование добавлено' });
       await loadStudent();
     } catch (e) {
       setExtendedMsg({ type: 'err', text: e.message });
-    }
-  }
-
-  async function createEducation() {
-    setExtendedMsg(null);
-    try {
-      await educationApi.createEducation({
-        id: 0,
-        institution: educationForm.institution.trim(),
-        additionalInfo: educationForm.additionalInfo || '',
-        webUrl: educationForm.webUrl || '',
-      });
-      setEducationForm({ institution: '', additionalInfo: '', webUrl: '' });
-      setExtendedMsg({ type: 'ok', text: 'education добавлен' });
-      await loadStudent();
-    } catch (e) {
-      setExtendedMsg({ type: 'err', text: e.message });
-    }
-  }
-
-  async function createPortfolio() {
-    setExtendedMsg(null);
-    try {
-      await portfolioApi.createPortfolio({
-        id: 0,
-        name: portfolioForm.name.trim(),
-        link: portfolioForm.link || '',
-        additionalInfo: portfolioForm.additionalInfo || '',
-        studentId: id,
-      });
-      setPortfolioForm({ name: '', link: '', additionalInfo: '' });
-      setExtendedMsg({ type: 'ok', text: 'portfolio добавлен' });
-      await loadStudent();
-    } catch (e) {
-      setExtendedMsg({ type: 'err', text: e.message });
+    } finally {
+      setCommitting((c) => ({ ...c, education: false }));
     }
   }
 
@@ -287,7 +324,7 @@ export function StudentDetail() {
       if (kind === 'institution') await institutionApi.deleteInstitution(entityId);
       if (kind === 'education') await educationApi.deleteEducation(entityId);
       if (kind === 'portfolio') await portfolioApi.deletePortfolio(entityId);
-      setExtendedMsg({ type: 'ok', text: `${kind} удален` });
+      setExtendedMsg({ type: 'ok', text: 'Запись удалена' });
       await loadStudent();
     } catch (e) {
       setExtendedMsg({ type: 'err', text: e.message });
@@ -393,209 +430,31 @@ export function StudentDetail() {
         <h2 className="panel__title">Опыт, образование, портфолио</h2>
         {extendedMsg?.type === 'ok' ? <div className="alert alert--success">{extendedMsg.text}</div> : null}
         {extendedMsg?.type === 'err' ? <div className="alert alert--error">{extendedMsg.text}</div> : null}
-
-        <section className="extended-section">
-          <h3 className="extended-section__title">Опыт работы</h3>
-          <p className="extended-section__hint">
-            Каждое нажатие «Добавить» создаёт одну запись. Ниже список всех добавленных мест работы.
-            Поле «компания» — это ID из справочника компаний в API.
-          </p>
-          <div className="form-row">
-            <div className="field">
-              <label>Компания (ID в справочнике)</label>
-              <input
-                type="number"
-                min="0"
-                value={experienceForm.companyId}
-                onChange={(e) => setExperienceForm((p) => ({ ...p, companyId: e.target.value }))}
-              />
-            </div>
-            <div className="field">
-              <label>Должность</label>
-              <input
-                value={experienceForm.position}
-                onChange={(e) => setExperienceForm((p) => ({ ...p, position: e.target.value }))}
-              />
-            </div>
-            <div className="field">
-              <label>С даты</label>
-              <input
-                type="date"
-                value={experienceForm.startDate}
-                onChange={(e) => setExperienceForm((p) => ({ ...p, startDate: e.target.value }))}
-              />
-            </div>
-            <div className="field">
-              <label>По дату</label>
-              <input
-                type="date"
-                value={experienceForm.endDate}
-                onChange={(e) => setExperienceForm((p) => ({ ...p, endDate: e.target.value }))}
-              />
-            </div>
-            <button type="button" className="btn btn--primary" onClick={createExperience}>
-              Добавить опыт
-            </button>
-          </div>
-          <div className="form-row" style={{ marginTop: '-0.5rem' }}>
-            <div className="field" style={{ minWidth: 320, flex: 1 }}>
-              <label>Дополнительно</label>
-              <input
-                value={experienceForm.additionalInfo}
-                onChange={(e) =>
-                  setExperienceForm((p) => ({ ...p, additionalInfo: e.target.value }))
-                }
-              />
-            </div>
-          </div>
-          <ExperienceRecordList
-            items={experiences}
-            onDelete={(rid) => deleteExtendedPart('experience', rid)}
-          />
-        </section>
-
-        <section className="extended-section">
-          <h3 className="extended-section__title">Учебные заведения (institution)</h3>
-          <p className="extended-section__hint">
-            Связь студента с учебным заведением: указывается ID записи «Образование» (education) из справочника
-            и годы обучения. Можно добавить несколько записей.
-          </p>
-          <div className="form-row">
-            <div className="field">
-              <label>ID образования (education) в справочнике</label>
-              <input
-                type="number"
-                min="0"
-                value={institutionForm.educationId}
-                onChange={(e) =>
-                  setInstitutionForm((p) => ({ ...p, educationId: e.target.value }))
-                }
-              />
-            </div>
-            <div className="field">
-              <label>Год начала</label>
-              <input
-                type="number"
-                min="1900"
-                value={institutionForm.startYear}
-                onChange={(e) =>
-                  setInstitutionForm((p) => ({ ...p, startYear: e.target.value }))
-                }
-              />
-            </div>
-            <div className="field">
-              <label>Год окончания</label>
-              <input
-                type="number"
-                min="1900"
-                value={institutionForm.endYear}
-                onChange={(e) =>
-                  setInstitutionForm((p) => ({ ...p, endYear: e.target.value }))
-                }
-              />
-            </div>
-            <button type="button" className="btn btn--primary" onClick={createInstitution}>
-              Добавить заведение
-            </button>
-          </div>
-          <InstitutionRecordList
-            items={institutions}
-            onDelete={(rid) => deleteExtendedPart('institution', rid)}
-          />
-        </section>
-
-        <section className="extended-section">
-          <h3 className="extended-section__title">Образование (education)</h3>
-          <p className="extended-section__hint">
-            Запись в справочнике «образование»: название заведения, сайт и примечание. Можно добавить несколько.
-          </p>
-          <div className="form-row">
-            <div className="field">
-              <label>Заведение</label>
-              <input
-                value={educationForm.institution}
-                onChange={(e) =>
-                  setEducationForm((p) => ({ ...p, institution: e.target.value }))
-                }
-              />
-            </div>
-            <div className="field" style={{ minWidth: 320, flex: 1 }}>
-              <label>Сайт</label>
-              <input
-                value={educationForm.webUrl}
-                onChange={(e) =>
-                  setEducationForm((p) => ({ ...p, webUrl: e.target.value }))
-                }
-              />
-            </div>
-            <button type="button" className="btn btn--primary" onClick={createEducation}>
-              Добавить образование
-            </button>
-          </div>
-          <div className="form-row" style={{ marginTop: '-0.5rem' }}>
-            <div className="field" style={{ minWidth: 320, flex: 1 }}>
-              <label>Дополнительно</label>
-              <input
-                value={educationForm.additionalInfo}
-                onChange={(e) =>
-                  setEducationForm((p) => ({ ...p, additionalInfo: e.target.value }))
-                }
-              />
-            </div>
-          </div>
-          <EducationRecordList
-            items={educations}
-            onDelete={(rid) => deleteExtendedPart('education', rid)}
-          />
-        </section>
-
-        <section className="extended-section">
-          <h3 className="extended-section__title">Портфолио</h3>
-          <p className="extended-section__hint">
-            Каждое добавление — отдельный проект. Ниже отображаются все проекты студента.
-          </p>
-          <div className="form-row">
-            <div className="field">
-              <label>Название</label>
-              <input
-                value={portfolioForm.name}
-                onChange={(e) =>
-                  setPortfolioForm((p) => ({ ...p, name: e.target.value }))
-                }
-              />
-            </div>
-            <div className="field" style={{ minWidth: 320, flex: 1 }}>
-              <label>Ссылка</label>
-              <input
-                value={portfolioForm.link}
-                onChange={(e) =>
-                  setPortfolioForm((p) => ({ ...p, link: e.target.value }))
-                }
-              />
-            </div>
-            <button type="button" className="btn btn--primary" onClick={createPortfolio}>
-              Добавить портфолио
-            </button>
-          </div>
-          <div className="form-row" style={{ marginTop: '-0.5rem' }}>
-            <div className="field" style={{ minWidth: 320, flex: 1 }}>
-              <label>Описание</label>
-              <input
-                value={portfolioForm.additionalInfo}
-                onChange={(e) =>
-                  setPortfolioForm((p) => ({ ...p, additionalInfo: e.target.value }))
-                }
-              />
-            </div>
-          </div>
-          <PortfolioRecordList
-            items={portfolios}
-            onDelete={(rid) => deleteExtendedPart('portfolio', rid)}
-          />
-        </section>
+        <StudentCreateExtendedBlocks
+          form={extDraft}
+          setForm={setExtDraft}
+          showLead={false}
+          editMode
+          editLeadText="Сверху — новые строки (как при создании студента). Нажмите «Добавить новые в профиль» в блоке, чтобы сохранить их через API. Ниже — уже сохранённые записи; у них можно нажать «Удалить из профиля»."
+          existingPortfolios={portfolios}
+          onDeletePortfolio={(rid) => deleteExtendedPart('portfolio', rid)}
+          onCommitPortfolios={commitPortfolios}
+          committingPortfolio={committing.portfolio}
+          existingExperiences={experiences}
+          onDeleteExperience={(rid) => deleteExtendedPart('experience', rid)}
+          onCommitExperiences={commitExperiences}
+          committingExperience={committing.experience}
+          existingInstitutions={institutions}
+          onDeleteInstitution={(rid) => deleteExtendedPart('institution', rid)}
+          onCommitInstitutions={commitInstitutions}
+          committingInstitution={committing.institution}
+          existingEducations={educations}
+          onDeleteEducation={(rid) => deleteExtendedPart('education', rid)}
+          onCommitEducations={commitEducations}
+          committingEducation={committing.education}
+        />
       </div>
 
     </div>
   );
 }
-

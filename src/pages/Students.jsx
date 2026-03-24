@@ -7,6 +7,7 @@ import { API_BASE } from '../config.js';
 import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
 import { compressImageForUpload } from '../utils/compressImage.js';
 import { buildExtendedNestedBodies } from '../utils/studentExtendedPayload.js';
+import { contactFieldsToApiPayload } from '../utils/studentContact.js';
 import { StudentCreateExtendedBlocks } from '../components/StudentCreateExtendedBlocks.jsx';
 
 const PAGE_SIZE = 12;
@@ -136,9 +137,7 @@ export function Students() {
         busyness: createForm.busyness,
         firstName: createForm.firstName.trim(),
         lastName: createForm.lastName.trim(),
-        email: createForm.email || undefined,
-        phoneNumber: createForm.phoneNumber || undefined,
-        telegramUsername: createForm.telegramUsername || undefined,
+        ...contactFieldsToApiPayload(createForm),
         specialityId:
           createForm.specialityId === ''
             ? undefined

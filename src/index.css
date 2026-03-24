@@ -524,6 +524,41 @@ table.data tbody tr:hover td {
   color: var(--text-muted);
 }
 
+.extended-blocks__lead--edit {
+  padding: 0.65rem 0.75rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  line-height: 1.45;
+}
+
+.extended-block__commit {
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px dashed var(--border);
+}
+
+.extended-block__saved {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.extended-block__row--saved {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 6px;
+  padding: 0.65rem 0.75rem !important;
+  margin-top: 0.5rem;
+}
+
+.extended-block__row--saved input[readonly] {
+  opacity: 0.92;
+  cursor: default;
+}
+
 .extended-block {
   margin-bottom: 1.25rem;
   padding: 0.85rem 1rem;
