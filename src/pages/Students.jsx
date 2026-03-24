@@ -16,6 +16,23 @@ export function Students() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createMsg, setCreateMsg] = useState(null);
+  const [createForm, setCreateForm] = useState({
+    city: '',
+    hhLink: '',
+    birthDate: '',
+    bio: '',
+    course: 'NEW',
+    busyness: 'FREE',
+    firstName: '',
+    lastName: '',
+    email: '',
+    phoneNumber: '',
+    telegramUsername: '',
+    specialityId: '',
+    skillsIds: '',
+  });
 
   const load = useCallback(async () => {
     setError(null);
@@ -48,6 +65,67 @@ export function Students() {
       await load();
     } catch (e) {
       setError(e.message);
+    }
+  }
+
+  function parseIds(value) {
+    return value
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .map((x) => Number(x))
+      .filter((x) => Number.isInteger(x) && x >= 0);
+  }
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    setCreateMsg(null);
+    try {
+      const skillsIds = parseIds(createForm.skillsIds);
+      if (!skillsIds.length) {
+        throw new Error('Укажите хотя бы один skill id');
+      }
+
+      const payload = {
+        city: createForm.city || undefined,
+        hhLink: createForm.hhLink || undefined,
+        birthDate: createForm.birthDate,
+        bio: createForm.bio || undefined,
+        course: createForm.course,
+        busyness: createForm.busyness,
+        firstName: createForm.firstName.trim(),
+        lastName: createForm.lastName.trim(),
+        email: createForm.email || undefined,
+        phoneNumber: createForm.phoneNumber || undefined,
+        telegramUsername: createForm.telegramUsername || undefined,
+        specialityId:
+          createForm.specialityId === ''
+            ? undefined
+            : Number(createForm.specialityId),
+        skillsIds,
+      };
+
+      await studentsApi.createStudent(payload);
+      setCreateMsg({ type: 'ok', text: 'Студент создан' });
+      setCreateForm({
+        city: '',
+        hhLink: '',
+        birthDate: '',
+        bio: '',
+        course: 'NEW',
+        busyness: 'FREE',
+        firstName: '',
+        lastName: '',
+        email: '',
+        phoneNumber: '',
+        telegramUsername: '',
+        specialityId: '',
+        skillsIds: '',
+      });
+      setPage(0);
+      await load();
+    } catch (e) {
+      setCreateMsg({ type: 'err', text: e.message });
     }
   }
 
@@ -85,6 +163,178 @@ export function Students() {
             Применить
           </button>
         </form>
+      </div>
+
+      <div className="panel">
+        <h2 className="panel__title">Создание студента (POST /student)</h2>
+        {createMsg?.type === 'ok' ? (
+          <div className="alert alert--success">{createMsg.text}</div>
+        ) : null}
+        {createMsg?.type === 'err' ? (
+          <div className="alert alert--error">{createMsg.text}</div>
+        ) : null}
+        <button
+          type="button"
+          className="btn btn--ghost"
+          onClick={() => setCreating((v) => !v)}
+          style={{ marginBottom: creating ? '1rem' : 0 }}
+        >
+          {creating ? 'Скрыть форму' : 'Открыть форму создания'}
+        </button>
+        {creating ? (
+          <form onSubmit={handleCreate}>
+            <div className="form-row">
+              <div className="field">
+                <label>Имя</label>
+                <input
+                  required
+                  value={createForm.firstName}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, firstName: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Фамилия</label>
+                <input
+                  required
+                  value={createForm.lastName}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, lastName: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Дата рождения</label>
+                <input
+                  type="date"
+                  required
+                  value={createForm.birthDate}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, birthDate: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="field">
+                <label>Курс</label>
+                <select
+                  value={createForm.course}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, course: e.target.value }))
+                  }
+                >
+                  <option value="NEW">NEW</option>
+                  <option value="FIRST">FIRST</option>
+                  <option value="SECOND">SECOND</option>
+                  <option value="THIRD">THIRD</option>
+                  <option value="FOURTH">FOURTH</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Занятость</label>
+                <select
+                  value={createForm.busyness}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, busyness: e.target.value }))
+                  }
+                >
+                  <option value="FREE">FREE</option>
+                  <option value="FREELANCE">FREELANCE</option>
+                  <option value="EMPLOYED">EMPLOYED</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Speciality ID</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={createForm.specialityId}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, specialityId: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="field" style={{ minWidth: 300 }}>
+                <label>Skills IDs (через запятую)</label>
+                <input
+                  required
+                  value={createForm.skillsIds}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, skillsIds: e.target.value }))
+                  }
+                  placeholder="1,2,10"
+                />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="field">
+                <label>Город</label>
+                <input
+                  value={createForm.city}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, city: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={createForm.email}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, email: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Телефон</label>
+                <input
+                  value={createForm.phoneNumber}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, phoneNumber: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Telegram username</label>
+                <input
+                  value={createForm.telegramUsername}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({
+                      ...p,
+                      telegramUsername: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="field" style={{ minWidth: 300, flex: 1 }}>
+                <label>HH link</label>
+                <input
+                  value={createForm.hhLink}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, hhLink: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="field" style={{ minWidth: 300, flex: 1 }}>
+                <label>Bio</label>
+                <input
+                  value={createForm.bio}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, bio: e.target.value }))
+                  }
+                />
+              </div>
+              <button type="submit" className="btn btn--primary">
+                Создать
+              </button>
+            </div>
+          </form>
+        ) : null}
       </div>
 
       {error ? <div className="alert alert--error">{error}</div> : null}
