@@ -9,6 +9,12 @@ import * as skillsApi from '../api/skills.js';
 import * as specialitiesApi from '../api/specialities.js';
 import { compressImageForUpload } from '../utils/compressImage.js';
 import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
+import {
+  ExperienceRecordList,
+  InstitutionRecordList,
+  EducationRecordList,
+  PortfolioRecordList,
+} from '../components/StudentExtendedRecordLists.jsx';
 
 export function StudentDetail() {
   const { id } = useParams();
@@ -384,232 +390,211 @@ export function StudentDetail() {
       </div>
 
       <div className="panel">
-        <h2 className="panel__title">Experience / Education / Institution / Portfolio</h2>
+        <h2 className="panel__title">Опыт, образование, портфолио</h2>
         {extendedMsg?.type === 'ok' ? <div className="alert alert--success">{extendedMsg.text}</div> : null}
         {extendedMsg?.type === 'err' ? <div className="alert alert--error">{extendedMsg.text}</div> : null}
 
-        <div className="form-row">
-          <div className="field">
-            <label>Experience: Company ID</label>
-            <input
-              type="number"
-              min="0"
-              value={experienceForm.companyId}
-              onChange={(e) => setExperienceForm((p) => ({ ...p, companyId: e.target.value }))}
-            />
+        <section className="extended-section">
+          <h3 className="extended-section__title">Опыт работы</h3>
+          <p className="extended-section__hint">
+            Каждое нажатие «Добавить» создаёт одну запись. Ниже список всех добавленных мест работы.
+            Поле «компания» — это ID из справочника компаний в API.
+          </p>
+          <div className="form-row">
+            <div className="field">
+              <label>Компания (ID в справочнике)</label>
+              <input
+                type="number"
+                min="0"
+                value={experienceForm.companyId}
+                onChange={(e) => setExperienceForm((p) => ({ ...p, companyId: e.target.value }))}
+              />
+            </div>
+            <div className="field">
+              <label>Должность</label>
+              <input
+                value={experienceForm.position}
+                onChange={(e) => setExperienceForm((p) => ({ ...p, position: e.target.value }))}
+              />
+            </div>
+            <div className="field">
+              <label>С даты</label>
+              <input
+                type="date"
+                value={experienceForm.startDate}
+                onChange={(e) => setExperienceForm((p) => ({ ...p, startDate: e.target.value }))}
+              />
+            </div>
+            <div className="field">
+              <label>По дату</label>
+              <input
+                type="date"
+                value={experienceForm.endDate}
+                onChange={(e) => setExperienceForm((p) => ({ ...p, endDate: e.target.value }))}
+              />
+            </div>
+            <button type="button" className="btn btn--primary" onClick={createExperience}>
+              Добавить опыт
+            </button>
           </div>
-          <div className="field">
-            <label>Position</label>
-            <input
-              value={experienceForm.position}
-              onChange={(e) => setExperienceForm((p) => ({ ...p, position: e.target.value }))}
-            />
+          <div className="form-row" style={{ marginTop: '-0.5rem' }}>
+            <div className="field" style={{ minWidth: 320, flex: 1 }}>
+              <label>Дополнительно</label>
+              <input
+                value={experienceForm.additionalInfo}
+                onChange={(e) =>
+                  setExperienceForm((p) => ({ ...p, additionalInfo: e.target.value }))
+                }
+              />
+            </div>
           </div>
-          <div className="field">
-            <label>Start date</label>
-            <input
-              type="date"
-              value={experienceForm.startDate}
-              onChange={(e) => setExperienceForm((p) => ({ ...p, startDate: e.target.value }))}
-            />
-          </div>
-          <div className="field">
-            <label>End date</label>
-            <input
-              type="date"
-              value={experienceForm.endDate}
-              onChange={(e) => setExperienceForm((p) => ({ ...p, endDate: e.target.value }))}
-            />
-          </div>
-          <button type="button" className="btn btn--primary" onClick={createExperience}>
-            Добавить Experience
-          </button>
-        </div>
-        <div className="form-row" style={{ marginTop: '-0.5rem' }}>
-          <div className="field" style={{ minWidth: 320, flex: 1 }}>
-            <label>Additional info</label>
-            <input
-              value={experienceForm.additionalInfo}
-              onChange={(e) =>
-                setExperienceForm((p) => ({ ...p, additionalInfo: e.target.value }))
-              }
-            />
-          </div>
-        </div>
-        <div className="table-wrap" style={{ marginBottom: '1rem' }}>
-          <table className="data">
-            <thead><tr><th>ID</th><th>Данные</th><th /></tr></thead>
-            <tbody>
-              {experiences.map((item) => (
-                <tr key={item.id ?? JSON.stringify(item)}>
-                  <td>{item.id ?? '-'}</td>
-                  <td><pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(item, null, 2)}</pre></td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button type="button" className="btn btn--danger" disabled={!item.id} onClick={() => deleteExtendedPart('experience', item.id)}>Удалить</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          <ExperienceRecordList
+            items={experiences}
+            onDelete={(rid) => deleteExtendedPart('experience', rid)}
+          />
+        </section>
 
-        <div className="form-row">
-          <div className="field">
-            <label>Institution: Education ID</label>
-            <input
-              type="number"
-              min="0"
-              value={institutionForm.educationId}
-              onChange={(e) =>
-                setInstitutionForm((p) => ({ ...p, educationId: e.target.value }))
-              }
-            />
+        <section className="extended-section">
+          <h3 className="extended-section__title">Учебные заведения (institution)</h3>
+          <p className="extended-section__hint">
+            Связь студента с учебным заведением: указывается ID записи «Образование» (education) из справочника
+            и годы обучения. Можно добавить несколько записей.
+          </p>
+          <div className="form-row">
+            <div className="field">
+              <label>ID образования (education) в справочнике</label>
+              <input
+                type="number"
+                min="0"
+                value={institutionForm.educationId}
+                onChange={(e) =>
+                  setInstitutionForm((p) => ({ ...p, educationId: e.target.value }))
+                }
+              />
+            </div>
+            <div className="field">
+              <label>Год начала</label>
+              <input
+                type="number"
+                min="1900"
+                value={institutionForm.startYear}
+                onChange={(e) =>
+                  setInstitutionForm((p) => ({ ...p, startYear: e.target.value }))
+                }
+              />
+            </div>
+            <div className="field">
+              <label>Год окончания</label>
+              <input
+                type="number"
+                min="1900"
+                value={institutionForm.endYear}
+                onChange={(e) =>
+                  setInstitutionForm((p) => ({ ...p, endYear: e.target.value }))
+                }
+              />
+            </div>
+            <button type="button" className="btn btn--primary" onClick={createInstitution}>
+              Добавить заведение
+            </button>
           </div>
-          <div className="field">
-            <label>Start year</label>
-            <input
-              type="number"
-              min="1900"
-              value={institutionForm.startYear}
-              onChange={(e) =>
-                setInstitutionForm((p) => ({ ...p, startYear: e.target.value }))
-              }
-            />
-          </div>
-          <div className="field">
-            <label>End year</label>
-            <input
-              type="number"
-              min="1900"
-              value={institutionForm.endYear}
-              onChange={(e) =>
-                setInstitutionForm((p) => ({ ...p, endYear: e.target.value }))
-              }
-            />
-          </div>
-          <button type="button" className="btn btn--primary" onClick={createInstitution}>
-            Добавить Institution
-          </button>
-        </div>
-        <div className="table-wrap" style={{ marginBottom: '1rem' }}>
-          <table className="data">
-            <thead><tr><th>ID</th><th>Данные</th><th /></tr></thead>
-            <tbody>
-              {institutions.map((item) => (
-                <tr key={item.id ?? JSON.stringify(item)}>
-                  <td>{item.id ?? '-'}</td>
-                  <td><pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(item, null, 2)}</pre></td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button type="button" className="btn btn--danger" disabled={!item.id} onClick={() => deleteExtendedPart('institution', item.id)}>Удалить</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          <InstitutionRecordList
+            items={institutions}
+            onDelete={(rid) => deleteExtendedPart('institution', rid)}
+          />
+        </section>
 
-        <div className="form-row">
-          <div className="field">
-            <label>Education: Institution</label>
-            <input
-              value={educationForm.institution}
-              onChange={(e) =>
-                setEducationForm((p) => ({ ...p, institution: e.target.value }))
-              }
-            />
+        <section className="extended-section">
+          <h3 className="extended-section__title">Образование (education)</h3>
+          <p className="extended-section__hint">
+            Запись в справочнике «образование»: название заведения, сайт и примечание. Можно добавить несколько.
+          </p>
+          <div className="form-row">
+            <div className="field">
+              <label>Заведение</label>
+              <input
+                value={educationForm.institution}
+                onChange={(e) =>
+                  setEducationForm((p) => ({ ...p, institution: e.target.value }))
+                }
+              />
+            </div>
+            <div className="field" style={{ minWidth: 320, flex: 1 }}>
+              <label>Сайт</label>
+              <input
+                value={educationForm.webUrl}
+                onChange={(e) =>
+                  setEducationForm((p) => ({ ...p, webUrl: e.target.value }))
+                }
+              />
+            </div>
+            <button type="button" className="btn btn--primary" onClick={createEducation}>
+              Добавить образование
+            </button>
           </div>
-          <div className="field" style={{ minWidth: 320, flex: 1 }}>
-            <label>Web URL</label>
-            <input
-              value={educationForm.webUrl}
-              onChange={(e) =>
-                setEducationForm((p) => ({ ...p, webUrl: e.target.value }))
-              }
-            />
+          <div className="form-row" style={{ marginTop: '-0.5rem' }}>
+            <div className="field" style={{ minWidth: 320, flex: 1 }}>
+              <label>Дополнительно</label>
+              <input
+                value={educationForm.additionalInfo}
+                onChange={(e) =>
+                  setEducationForm((p) => ({ ...p, additionalInfo: e.target.value }))
+                }
+              />
+            </div>
           </div>
-          <button type="button" className="btn btn--primary" onClick={createEducation}>
-            Добавить Education
-          </button>
-        </div>
-        <div className="form-row" style={{ marginTop: '-0.5rem' }}>
-          <div className="field" style={{ minWidth: 320, flex: 1 }}>
-            <label>Additional info</label>
-            <input
-              value={educationForm.additionalInfo}
-              onChange={(e) =>
-                setEducationForm((p) => ({ ...p, additionalInfo: e.target.value }))
-              }
-            />
-          </div>
-        </div>
-        <div className="table-wrap" style={{ marginBottom: '1rem' }}>
-          <table className="data">
-            <thead><tr><th>ID</th><th>Данные</th><th /></tr></thead>
-            <tbody>
-              {educations.map((item) => (
-                <tr key={item.id ?? JSON.stringify(item)}>
-                  <td>{item.id ?? '-'}</td>
-                  <td><pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(item, null, 2)}</pre></td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button type="button" className="btn btn--danger" disabled={!item.id} onClick={() => deleteExtendedPart('education', item.id)}>Удалить</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          <EducationRecordList
+            items={educations}
+            onDelete={(rid) => deleteExtendedPart('education', rid)}
+          />
+        </section>
 
-        <div className="form-row">
-          <div className="field">
-            <label>Portfolio: Name</label>
-            <input
-              value={portfolioForm.name}
-              onChange={(e) =>
-                setPortfolioForm((p) => ({ ...p, name: e.target.value }))
-              }
-            />
+        <section className="extended-section">
+          <h3 className="extended-section__title">Портфолио</h3>
+          <p className="extended-section__hint">
+            Каждое добавление — отдельный проект. Ниже отображаются все проекты студента.
+          </p>
+          <div className="form-row">
+            <div className="field">
+              <label>Название</label>
+              <input
+                value={portfolioForm.name}
+                onChange={(e) =>
+                  setPortfolioForm((p) => ({ ...p, name: e.target.value }))
+                }
+              />
+            </div>
+            <div className="field" style={{ minWidth: 320, flex: 1 }}>
+              <label>Ссылка</label>
+              <input
+                value={portfolioForm.link}
+                onChange={(e) =>
+                  setPortfolioForm((p) => ({ ...p, link: e.target.value }))
+                }
+              />
+            </div>
+            <button type="button" className="btn btn--primary" onClick={createPortfolio}>
+              Добавить портфолио
+            </button>
           </div>
-          <div className="field" style={{ minWidth: 320, flex: 1 }}>
-            <label>Link</label>
-            <input
-              value={portfolioForm.link}
-              onChange={(e) =>
-                setPortfolioForm((p) => ({ ...p, link: e.target.value }))
-              }
-            />
+          <div className="form-row" style={{ marginTop: '-0.5rem' }}>
+            <div className="field" style={{ minWidth: 320, flex: 1 }}>
+              <label>Описание</label>
+              <input
+                value={portfolioForm.additionalInfo}
+                onChange={(e) =>
+                  setPortfolioForm((p) => ({ ...p, additionalInfo: e.target.value }))
+                }
+              />
+            </div>
           </div>
-          <button type="button" className="btn btn--primary" onClick={createPortfolio}>
-            Добавить Portfolio
-          </button>
-        </div>
-        <div className="form-row" style={{ marginTop: '-0.5rem' }}>
-          <div className="field" style={{ minWidth: 320, flex: 1 }}>
-            <label>Additional info</label>
-            <input
-              value={portfolioForm.additionalInfo}
-              onChange={(e) =>
-                setPortfolioForm((p) => ({ ...p, additionalInfo: e.target.value }))
-              }
-            />
-          </div>
-        </div>
-        <div className="table-wrap">
-          <table className="data">
-            <thead><tr><th>ID</th><th>Данные</th><th /></tr></thead>
-            <tbody>
-              {portfolios.map((item) => (
-                <tr key={item.id ?? JSON.stringify(item)}>
-                  <td>{item.id ?? '-'}</td>
-                  <td><pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(item, null, 2)}</pre></td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button type="button" className="btn btn--danger" disabled={!item.id} onClick={() => deleteExtendedPart('portfolio', item.id)}>Удалить</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          <PortfolioRecordList
+            items={portfolios}
+            onDelete={(rid) => deleteExtendedPart('portfolio', rid)}
+          />
+        </section>
       </div>
+
     </div>
   );
 }
