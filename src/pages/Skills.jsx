@@ -21,7 +21,8 @@ export function Skills() {
       const { data: res } = await skillsApi.filterSkills(
         { name: nameFilter.trim() || undefined },
         page,
-        PAGE_SIZE
+        PAGE_SIZE,
+        ['id,asc']
       );
       setData(res);
     } catch (e) {

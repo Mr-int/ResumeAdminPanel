@@ -1,6 +1,10 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import * as studentsApi from '../api/students.js';
+import * as experienceApi from '../api/experience.js';
+import * as institutionApi from '../api/institutions.js';
+import * as educationApi from '../api/education.js';
+import * as portfolioApi from '../api/portfolio.js';
 import { API_BASE } from '../config.js';
 
 function photoUrl(path) {
@@ -24,6 +28,15 @@ export function StudentDetail() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [mediaMsg, setMediaMsg] = useState(null);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [extendedMsg, setExtendedMsg] = useState(null);
+  const [jsonDrafts, setJsonDrafts] = useState({
+    experience: '{}',
+    institution: '{}',
+    education: '{}',
+    portfolio: '{}',
+  });
   const [form, setForm] = useState({
     city: '', hhLink: '', birthDate: '', bio: '', course: 'NEW', busyness: 'FREE',
     firstName: '', lastName: '', email: '', phoneNumber: '', telegramUsername: '',
@@ -51,6 +64,19 @@ export function StudentDetail() {
   }
 
   useEffect(() => { loadStudent(); }, [id]);
+
+  function getCollection(keys) {
+    if (!student || typeof student !== 'object') return [];
+    for (const key of keys) {
+      if (Array.isArray(student[key])) return student[key];
+    }
+    return [];
+  }
+
+  const experiences = getCollection(['experiences', 'experience', 'workExperiences']);
+  const institutions = getCollection(['institutions', 'institution', 'educationInstitutions']);
+  const educations = getCollection(['educations', 'education', 'educationRecords']);
+  const portfolios = getCollection(['portfolios', 'portfolio', 'portfolioItems']);
 
   async function handleUpdate(e) {
     e.preventDefault();
@@ -86,6 +112,56 @@ export function StudentDetail() {
     }
   }
 
+  async function handlePhotoUpload(e) {
+    e.preventDefault();
+    if (!photoFile) {
+      setMediaMsg({ type: 'err', text: 'Выберите файл фото' });
+      return;
+    }
+    setMediaMsg(null);
+    try {
+      await studentsApi.uploadStudentPhoto(id, photoFile);
+      setPhotoFile(null);
+      setMediaMsg({ type: 'ok', text: 'Фото обновлено' });
+      await loadStudent();
+    } catch (e) {
+      setMediaMsg({ type: 'err', text: e.message });
+    }
+  }
+
+  async function createExtendedPart(kind) {
+    setExtendedMsg(null);
+    try {
+      const draft = jsonDrafts[kind];
+      const parsed = JSON.parse(draft || '{}');
+      const payload = { ...parsed, studentId: parsed.studentId ?? id };
+      if (kind === 'experience') await experienceApi.createExperience(payload);
+      if (kind === 'institution') await institutionApi.createInstitution(payload);
+      if (kind === 'education') await educationApi.createEducation(payload);
+      if (kind === 'portfolio') await portfolioApi.createPortfolio(payload);
+      setExtendedMsg({ type: 'ok', text: `${kind} добавлен` });
+      setJsonDrafts((p) => ({ ...p, [kind]: '{}' }));
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    }
+  }
+
+  async function deleteExtendedPart(kind, entityId) {
+    if (!window.confirm('Удалить запись?')) return;
+    setExtendedMsg(null);
+    try {
+      if (kind === 'experience') await experienceApi.deleteExperience(entityId);
+      if (kind === 'institution') await institutionApi.deleteInstitution(entityId);
+      if (kind === 'education') await educationApi.deleteEducation(entityId);
+      if (kind === 'portfolio') await portfolioApi.deletePortfolio(entityId);
+      setExtendedMsg({ type: 'ok', text: `${kind} удален` });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    }
+  }
+
   if (loading) return <div className="page"><p className="page__lead">Loading...</p></div>;
   if (error || !student) {
     return <div className="page"><div className="alert alert--error">{error ?? 'Not found'}</div><Link to="/students" className="btn btn--ghost">Back to list</Link></div>;
@@ -102,6 +178,23 @@ export function StudentDetail() {
           <h1 className="page__title" style={{ marginBottom: '0.25rem' }}>{student.firstName} {student.lastName}</h1>
           <p className="page__lead" style={{ marginBottom: '0.75rem' }}>{student.speciality} - {student.course} - {student.busyness}</p>
         </div>
+      </div>
+
+      <div className="panel" style={{ marginTop: '1rem' }}>
+        <h2 className="panel__title">Фото (POST /student/photo/{'{id}'})</h2>
+        {mediaMsg?.type === 'ok' ? <div className="alert alert--success">{mediaMsg.text}</div> : null}
+        {mediaMsg?.type === 'err' ? <div className="alert alert--error">{mediaMsg.text}</div> : null}
+        <form className="form-row" onSubmit={handlePhotoUpload}>
+          <div className="field">
+            <label>Файл</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+            />
+          </div>
+          <button type="submit" className="btn btn--primary">Загрузить фото</button>
+        </form>
       </div>
 
       <div className="panel" style={{ marginTop: '1.5rem' }}>
@@ -132,6 +225,136 @@ export function StudentDetail() {
             <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
           </div>
         </form>
+      </div>
+
+      <div className="panel">
+        <h2 className="panel__title">Experience / Education / Institution / Portfolio</h2>
+        {extendedMsg?.type === 'ok' ? <div className="alert alert--success">{extendedMsg.text}</div> : null}
+        {extendedMsg?.type === 'err' ? <div className="alert alert--error">{extendedMsg.text}</div> : null}
+
+        <div className="form-row">
+          <div className="field" style={{ minWidth: 320, flex: 1 }}>
+            <label>Experience JSON object</label>
+            <input
+              value={jsonDrafts.experience}
+              onChange={(e) =>
+                setJsonDrafts((p) => ({ ...p, experience: e.target.value }))
+              }
+            />
+          </div>
+          <button type="button" className="btn btn--primary" onClick={() => createExtendedPart('experience')}>
+            Добавить Experience
+          </button>
+        </div>
+        <div className="table-wrap" style={{ marginBottom: '1rem' }}>
+          <table className="data">
+            <thead><tr><th>ID</th><th>Данные</th><th /></tr></thead>
+            <tbody>
+              {experiences.map((item) => (
+                <tr key={item.id ?? JSON.stringify(item)}>
+                  <td>{item.id ?? '-'}</td>
+                  <td><pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(item, null, 2)}</pre></td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button type="button" className="btn btn--danger" disabled={!item.id} onClick={() => deleteExtendedPart('experience', item.id)}>Удалить</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="form-row">
+          <div className="field" style={{ minWidth: 320, flex: 1 }}>
+            <label>Institution JSON object</label>
+            <input
+              value={jsonDrafts.institution}
+              onChange={(e) =>
+                setJsonDrafts((p) => ({ ...p, institution: e.target.value }))
+              }
+            />
+          </div>
+          <button type="button" className="btn btn--primary" onClick={() => createExtendedPart('institution')}>
+            Добавить Institution
+          </button>
+        </div>
+        <div className="table-wrap" style={{ marginBottom: '1rem' }}>
+          <table className="data">
+            <thead><tr><th>ID</th><th>Данные</th><th /></tr></thead>
+            <tbody>
+              {institutions.map((item) => (
+                <tr key={item.id ?? JSON.stringify(item)}>
+                  <td>{item.id ?? '-'}</td>
+                  <td><pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(item, null, 2)}</pre></td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button type="button" className="btn btn--danger" disabled={!item.id} onClick={() => deleteExtendedPart('institution', item.id)}>Удалить</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="form-row">
+          <div className="field" style={{ minWidth: 320, flex: 1 }}>
+            <label>Education JSON object</label>
+            <input
+              value={jsonDrafts.education}
+              onChange={(e) =>
+                setJsonDrafts((p) => ({ ...p, education: e.target.value }))
+              }
+            />
+          </div>
+          <button type="button" className="btn btn--primary" onClick={() => createExtendedPart('education')}>
+            Добавить Education
+          </button>
+        </div>
+        <div className="table-wrap" style={{ marginBottom: '1rem' }}>
+          <table className="data">
+            <thead><tr><th>ID</th><th>Данные</th><th /></tr></thead>
+            <tbody>
+              {educations.map((item) => (
+                <tr key={item.id ?? JSON.stringify(item)}>
+                  <td>{item.id ?? '-'}</td>
+                  <td><pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(item, null, 2)}</pre></td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button type="button" className="btn btn--danger" disabled={!item.id} onClick={() => deleteExtendedPart('education', item.id)}>Удалить</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="form-row">
+          <div className="field" style={{ minWidth: 320, flex: 1 }}>
+            <label>Portfolio JSON object</label>
+            <input
+              value={jsonDrafts.portfolio}
+              onChange={(e) =>
+                setJsonDrafts((p) => ({ ...p, portfolio: e.target.value }))
+              }
+            />
+          </div>
+          <button type="button" className="btn btn--primary" onClick={() => createExtendedPart('portfolio')}>
+            Добавить Portfolio
+          </button>
+        </div>
+        <div className="table-wrap">
+          <table className="data">
+            <thead><tr><th>ID</th><th>Данные</th><th /></tr></thead>
+            <tbody>
+              {portfolios.map((item) => (
+                <tr key={item.id ?? JSON.stringify(item)}>
+                  <td>{item.id ?? '-'}</td>
+                  <td><pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(item, null, 2)}</pre></td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button type="button" className="btn btn--danger" disabled={!item.id} onClick={() => deleteExtendedPart('portfolio', item.id)}>Удалить</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

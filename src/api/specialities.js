@@ -1,4 +1,4 @@
-﻿import { apiFetch, pageableQuery } from './client.js';
+import { apiFetch, pageableQuery } from './client.js';
 
 export function getSpeciality(id) {
   return apiFetch(`/speciality/${id}`, { method: 'GET' });
@@ -16,8 +16,8 @@ export function deleteSpeciality(id) {
   return apiFetch(`/speciality/${id}`, { method: 'DELETE' });
 }
 
-export function filterSpecialities(filter, page, size) {
-  const q = pageableQuery(page, size);
+export function filterSpecialities(filter, page, size, sort) {
+  const q = pageableQuery(page, size, sort);
   return apiFetch(`/speciality/filter${q}`, {
     method: 'POST',
     json: filter,
