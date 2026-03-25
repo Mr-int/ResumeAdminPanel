@@ -23,7 +23,7 @@ function normalizeExperience(raw) {
     (typeof e?.companyName === 'string' && e.companyName.trim()) ||
     '';
   return {
-    id: raw?.id,
+    id: raw?.id ?? e?.id ?? raw?.experienceId ?? raw?.experienceID,
     companyId: raw?.companyId != null ? String(raw.companyId) : '',
     companyName,
     position: e?.position ?? raw?.position ?? '',
@@ -42,7 +42,7 @@ function normalizeInstitution(raw) {
     (typeof ins?.institution === 'string' && ins.institution.trim()) ||
     '';
   return {
-    id: raw?.id,
+    id: raw?.id ?? ins?.id ?? raw?.institutionId ?? raw?.institutionID,
     educationId: raw?.educationId != null ? String(raw.educationId) : '',
     institutionName,
     startYear: ins?.startYear ?? raw?.startYear ?? '',
