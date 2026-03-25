@@ -1,13 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as studentsApi from '../api/students.js';
+import * as portfolioApi from '../api/portfolio.js';
+import * as experienceApi from '../api/experience.js';
+import * as institutionApi from '../api/institutions.js';
+import * as educationApi from '../api/education.js';
 import * as skillsApi from '../api/skills.js';
 import * as specialitiesApi from '../api/specialities.js';
 import { API_BASE } from '../config.js';
 import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
 import { compressImageForUpload } from '../utils/compressImage.js';
-import { buildExtendedNestedBodies } from '../utils/studentExtendedPayload.js';
 import { contactFieldsToApiPayload } from '../utils/studentContact.js';
+import {
+  buildExperienceCreateBody,
+  buildInstitutionCreateBody,
+} from '../utils/experienceInstitutionPayload.js';
 import { StudentCreateExtendedBlocks } from '../components/StudentCreateExtendedBlocks.jsx';
 
 const PAGE_SIZE = 12;
@@ -125,9 +132,6 @@ export function Students() {
         throw new Error('Укажите хотя бы один навык');
       }
 
-      const { portfolios, experiences, institutions, educations } =
-        buildExtendedNestedBodies(createForm);
-
       const payload = {
         city: createForm.city || undefined,
         hhLink: createForm.hhLink || undefined,
@@ -143,14 +147,59 @@ export function Students() {
             ? undefined
             : Number(createForm.specialityId),
         skillsIds,
-        portfolios,
-        experiences,
-        institutions,
-        educations,
       };
-      const { data: resData } = await studentsApi.createExtendedStudent(payload);
+
+      // 1) создаём студента без расширенных сущностей
+      const { data: resData } = await studentsApi.createStudent(payload);
       const newId = extractCreatedStudentId(resData);
       setCreateMsg({ type: 'ok', text: 'Студент создан' });
+
+      // 2) по очереди добавляем расширенные записи (если они есть)
+      if (newId != null) {
+        const sid = String(newId);
+
+        const portfolios = (createForm.portfolioRows ?? []).filter((r) => r.name?.trim());
+        for (const r of portfolios) {
+          await portfolioApi.createPortfolio({
+            name: r.name.trim(),
+            link: (r.link || '').trim(),
+            additionalInfo: (r.additionalInfo || '').trim(),
+            studentId: sid,
+          });
+        }
+
+        const experiences = (createForm.experienceRows ?? []).filter(
+          (r) =>
+            r.position?.trim() &&
+            (r.companyName ?? r.company ?? '').trim()
+        );
+        for (const r of experiences) {
+          await experienceApi.createExperience(buildExperienceCreateBody(sid, r));
+        }
+
+        const institutions = (createForm.institutionRows ?? []).filter(
+          (r) =>
+            (r.institutionName ?? r.institution ?? '').trim() &&
+            r.startYear !== '' &&
+            r.endYear !== '' &&
+            !Number.isNaN(Number(r.startYear)) &&
+            !Number.isNaN(Number(r.endYear))
+        );
+        for (const r of institutions) {
+          await institutionApi.createInstitution(buildInstitutionCreateBody(sid, r));
+        }
+
+        const educations = (createForm.educationRows ?? []).filter((r) => r.institution?.trim());
+        for (const r of educations) {
+          await educationApi.createEducation({
+            institution: r.institution.trim(),
+            additionalInfo: (r.additionalInfo || '').trim(),
+            webUrl: (r.webUrl || '').trim(),
+            studentId: sid,
+          });
+        }
+      }
+
       if (newId != null) {
         setCreatedStudent({
           id: newId,

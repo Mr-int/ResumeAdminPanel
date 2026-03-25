@@ -41,6 +41,12 @@ export function StudentDetail() {
   const [optionsError, setOptionsError] = useState(null);
   const [extendedMsg, setExtendedMsg] = useState(null);
   const [extDraft, setExtDraft] = useState(emptyExtDraft);
+  const [extExisting, setExtExisting] = useState({
+    portfolios: [],
+    experiences: [],
+    institutions: [],
+    educations: [],
+  });
   const [committing, setCommitting] = useState({
     portfolio: false,
     experience: false,
@@ -76,6 +82,38 @@ export function StudentDetail() {
     });
   }
 
+  async function loadExtendedExisting(studentId) {
+    const sid = String(studentId);
+    const safePageData = (res) => res?.data?.data ?? res?.data ?? [];
+    async function tryFilters(call, filters) {
+      let lastOk = [];
+      for (const f of filters) {
+        try {
+          const res = await call(f);
+          const arr = safePageData(res);
+          lastOk = Array.isArray(arr) ? arr : [];
+          if (lastOk.length) return lastOk;
+        } catch {
+          // try next filter shape
+        }
+      }
+      return lastOk;
+    }
+    try {
+      const filters = [{ studentId: sid }, { studentUuid: sid }, { student_id: sid }];
+      const [portfolios, experiences, institutions, educations] = await Promise.all([
+        tryFilters((f) => portfolioApi.filterPortfolio(f, 0, 200, ['id,desc']), filters),
+        tryFilters((f) => experienceApi.filterExperience(f, 0, 200, ['id,desc']), filters),
+        tryFilters((f) => institutionApi.filterInstitutions(f, 0, 200, ['id,desc']), filters),
+        tryFilters((f) => educationApi.filterEducation(f, 0, 200, ['id,desc']), filters),
+      ]);
+
+      setExtExisting({ portfolios, experiences, institutions, educations });
+    } catch {
+      setExtExisting({ portfolios: [], experiences: [], institutions: [], educations: [] });
+    }
+  }
+
   async function loadStudent() {
     setLoading(true);
     setError(null);
@@ -92,12 +130,14 @@ export function StudentDetail() {
       setSpecialityOptions(specList);
       setSkillsOptions(skillsList);
       applyStudentToForm(data, specList);
+      await loadExtendedExisting(id);
     } catch (e) {
       setOptionsError(e.message);
       try {
         const { data } = await studentsApi.getStudent(id);
         setStudent(data);
         applyStudentToForm(data, specialityOptions);
+        await loadExtendedExisting(id);
       } catch (e2) {
         setError(e2.message);
         setStudent(null);
@@ -109,18 +149,10 @@ export function StudentDetail() {
 
   useEffect(() => { loadStudent(); }, [id]);
 
-  function getCollection(keys) {
-    if (!student || typeof student !== 'object') return [];
-    for (const key of keys) {
-      if (Array.isArray(student[key])) return student[key];
-    }
-    return [];
-  }
-
-  const experiences = getCollection(['experiences', 'experience', 'workExperiences']);
-  const institutions = getCollection(['institutions', 'institution', 'educationInstitutions']);
-  const educations = getCollection(['educations', 'education', 'educationRecords']);
-  const portfolios = getCollection(['portfolios', 'portfolio', 'portfolioItems']);
+  const experiences = extExisting.experiences;
+  const institutions = extExisting.institutions;
+  const educations = extExisting.educations;
+  const portfolios = extExisting.portfolios;
 
   async function handleUpdate(e) {
     e.preventDefault();
@@ -195,11 +227,10 @@ export function StudentDetail() {
     try {
       for (const r of rows) {
         await portfolioApi.createPortfolio({
-          id: 0,
           name: r.name.trim(),
           link: (r.link || '').trim(),
           additionalInfo: (r.additionalInfo || '').trim(),
-          studentId: id,
+          studentId: String(id),
         });
       }
       setExtDraft((p) => ({ ...p, portfolioRows: [] }));
@@ -288,10 +319,10 @@ export function StudentDetail() {
     try {
       for (const r of rows) {
         await educationApi.createEducation({
-          id: 0,
           institution: r.institution.trim(),
           additionalInfo: (r.additionalInfo || '').trim(),
           webUrl: (r.webUrl || '').trim(),
+          studentId: String(id),
         });
       }
       setExtDraft((p) => ({ ...p, educationRows: [] }));
