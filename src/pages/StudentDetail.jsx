@@ -339,8 +339,11 @@ export function StudentDetail() {
     if (!window.confirm('Удалить запись?')) return;
     setExtendedMsg(null);
     try {
-      if (kind === 'experience') await experienceApi.deleteExperience(entityId);
-      if (kind === 'institution') await institutionApi.deleteInstitution(entityId);
+      const safeId =
+        entityId == null || String(entityId).toLowerCase() === 'nan' ? null : entityId;
+      if (safeId == null) throw new Error('Некорректный ID для удаления');
+      if (kind === 'experience') await experienceApi.deleteExperience(safeId);
+      if (kind === 'institution') await institutionApi.deleteInstitution(safeId);
       if (kind === 'education') await educationApi.deleteEducation(entityId);
       if (kind === 'portfolio') await portfolioApi.deletePortfolio(entityId);
       setExtendedMsg({ type: 'ok', text: 'Запись удалена' });
@@ -369,8 +372,13 @@ export function StudentDetail() {
   async function updateExperience(experienceId, row) {
     setExtendedMsg(null);
     try {
+      const safeId =
+        experienceId == null || String(experienceId).toLowerCase() === 'nan'
+          ? null
+          : experienceId;
+      if (safeId == null) throw new Error('Некорректный ID опыта для сохранения');
       await experienceApi.updateExperience(
-        experienceId,
+        safeId,
         buildExperienceCreateBody(String(id), row)
       );
       setExtendedMsg({ type: 'ok', text: 'Опыт обновлён' });
@@ -383,8 +391,13 @@ export function StudentDetail() {
   async function updateInstitution(institutionId, row) {
     setExtendedMsg(null);
     try {
+      const safeId =
+        institutionId == null || String(institutionId).toLowerCase() === 'nan'
+          ? null
+          : institutionId;
+      if (safeId == null) throw new Error('Некорректный ID заведения для сохранения');
       await institutionApi.updateInstitution(
-        institutionId,
+        safeId,
         buildInstitutionCreateBody(String(id), row)
       );
       setExtendedMsg({ type: 'ok', text: 'Заведение обновлено' });

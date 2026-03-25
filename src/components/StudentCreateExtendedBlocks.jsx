@@ -6,9 +6,18 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+function normalizeId(v) {
+  if (v == null) return null;
+  if (typeof v === 'number' && Number.isNaN(v)) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+  if (s.toLowerCase() === 'nan') return null;
+  return s;
+}
+
 function normalizePortfolio(raw) {
   return {
-    id: raw?.id,
+    id: normalizeId(raw?.id),
     name: raw?.name ?? '',
     link: raw?.link ?? '',
     additionalInfo: raw?.additionalInfo ?? '',
@@ -23,7 +32,7 @@ function normalizeExperience(raw) {
     (typeof e?.companyName === 'string' && e.companyName.trim()) ||
     '';
   return {
-    id: raw?.id ?? e?.id ?? raw?.experienceId ?? raw?.experienceID,
+    id: normalizeId(raw?.id ?? e?.id ?? raw?.experienceId ?? raw?.experienceID),
     companyId: raw?.companyId != null ? String(raw.companyId) : '',
     companyName,
     position: e?.position ?? raw?.position ?? '',
@@ -42,7 +51,7 @@ function normalizeInstitution(raw) {
     (typeof ins?.institution === 'string' && ins.institution.trim()) ||
     '';
   return {
-    id: raw?.id ?? ins?.id ?? raw?.institutionId ?? raw?.institutionID,
+    id: normalizeId(raw?.id ?? ins?.id ?? raw?.institutionId ?? raw?.institutionID),
     educationId: raw?.educationId != null ? String(raw.educationId) : '',
     institutionName,
     startYear: ins?.startYear ?? raw?.startYear ?? '',
@@ -52,7 +61,7 @@ function normalizeInstitution(raw) {
 
 function normalizeEducation(raw) {
   return {
-    id: raw?.id,
+    id: normalizeId(raw?.id),
     institution: raw?.institution ?? '',
     webUrl: raw?.webUrl ?? '',
     additionalInfo: raw?.additionalInfo ?? '',
