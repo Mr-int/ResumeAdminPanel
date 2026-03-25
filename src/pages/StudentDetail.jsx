@@ -282,16 +282,25 @@ export function StudentDetail() {
 
   async function commitInstitutions() {
     setExtendedMsg(null);
-    const rows = extDraft.institutionRows.filter(
-      (r) =>
-        String(r.institution ?? '').trim() &&
-        r.startYear !== '' &&
-        r.endYear !== '' &&
-        !Number.isNaN(Number(r.startYear)) &&
-        !Number.isNaN(Number(r.endYear))
-    );
+    const rows = extDraft.institutionRows.filter((r) => {
+      const institutionOk = String(r.institution ?? '').trim() !== '';
+      const startOk =
+        r.startYear !== '' && !Number.isNaN(Number(r.startYear)) && String(r.startYear).trim() !== '';
+      const endOk =
+        r.endYear !== '' && !Number.isNaN(Number(r.endYear)) && String(r.endYear).trim() !== '';
+      return institutionOk && startOk && endOk;
+    });
     if (!rows.length) {
-      setExtendedMsg({ type: 'err', text: 'Для institution укажите заведение и оба года' });
+      const first = extDraft.institutionRows?.[0] ?? {};
+      const missing = [];
+      if (String(first.institution ?? '').trim() === '') missing.push('заведение');
+      if (!(first.startYear !== '' && !Number.isNaN(Number(first.startYear)) && String(first.startYear).trim() !== '')) missing.push('год начала');
+      if (!(first.endYear !== '' && !Number.isNaN(Number(first.endYear)) && String(first.endYear).trim() !== '')) missing.push('год окончания');
+      setExtendedMsg({
+        type: 'err',
+        text:
+          missing.length ? `Проверьте: заполните ${missing.join(', ')}` : 'Для institution укажите заведение и оба года',
+      });
       return;
     }
     setCommitting((c) => ({ ...c, institution: true }));
