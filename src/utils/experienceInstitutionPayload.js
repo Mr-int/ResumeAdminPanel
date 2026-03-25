@@ -60,16 +60,25 @@ export function buildInstitutionCreateBody(studentId, row) {
     return s;
   })();
 
-  const institution = String(row?.institution ?? '').trim();
-  if (!institution) throw new Error('Укажите institution (учебное заведение)');
+  const educationIdNum = Number(row?.educationId);
+  if (!Number.isFinite(educationIdNum) || educationIdNum <= 0) {
+    throw new Error('Выберите educationId (связь с Education)');
+  }
+
+  const startYearNum = Number(row?.startYear);
+  const endYearNum = Number(row?.endYear);
+  if (!Number.isFinite(startYearNum) || !Number.isFinite(endYearNum)) {
+    throw new Error('Укажите годы обучения (startYear/endYear)');
+  }
 
   const body = {
-    institution,
-    webUrl: String(row?.webUrl ?? '').trim(),
-    additionalInfo: String(row?.additionalInfo ?? '').trim(),
-    startYear: Number(row.startYear),
-    endYear: Number(row.endYear),
+    educationId: educationIdNum,
+    studentId: normalizedStudentId,
+    institution: {
+      id: 0,
+      startYear: startYearNum,
+      endYear: endYearNum,
+    },
   };
-  if (normalizedStudentId) body.studentId = normalizedStudentId;
   return body;
 }

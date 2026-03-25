@@ -46,9 +46,7 @@ function normalizeInstitution(raw) {
   const ins = raw?.institution && typeof raw.institution === 'object' ? raw.institution : raw;
   return {
     id: normalizeId(raw?.id ?? ins?.id ?? raw?.institutionId ?? raw?.institutionID),
-    institution: raw?.institution ?? ins?.institution ?? '',
-    webUrl: raw?.webUrl ?? ins?.webUrl ?? '',
-    additionalInfo: raw?.additionalInfo ?? ins?.additionalInfo ?? '',
+    educationId: raw?.educationId ?? ins?.educationId ?? '',
     startYear: ins?.startYear ?? raw?.startYear ?? '',
     endYear: ins?.endYear ?? raw?.endYear ?? '',
   };
@@ -70,6 +68,7 @@ export function StudentCreateExtendedBlocks({
   editMode = false,
   editLeadText = '',
   companyOptions = [],
+  educationOptions = [],
   existingPortfolios = [],
   onDeletePortfolio,
   onUpdatePortfolio,
@@ -678,9 +677,7 @@ export function StudentCreateExtendedBlocks({
                 institutionRows: [
                   ...p.institutionRows,
                   {
-                    institution: '',
-                    webUrl: '',
-                    additionalInfo: '',
+                    educationId: '',
                     startYear: '',
                     endYear: '',
                   },
@@ -698,17 +695,24 @@ export function StudentCreateExtendedBlocks({
             <div key={idx} className="extended-block__row">
               <div className="form-row">
                 <div className="field" style={{ minWidth: 200, flex: 1 }}>
-                  <label>Заведение</label>
-                  <input
-                    value={row.institution ?? ''}
+                  <label>Education (заведение)</label>
+                  <select
+                    value={row.educationId ?? ''}
                     onChange={(e) =>
                       setForm((p) => {
                         const next = [...p.institutionRows];
-                        next[idx] = { ...next[idx], institution: e.target.value };
+                        next[idx] = { ...next[idx], educationId: e.target.value };
                         return { ...p, institutionRows: next };
                       })
                     }
-                  />
+                  >
+                    <option value="">Не выбрано</option>
+                    {(educationOptions ?? []).map((ed) => (
+                      <option key={ed.id} value={String(ed.id)}>
+                        {ed.institution || `Education #${ed.id}`} (ID: {ed.id})
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="field">
                   <label>Год начала</label>
@@ -759,34 +763,6 @@ export function StudentCreateExtendedBlocks({
                   Убрать строку
                 </button>
               </div>
-              <div className="form-row">
-                <div className="field" style={{ minWidth: 220, flex: 1 }}>
-                  <label>Сайт</label>
-                  <input
-                    value={row.webUrl ?? ''}
-                    onChange={(e) =>
-                      setForm((p) => {
-                        const next = [...p.institutionRows];
-                        next[idx] = { ...next[idx], webUrl: e.target.value };
-                        return { ...p, institutionRows: next };
-                      })
-                    }
-                  />
-                </div>
-                <div className="field" style={{ minWidth: 220, flex: 1 }}>
-                  <label>Доп. информация</label>
-                  <input
-                    value={row.additionalInfo ?? ''}
-                    onChange={(e) =>
-                      setForm((p) => {
-                        const next = [...p.institutionRows];
-                        next[idx] = { ...next[idx], additionalInfo: e.target.value };
-                        return { ...p, institutionRows: next };
-                      })
-                    }
-                  />
-                </div>
-              </div>
             </div>
           ))
         )}
@@ -807,8 +783,7 @@ export function StudentCreateExtendedBlocks({
             <p className="extended-block__saved">Уже в профиле</p>
             {existingInstitutions.map((raw) => {
               const row = normalizeInstitution(raw);
-              const kid =
-                row.id != null ? `i-${row.id}` : `i-${row.institution || row.startYear}`;
+              const kid = row.id != null ? `i-${row.id}` : `i-${row.educationId || row.startYear}`;
               const canEdit = row.id != null && typeof onUpdateInstitution === 'function';
               const current =
                 row.id != null && savedEdit.institutions[row.id]
@@ -818,10 +793,10 @@ export function StudentCreateExtendedBlocks({
                 <div key={kid} className="extended-block__row extended-block__row--saved">
                   <div className="form-row">
                     <div className="field" style={{ minWidth: 200, flex: 1 }}>
-                      <label>Заведение</label>
-                      <input
-                        readOnly={!canEdit}
-                        value={current.institution}
+                      <label>Education (заведение)</label>
+                      <select
+                        disabled={!canEdit}
+                        value={current.educationId ?? ''}
                         onChange={(e) => {
                           if (!canEdit) return;
                           const v = e.target.value;
@@ -829,11 +804,18 @@ export function StudentCreateExtendedBlocks({
                             ...p,
                             institutions: {
                               ...p.institutions,
-                              [row.id]: { ...current, institution: v },
+                              [row.id]: { ...current, educationId: v },
                             },
                           }));
                         }}
-                      />
+                      >
+                        <option value="">Не выбрано</option>
+                        {(educationOptions ?? []).map((ed) => (
+                          <option key={ed.id} value={String(ed.id)}>
+                            {ed.institution || `Education #${ed.id}`} (ID: {ed.id})
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="field">
                       <label>Год начала</label>
@@ -905,7 +887,142 @@ export function StudentCreateExtendedBlocks({
                       </button>
                     ) : null}
                   </div>
+                </div>
+              );
+            })}
+          </>
+        ) : null}
+      </div>
+
+      <div className="extended-block">
+        <div className="extended-block__head">
+          <h3 className="extended-block__title">Education</h3>
+          <button
+            type="button"
+            className="btn btn--ghost btn--small"
+            onClick={() =>
+              setForm((p) => ({
+                ...p,
+                educationRows: [
+                  ...(p.educationRows ?? []),
+                  { institution: '', webUrl: '', additionalInfo: '' },
+                ],
+              }))
+            }
+          >
+            + Добавить
+          </button>
+        </div>
+
+        {!form.educationRows?.length ? (
+          <p className="extended-block__empty">Пока нет новых строк — нажмите «+ Добавить»</p>
+        ) : (
+          form.educationRows.map((row, idx) => (
+            <div key={idx} className="extended-block__row">
+              <div className="form-row">
+                <div className="field" style={{ minWidth: 220, flex: 1 }}>
+                  <label>Учреждение</label>
+                  <input
+                    value={row.institution ?? ''}
+                    onChange={(e) =>
+                      setForm((p) => {
+                        const next = [...p.educationRows];
+                        next[idx] = { ...next[idx], institution: e.target.value };
+                        return { ...p, educationRows: next };
+                      })
+                    }
+                  />
+                </div>
+                <div className="field" style={{ minWidth: 220, flex: 1 }}>
+                  <label>Сайт</label>
+                  <input
+                    value={row.webUrl ?? ''}
+                    onChange={(e) =>
+                      setForm((p) => {
+                        const next = [...p.educationRows];
+                        next[idx] = { ...next[idx], webUrl: e.target.value };
+                        return { ...p, educationRows: next };
+                      })
+                    }
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="field" style={{ minWidth: 240, flex: 1 }}>
+                  <label>Доп. информация</label>
+                  <input
+                    value={row.additionalInfo ?? ''}
+                    onChange={(e) =>
+                      setForm((p) => {
+                        const next = [...p.educationRows];
+                        next[idx] = { ...next[idx], additionalInfo: e.target.value };
+                        return { ...p, educationRows: next };
+                      })
+                    }
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() =>
+                    setForm((p) => ({
+                      ...p,
+                      educationRows: p.educationRows.filter((_, i) => i !== idx),
+                    }))
+                  }
+                >
+                  Убрать строку
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+
+        {editMode && onCommitEducations ? (
+          <div className="extended-block__commit">
+            <button
+              type="button"
+              className="btn btn--primary btn--small"
+              disabled={committingEducation}
+              onClick={onCommitEducations}
+            >
+              {committingEducation ? 'Отправка…' : 'Добавить новые в справочник'}
+            </button>
+          </div>
+        ) : null}
+
+        {editMode && existingEducations?.length ? (
+          <>
+            <p className="extended-block__saved">Уже в справочнике</p>
+            {existingEducations.map((raw) => {
+              const row = normalizeEducation(raw);
+              const kid = row.id != null ? `ed-${row.id}` : `ed-${row.institution}`;
+              const canEdit = row.id != null && typeof onUpdateEducation === 'function';
+              const current =
+                row.id != null && savedEdit.educations[row.id]
+                  ? savedEdit.educations[row.id]
+                  : row;
+              return (
+                <div key={kid} className="extended-block__row extended-block__row--saved">
                   <div className="form-row">
+                    <div className="field" style={{ minWidth: 220, flex: 1 }}>
+                      <label>Учреждение</label>
+                      <input
+                        readOnly={!canEdit}
+                        value={current.institution}
+                        onChange={(e) => {
+                          if (!canEdit) return;
+                          const v = e.target.value;
+                          setSavedEdit((p) => ({
+                            ...p,
+                            educations: {
+                              ...p.educations,
+                              [row.id]: { ...current, institution: v },
+                            },
+                          }));
+                        }}
+                      />
+                    </div>
                     <div className="field" style={{ minWidth: 220, flex: 1 }}>
                       <label>Сайт</label>
                       <input
@@ -916,15 +1033,17 @@ export function StudentCreateExtendedBlocks({
                           const v = e.target.value;
                           setSavedEdit((p) => ({
                             ...p,
-                            institutions: {
-                              ...p.institutions,
+                            educations: {
+                              ...p.educations,
                               [row.id]: { ...current, webUrl: v },
                             },
                           }));
                         }}
                       />
                     </div>
-                    <div className="field" style={{ minWidth: 220, flex: 1 }}>
+                  </div>
+                  <div className="form-row">
+                    <div className="field" style={{ minWidth: 240, flex: 1 }}>
                       <label>Доп. информация</label>
                       <input
                         readOnly={!canEdit}
@@ -934,14 +1053,47 @@ export function StudentCreateExtendedBlocks({
                           const v = e.target.value;
                           setSavedEdit((p) => ({
                             ...p,
-                            institutions: {
-                              ...p.institutions,
+                            educations: {
+                              ...p.educations,
                               [row.id]: { ...current, additionalInfo: v },
                             },
                           }));
                         }}
                       />
                     </div>
+                    {canEdit ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn--primary btn--small"
+                          onClick={() => onUpdateEducation(row.id, current)}
+                        >
+                          Сохранить
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--small"
+                          onClick={() =>
+                            setSavedEdit((p) => {
+                              const next = { ...p, educations: { ...p.educations } };
+                              next.educations[row.id] = row;
+                              return next;
+                            })
+                          }
+                        >
+                          Сбросить
+                        </button>
+                      </>
+                    ) : null}
+                    {onDeleteEducation && row.id != null ? (
+                      <button
+                        type="button"
+                        className="btn btn--danger btn--small"
+                        onClick={() => onDeleteEducation(row.id)}
+                      >
+                        Удалить
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               );
