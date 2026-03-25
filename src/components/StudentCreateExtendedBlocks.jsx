@@ -551,6 +551,7 @@ export function StudentCreateExtendedBlocks({
                     <div className="field">
                       <label>С даты</label>
                       <input
+                        type="date"
                         readOnly={!canEdit}
                         value={current.startDate}
                         onChange={(e) => {
@@ -569,6 +570,7 @@ export function StudentCreateExtendedBlocks({
                     <div className="field">
                       <label>По дату</label>
                       <input
+                        type="date"
                         readOnly={!canEdit}
                         value={current.endDate}
                         onChange={(e) => {

@@ -3,13 +3,27 @@
  * Компания — текст; companyId: 0, если нет привязки к справочнику.
  */
 export function buildExperienceCreateBody(studentId, row) {
+  const startDateRaw = row?.startDate ?? '';
+  const endDateRaw = row?.endDate ?? '';
+
+  const isValidLocalDate = (v) =>
+    typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+  if (startDateRaw && !isValidLocalDate(startDateRaw)) {
+    throw new Error(`Некорректная дата (startDate): ${startDateRaw}`);
+  }
+  if (endDateRaw && !isValidLocalDate(endDateRaw)) {
+    throw new Error(`Некорректная дата (endDate): ${endDateRaw}`);
+  }
+
   const body = {
     companyId: 0,
     position: row.position.trim(),
     additionalInfo: (row.additionalInfo || '').trim(),
-    startDate: row.startDate || '',
-    endDate: row.endDate || '',
   };
+  if (startDateRaw) body.startDate = startDateRaw;
+  if (endDateRaw) body.endDate = endDateRaw;
+
   const companyName = (row.companyName ?? row.company ?? '').trim();
   if (companyName) {
     body.companyName = companyName;
