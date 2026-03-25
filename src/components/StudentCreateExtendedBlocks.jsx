@@ -695,8 +695,11 @@ export function StudentCreateExtendedBlocks({
             <div key={idx} className="extended-block__row">
               <div className="form-row">
                 <div className="field" style={{ minWidth: 200, flex: 1 }}>
-                  <label>Education</label>
-                  <select
+                  <label>Education ID</label>
+                  <input
+                    type="number"
+                    min="1"
+                    list="education-options"
                     value={row.educationId ?? ''}
                     onChange={(e) =>
                       setForm((p) => {
@@ -705,14 +708,17 @@ export function StudentCreateExtendedBlocks({
                         return { ...p, institutionRows: next };
                       })
                     }
-                  >
-                    <option value="">Не выбрано</option>
+                    placeholder="Напр. 12"
+                  />
+                  <datalist id="education-options">
                     {(educationOptions ?? []).map((ed) => (
-                      <option key={ed.id} value={String(ed.id)}>
-                        {ed.institution || `Education #${ed.id}`} (ID: {ed.id})
-                      </option>
+                      <option
+                        key={ed.id}
+                        value={String(ed.id)}
+                        label={`${ed.institution || `Education #${ed.id}`}`.slice(0, 80)}
+                      />
                     ))}
-                  </select>
+                  </datalist>
                 </div>
                 <div className="field">
                   <label>Год начала</label>
@@ -793,8 +799,11 @@ export function StudentCreateExtendedBlocks({
                 <div key={kid} className="extended-block__row extended-block__row--saved">
                   <div className="form-row">
                     <div className="field" style={{ minWidth: 200, flex: 1 }}>
-                      <label>Education</label>
-                      <select
+                      <label>Education ID</label>
+                      <input
+                        type="number"
+                        min="1"
+                        list="education-options"
                         disabled={!canEdit}
                         value={current.educationId ?? ''}
                         onChange={(e) => {
@@ -808,14 +817,7 @@ export function StudentCreateExtendedBlocks({
                             },
                           }));
                         }}
-                      >
-                        <option value="">Не выбрано</option>
-                        {(educationOptions ?? []).map((ed) => (
-                          <option key={ed.id} value={String(ed.id)}>
-                            {ed.institution || `Education #${ed.id}`} (ID: {ed.id})
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </div>
                     <div className="field">
                       <label>Год начала</label>
