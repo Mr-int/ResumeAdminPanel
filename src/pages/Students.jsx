@@ -110,7 +110,8 @@ export function Students() {
     await deleteAllByFilter(portfolioApi.filterPortfolio, portfolioApi.deletePortfolio, { studentId: sid });
     await deleteAllByFilter(experienceApi.filterExperience, experienceApi.deleteExperience, { studentId: sid });
     await deleteAllByFilter(institutionApi.filterInstitutions, institutionApi.deleteInstitution, { studentId: sid });
-    await deleteAllByFilter(educationApi.filterEducation, educationApi.deleteEducation, { studentId: sid });
+    // Education часто является общей сущностью/справочником и может использоваться другими записями.
+    // При удалении студента удаляем только привязки (institution), а education не трогаем.
   }
 
   async function handleDelete(id) {
@@ -269,7 +270,7 @@ export function Students() {
 
       <div className="panel">
         <h2 className="panel__title">
-          Создание студента (POST /student/extended)
+          Создание студента (POST /student)
         </h2>
         {createMsg?.type === 'ok' ? (
           <div className="alert alert--success">{createMsg.text}</div>
