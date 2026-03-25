@@ -85,6 +85,16 @@ export function StudentDetail() {
   async function loadExtendedExisting(studentId) {
     const sid = String(studentId);
     const safePageData = (res) => res?.data?.data ?? res?.data ?? [];
+    const matchStudent = (raw) => {
+      if (!raw || typeof raw !== 'object') return false;
+      const candidates = [
+        raw.studentId,
+        raw.studentUuid,
+        raw.student_id,
+        raw.student?.id,
+      ].filter((v) => v != null);
+      return candidates.some((v) => String(v) === sid);
+    };
     async function tryFilters(call, filters) {
       let lastOk = [];
       for (const f of filters) {
@@ -108,7 +118,12 @@ export function StudentDetail() {
         tryFilters((f) => educationApi.filterEducation(f, 0, 200, ['id,desc']), filters),
       ]);
 
-      setExtExisting({ portfolios, experiences, institutions, educations });
+      setExtExisting({
+        portfolios: (portfolios ?? []).filter(matchStudent),
+        experiences: (experiences ?? []).filter(matchStudent),
+        institutions: (institutions ?? []).filter(matchStudent),
+        educations: (educations ?? []).filter(matchStudent),
+      });
     } catch {
       setExtExisting({ portfolios: [], experiences: [], institutions: [], educations: [] });
     }

@@ -91,8 +91,14 @@ export function Students() {
         const rows = safeList({ data });
         if (!rows.length) return;
         for (const r of rows) {
-          const rid = r?.id ?? r;
-          if (rid != null) await deleteFn(rid);
+          const rid =
+            (r && typeof r === 'object' && 'id' in r ? r.id : r) ??
+            (r && typeof r === 'object' && r.id ? r.id : null);
+
+          // не допускаем /institution/[object Object]
+          const idStr = rid == null ? '' : String(rid).trim();
+          if (!idStr || idStr.toLowerCase() === 'nan' || idStr === '[object Object]') continue;
+          await deleteFn(idStr);
         }
       }
     }
