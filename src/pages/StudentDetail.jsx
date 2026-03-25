@@ -7,6 +7,7 @@ import * as institutionApi from '../api/institutions.js';
 import * as companiesApi from '../api/companies.js';
 import * as skillsApi from '../api/skills.js';
 import * as specialitiesApi from '../api/specialities.js';
+import * as educationApi from '../api/education.js';
 import { compressImageForUpload } from '../utils/compressImage.js';
 import {
   contactFieldsFromStudentDto,
@@ -38,6 +39,7 @@ export function StudentDetail() {
   const [skillsOptions, setSkillsOptions] = useState([]);
   const [specialityOptions, setSpecialityOptions] = useState([]);
   const [companyOptions, setCompanyOptions] = useState([]);
+  const [educationOptions, setEducationOptions] = useState([]);
   const [optionsError, setOptionsError] = useState(null);
   const [extendedMsg, setExtendedMsg] = useState(null);
   const [extDraft, setExtDraft] = useState(emptyExtDraft);
@@ -50,6 +52,7 @@ export function StudentDetail() {
     portfolio: false,
     experience: false,
     institution: false,
+    education: false,
   });
   const [form, setForm] = useState({
     city: '', hhLink: '', birthDate: '', bio: '', course: 'NEW', busyness: 'FREE',
@@ -130,19 +133,22 @@ export function StudentDetail() {
     setError(null);
     setOptionsError(null);
     try {
-      const [{ data }, { data: specRes }, { data: skillsRes }, { data: companiesRes }] = await Promise.all([
+      const [{ data }, { data: specRes }, { data: skillsRes }, { data: companiesRes }, { data: eduRes }] = await Promise.all([
         studentsApi.getStudent(id),
         specialitiesApi.filterSpecialities({}, 0, 500, ['id,asc']),
         skillsApi.filterSkills({}, 0, 500, ['id,asc']),
         companiesApi.filterCompanies({}, 0, 500, ['id,asc']),
+        educationApi.filterEducation({}, 0, 500, ['id,desc']),
       ]);
       setStudent(data);
       const specList = specRes?.data ?? [];
       const skillsList = skillsRes?.data ?? [];
       const companiesList = companiesRes?.data ?? [];
+      const educationList = eduRes?.data ?? [];
       setSpecialityOptions(specList);
       setSkillsOptions(skillsList);
       setCompanyOptions(companiesList);
+      setEducationOptions(educationList);
       applyStudentToForm(data, specList);
       await loadExtendedExisting(id);
     } catch (e) {
@@ -256,6 +262,35 @@ export function StudentDetail() {
     }
   }
 
+  async function handleDeletePortfolio(portfolioId) {
+    if (!window.confirm('Удалить портфолио из профиля?')) return;
+    setExtendedMsg(null);
+    try {
+      await portfolioApi.deletePortfolio(portfolioId);
+      setExtendedMsg({ type: 'ok', text: 'Портфолио удалено' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    }
+  }
+
+  async function handleUpdatePortfolio(portfolioId, row) {
+    setExtendedMsg(null);
+    try {
+      await portfolioApi.updatePortfolio(portfolioId, {
+        id: Number(portfolioId),
+        name: (row?.name ?? '').trim(),
+        link: (row?.link ?? '').trim(),
+        additionalInfo: (row?.additionalInfo ?? '').trim(),
+        studentId: String(id),
+      });
+      setExtendedMsg({ type: 'ok', text: 'Портфолио обновлено' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    }
+  }
+
   async function commitExperiences() {
     setExtendedMsg(null);
     const rows = extDraft.experienceRows.filter(
@@ -277,6 +312,31 @@ export function StudentDetail() {
       setExtendedMsg({ type: 'err', text: e.message });
     } finally {
       setCommitting((c) => ({ ...c, experience: false }));
+    }
+  }
+
+  async function handleDeleteExperience(experienceId) {
+    if (!window.confirm('Удалить опыт из профиля?')) return;
+    setExtendedMsg(null);
+    try {
+      await experienceApi.deleteExperience(experienceId);
+      setExtendedMsg({ type: 'ok', text: 'Опыт удалён' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    }
+  }
+
+  async function handleUpdateExperience(experienceId, row) {
+    setExtendedMsg(null);
+    try {
+      // Используем тот же валидатор/нормализацию, что и для create
+      const body = buildExperienceCreateBody(id, row);
+      await experienceApi.updateExperience(experienceId, body);
+      setExtendedMsg({ type: 'ok', text: 'Опыт обновлён' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
     }
   }
 
@@ -306,6 +366,84 @@ export function StudentDetail() {
       setExtendedMsg({ type: 'err', text: e.message });
     } finally {
       setCommitting((c) => ({ ...c, institution: false }));
+    }
+  }
+
+  async function commitEducations() {
+    setExtendedMsg(null);
+    const rows = (extDraft.educationRows ?? []).filter((r) => r.institution?.trim());
+    if (!rows.length) {
+      setExtendedMsg({ type: 'err', text: 'Для education укажите хотя бы institution' });
+      return;
+    }
+    setCommitting((c) => ({ ...c, education: true }));
+    try {
+      for (const r of rows) {
+        await educationApi.createEducation({
+          id: 0,
+          institution: r.institution.trim(),
+          webUrl: (r.webUrl || '').trim(),
+          additionalInfo: (r.additionalInfo || '').trim(),
+        });
+      }
+      setExtDraft((p) => ({ ...p, educationRows: [] }));
+      setExtendedMsg({ type: 'ok', text: 'Education добавлено' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    } finally {
+      setCommitting((c) => ({ ...c, education: false }));
+    }
+  }
+
+  async function handleDeleteEducation(educationId) {
+    if (!window.confirm('Удалить education? (может быть использовано в institution)')) return;
+    setExtendedMsg(null);
+    try {
+      await educationApi.deleteEducation(educationId);
+      setExtendedMsg({ type: 'ok', text: 'Education удалено' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    }
+  }
+
+  async function handleUpdateEducation(educationId, row) {
+    setExtendedMsg(null);
+    try {
+      await educationApi.updateEducation(educationId, {
+        id: Number(educationId),
+        institution: (row?.institution ?? '').trim(),
+        webUrl: (row?.webUrl ?? '').trim(),
+        additionalInfo: (row?.additionalInfo ?? '').trim(),
+      });
+      setExtendedMsg({ type: 'ok', text: 'Education обновлено' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    }
+  }
+  async function handleDeleteInstitution(institutionId) {
+    if (!window.confirm('Удалить запись об обучении из профиля?')) return;
+    setExtendedMsg(null);
+    try {
+      await institutionApi.deleteInstitution(institutionId);
+      setExtendedMsg({ type: 'ok', text: 'Обучение удалено' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    }
+  }
+
+  async function handleUpdateInstitution(institutionId, row) {
+    setExtendedMsg(null);
+    try {
+      const body = buildInstitutionCreateBody(id, row);
+      await institutionApi.updateInstitution(institutionId, body);
+      setExtendedMsg({ type: 'ok', text: 'Обучение обновлено' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
     }
   }
 
@@ -416,16 +554,27 @@ export function StudentDetail() {
           editMode
           editLeadText="Добавляйте записи уже после создания студента (когда есть ID)."
           companyOptions={companyOptions}
+          educationOptions={educationOptions}
           existingPortfolios={portfolios}
+          onDeletePortfolio={handleDeletePortfolio}
+          onUpdatePortfolio={handleUpdatePortfolio}
           onCommitPortfolios={commitPortfolios}
           committingPortfolio={committing.portfolio}
           existingExperiences={experiences}
+          onDeleteExperience={handleDeleteExperience}
+          onUpdateExperience={handleUpdateExperience}
           onCommitExperiences={commitExperiences}
           committingExperience={committing.experience}
           existingInstitutions={institutions}
+          onDeleteInstitution={handleDeleteInstitution}
+          onUpdateInstitution={handleUpdateInstitution}
           onCommitInstitutions={commitInstitutions}
           committingInstitution={committing.institution}
-          existingEducations={[]}
+          existingEducations={educationOptions}
+          onCommitEducations={commitEducations}
+          committingEducation={committing.education}
+          onDeleteEducation={handleDeleteEducation}
+          onUpdateEducation={handleUpdateEducation}
         />
       </div>
 
