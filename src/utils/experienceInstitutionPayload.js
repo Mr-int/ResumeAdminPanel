@@ -61,24 +61,29 @@ export function buildInstitutionCreateBody(studentId, row) {
   })();
 
   const educationIdNum = Number(row?.educationId);
-  if (!Number.isFinite(educationIdNum) || educationIdNum <= 0) {
-    throw new Error('Выберите educationId (связь с Education)');
-  }
-
   const startYearNum = Number(row?.startYear);
   const endYearNum = Number(row?.endYear);
-  if (!Number.isFinite(startYearNum) || !Number.isFinite(endYearNum)) {
-    throw new Error('Укажите годы обучения (startYear/endYear)');
+
+  const body = {};
+  if (normalizedStudentId) body.studentId = normalizedStudentId;
+
+  // Старый контракт (если есть связь с Education)
+  if (Number.isFinite(educationIdNum) && educationIdNum > 0) {
+    body.educationId = educationIdNum;
   }
 
-  const body = {
-    educationId: educationIdNum,
-    studentId: normalizedStudentId,
-    institution: {
-      id: 0,
-      startYear: startYearNum,
-      endYear: endYearNum,
-    },
-  };
+  // Новый/плоский контракт Institution
+  if (String(row?.institution ?? '').trim() !== '') {
+    body.institution = String(row.institution).trim();
+  }
+  if (String(row?.webUrl ?? '').trim() !== '') {
+    body.webUrl = String(row.webUrl).trim();
+  }
+  if (String(row?.additionalInfo ?? '').trim() !== '') {
+    body.additionalInfo = String(row.additionalInfo).trim();
+  }
+  if (Number.isFinite(startYearNum)) body.startYear = startYearNum;
+  if (Number.isFinite(endYearNum)) body.endYear = endYearNum;
+
   return body;
 }
