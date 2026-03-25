@@ -4,6 +4,8 @@
  * Режим редактирования: черновики + кнопка «Добавить в профиль» + снизу уже сохранённые строки с удалением.
  */
 
+import { useEffect, useMemo, useState } from 'react';
+
 function normalizePortfolio(raw) {
   return {
     id: raw?.id,
@@ -65,21 +67,66 @@ export function StudentCreateExtendedBlocks({
   editLeadText = '',
   existingPortfolios = [],
   onDeletePortfolio,
+  onUpdatePortfolio,
   onCommitPortfolios,
   committingPortfolio = false,
   existingExperiences = [],
   onDeleteExperience,
+  onUpdateExperience,
   onCommitExperiences,
   committingExperience = false,
   existingInstitutions = [],
   onDeleteInstitution,
+  onUpdateInstitution,
   onCommitInstitutions,
   committingInstitution = false,
   existingEducations = [],
   onDeleteEducation,
+  onUpdateEducation,
   onCommitEducations,
   committingEducation = false,
 }) {
+  const portfolioSaved = useMemo(
+    () => (existingPortfolios ?? []).map((x) => normalizePortfolio(x)).filter((x) => x.id != null),
+    [existingPortfolios]
+  );
+  const experienceSaved = useMemo(
+    () => (existingExperiences ?? []).map((x) => normalizeExperience(x)).filter((x) => x.id != null),
+    [existingExperiences]
+  );
+  const institutionSaved = useMemo(
+    () => (existingInstitutions ?? []).map((x) => normalizeInstitution(x)).filter((x) => x.id != null),
+    [existingInstitutions]
+  );
+  const educationSaved = useMemo(
+    () => (existingEducations ?? []).map((x) => normalizeEducation(x)).filter((x) => x.id != null),
+    [existingEducations]
+  );
+
+  const [savedEdit, setSavedEdit] = useState({
+    portfolios: {},
+    experiences: {},
+    institutions: {},
+    educations: {},
+  });
+
+  useEffect(() => {
+    if (!editMode) return;
+    setSavedEdit((prev) => {
+      const next = {
+        portfolios: { ...prev.portfolios },
+        experiences: { ...prev.experiences },
+        institutions: { ...prev.institutions },
+        educations: { ...prev.educations },
+      };
+      for (const r of portfolioSaved) if (next.portfolios[r.id] == null) next.portfolios[r.id] = r;
+      for (const r of experienceSaved) if (next.experiences[r.id] == null) next.experiences[r.id] = r;
+      for (const r of institutionSaved) if (next.institutions[r.id] == null) next.institutions[r.id] = r;
+      for (const r of educationSaved) if (next.educations[r.id] == null) next.educations[r.id] = r;
+      return next;
+    });
+  }, [editMode, portfolioSaved, experienceSaved, institutionSaved, educationSaved]);
+
   return (
     <div className="extended-blocks">
       {showLead ? (
@@ -194,23 +241,94 @@ export function StudentCreateExtendedBlocks({
             {existingPortfolios.map((raw) => {
               const row = normalizePortfolio(raw);
               const kid = row.id != null ? `p-${row.id}` : `p-${row.name}`;
+              const canEdit = row.id != null && typeof onUpdatePortfolio === 'function';
+              const current =
+                row.id != null && savedEdit.portfolios[row.id]
+                  ? savedEdit.portfolios[row.id]
+                  : row;
               return (
                 <div key={kid} className="extended-block__row extended-block__row--saved">
                   <div className="form-row">
                     <div className="field" style={{ flex: 1, minWidth: 140 }}>
                       <label>Название</label>
-                      <input readOnly value={row.name} />
+                      <input
+                        readOnly={!canEdit}
+                        value={current.name}
+                        onChange={(e) => {
+                          if (!canEdit) return;
+                          const v = e.target.value;
+                          setSavedEdit((p) => ({
+                            ...p,
+                            portfolios: {
+                              ...p.portfolios,
+                              [row.id]: { ...current, name: v },
+                            },
+                          }));
+                        }}
+                      />
                     </div>
                     <div className="field" style={{ flex: 1, minWidth: 140 }}>
                       <label>Ссылка</label>
-                      <input readOnly value={row.link} />
+                      <input
+                        readOnly={!canEdit}
+                        value={current.link}
+                        onChange={(e) => {
+                          if (!canEdit) return;
+                          const v = e.target.value;
+                          setSavedEdit((p) => ({
+                            ...p,
+                            portfolios: {
+                              ...p.portfolios,
+                              [row.id]: { ...current, link: v },
+                            },
+                          }));
+                        }}
+                      />
                     </div>
                   </div>
                   <div className="form-row">
                     <div className="field" style={{ flex: 1, minWidth: 200 }}>
                       <label>Доп. информация</label>
-                      <input readOnly value={row.additionalInfo} />
+                      <input
+                        readOnly={!canEdit}
+                        value={current.additionalInfo}
+                        onChange={(e) => {
+                          if (!canEdit) return;
+                          const v = e.target.value;
+                          setSavedEdit((p) => ({
+                            ...p,
+                            portfolios: {
+                              ...p.portfolios,
+                              [row.id]: { ...current, additionalInfo: v },
+                            },
+                          }));
+                        }}
+                      />
                     </div>
+                    {canEdit ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn--primary btn--small"
+                          onClick={() => onUpdatePortfolio(row.id, current)}
+                        >
+                          Сохранить
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--small"
+                          onClick={() =>
+                            setSavedEdit((p) => {
+                              const next = { ...p, portfolios: { ...p.portfolios } };
+                              next.portfolios[row.id] = row;
+                              return next;
+                            })
+                          }
+                        >
+                          Сбросить
+                        </button>
+                      </>
+                    ) : null}
                     {onDeletePortfolio && row.id != null ? (
                       <button
                         type="button"
@@ -377,31 +495,130 @@ export function StudentCreateExtendedBlocks({
             {existingExperiences.map((raw) => {
               const row = normalizeExperience(raw);
               const kid = row.id != null ? `e-${row.id}` : `e-${row.position}`;
+              const canEdit = row.id != null && typeof onUpdateExperience === 'function';
+              const current =
+                row.id != null && savedEdit.experiences[row.id]
+                  ? savedEdit.experiences[row.id]
+                  : row;
               return (
                 <div key={kid} className="extended-block__row extended-block__row--saved">
                   <div className="form-row">
                     <div className="field" style={{ minWidth: 180, flex: 1 }}>
                       <label>Компания</label>
-                      <input readOnly value={row.companyName} />
+                      <input
+                        readOnly={!canEdit}
+                        value={current.companyName}
+                        onChange={(e) => {
+                          if (!canEdit) return;
+                          const v = e.target.value;
+                          setSavedEdit((p) => ({
+                            ...p,
+                            experiences: {
+                              ...p.experiences,
+                              [row.id]: { ...current, companyName: v },
+                            },
+                          }));
+                        }}
+                      />
                     </div>
                     <div className="field" style={{ minWidth: 160, flex: 1 }}>
                       <label>Должность</label>
-                      <input readOnly value={row.position} />
+                      <input
+                        readOnly={!canEdit}
+                        value={current.position}
+                        onChange={(e) => {
+                          if (!canEdit) return;
+                          const v = e.target.value;
+                          setSavedEdit((p) => ({
+                            ...p,
+                            experiences: {
+                              ...p.experiences,
+                              [row.id]: { ...current, position: v },
+                            },
+                          }));
+                        }}
+                      />
                     </div>
                     <div className="field">
                       <label>С даты</label>
-                      <input readOnly value={row.startDate} />
+                      <input
+                        readOnly={!canEdit}
+                        value={current.startDate}
+                        onChange={(e) => {
+                          if (!canEdit) return;
+                          const v = e.target.value;
+                          setSavedEdit((p) => ({
+                            ...p,
+                            experiences: {
+                              ...p.experiences,
+                              [row.id]: { ...current, startDate: v },
+                            },
+                          }));
+                        }}
+                      />
                     </div>
                     <div className="field">
                       <label>По дату</label>
-                      <input readOnly value={row.endDate} />
+                      <input
+                        readOnly={!canEdit}
+                        value={current.endDate}
+                        onChange={(e) => {
+                          if (!canEdit) return;
+                          const v = e.target.value;
+                          setSavedEdit((p) => ({
+                            ...p,
+                            experiences: {
+                              ...p.experiences,
+                              [row.id]: { ...current, endDate: v },
+                            },
+                          }));
+                        }}
+                      />
                     </div>
                   </div>
                   <div className="form-row">
                     <div className="field" style={{ flex: 1, minWidth: 200 }}>
                       <label>Доп. информация</label>
-                      <input readOnly value={row.additionalInfo} />
+                      <input
+                        readOnly={!canEdit}
+                        value={current.additionalInfo}
+                        onChange={(e) => {
+                          if (!canEdit) return;
+                          const v = e.target.value;
+                          setSavedEdit((p) => ({
+                            ...p,
+                            experiences: {
+                              ...p.experiences,
+                              [row.id]: { ...current, additionalInfo: v },
+                            },
+                          }));
+                        }}
+                      />
                     </div>
+                    {canEdit ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn--primary btn--small"
+                          onClick={() => onUpdateExperience(row.id, current)}
+                        >
+                          Сохранить
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--small"
+                          onClick={() =>
+                            setSavedEdit((p) => {
+                              const next = { ...p, experiences: { ...p.experiences } };
+                              next.experiences[row.id] = row;
+                              return next;
+                            })
+                          }
+                        >
+                          Сбросить
+                        </button>
+                      </>
+                    ) : null}
                     {onDeleteExperience && row.id != null ? (
                       <button
                         type="button"
@@ -535,21 +752,92 @@ export function StudentCreateExtendedBlocks({
               const row = normalizeInstitution(raw);
               const kid =
                 row.id != null ? `i-${row.id}` : `i-${row.institutionName || row.educationId}`;
+              const canEdit = row.id != null && typeof onUpdateInstitution === 'function';
+              const current =
+                row.id != null && savedEdit.institutions[row.id]
+                  ? savedEdit.institutions[row.id]
+                  : row;
               return (
                 <div key={kid} className="extended-block__row extended-block__row--saved">
                   <div className="form-row">
                     <div className="field" style={{ minWidth: 200, flex: 1 }}>
                       <label>Заведение</label>
-                      <input readOnly value={row.institutionName} />
+                      <input
+                        readOnly={!canEdit}
+                        value={current.institutionName}
+                        onChange={(e) => {
+                          if (!canEdit) return;
+                          const v = e.target.value;
+                          setSavedEdit((p) => ({
+                            ...p,
+                            institutions: {
+                              ...p.institutions,
+                              [row.id]: { ...current, institutionName: v },
+                            },
+                          }));
+                        }}
+                      />
                     </div>
                     <div className="field">
                       <label>Год начала</label>
-                      <input readOnly value={row.startYear} />
+                      <input
+                        readOnly={!canEdit}
+                        value={current.startYear}
+                        onChange={(e) => {
+                          if (!canEdit) return;
+                          const v = e.target.value;
+                          setSavedEdit((p) => ({
+                            ...p,
+                            institutions: {
+                              ...p.institutions,
+                              [row.id]: { ...current, startYear: v },
+                            },
+                          }));
+                        }}
+                      />
                     </div>
                     <div className="field">
                       <label>Год окончания</label>
-                      <input readOnly value={row.endYear} />
+                      <input
+                        readOnly={!canEdit}
+                        value={current.endYear}
+                        onChange={(e) => {
+                          if (!canEdit) return;
+                          const v = e.target.value;
+                          setSavedEdit((p) => ({
+                            ...p,
+                            institutions: {
+                              ...p.institutions,
+                              [row.id]: { ...current, endYear: v },
+                            },
+                          }));
+                        }}
+                      />
                     </div>
+                    {canEdit ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn--primary btn--small"
+                          onClick={() => onUpdateInstitution(row.id, current)}
+                        >
+                          Сохранить
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--small"
+                          onClick={() =>
+                            setSavedEdit((p) => {
+                              const next = { ...p, institutions: { ...p.institutions } };
+                              next.institutions[row.id] = row;
+                              return next;
+                            })
+                          }
+                        >
+                          Сбросить
+                        </button>
+                      </>
+                    ) : null}
                     {onDeleteInstitution && row.id != null ? (
                       <button
                         type="button"
@@ -680,23 +968,94 @@ export function StudentCreateExtendedBlocks({
             {existingEducations.map((raw) => {
               const row = normalizeEducation(raw);
               const kid = row.id != null ? `ed-${row.id}` : `ed-${row.institution}`;
+              const canEdit = row.id != null && typeof onUpdateEducation === 'function';
+              const current =
+                row.id != null && savedEdit.educations[row.id]
+                  ? savedEdit.educations[row.id]
+                  : row;
               return (
                 <div key={kid} className="extended-block__row extended-block__row--saved">
                   <div className="form-row">
                     <div className="field" style={{ flex: 1, minWidth: 180 }}>
                       <label>Заведение</label>
-                      <input readOnly value={row.institution} />
+                      <input
+                        readOnly={!canEdit}
+                        value={current.institution}
+                        onChange={(e) => {
+                          if (!canEdit) return;
+                          const v = e.target.value;
+                          setSavedEdit((p) => ({
+                            ...p,
+                            educations: {
+                              ...p.educations,
+                              [row.id]: { ...current, institution: v },
+                            },
+                          }));
+                        }}
+                      />
                     </div>
                     <div className="field" style={{ flex: 1, minWidth: 140 }}>
                       <label>Сайт</label>
-                      <input readOnly value={row.webUrl} />
+                      <input
+                        readOnly={!canEdit}
+                        value={current.webUrl}
+                        onChange={(e) => {
+                          if (!canEdit) return;
+                          const v = e.target.value;
+                          setSavedEdit((p) => ({
+                            ...p,
+                            educations: {
+                              ...p.educations,
+                              [row.id]: { ...current, webUrl: v },
+                            },
+                          }));
+                        }}
+                      />
                     </div>
                   </div>
                   <div className="form-row">
                     <div className="field" style={{ flex: 1, minWidth: 200 }}>
                       <label>Доп. информация</label>
-                      <input readOnly value={row.additionalInfo} />
+                      <input
+                        readOnly={!canEdit}
+                        value={current.additionalInfo}
+                        onChange={(e) => {
+                          if (!canEdit) return;
+                          const v = e.target.value;
+                          setSavedEdit((p) => ({
+                            ...p,
+                            educations: {
+                              ...p.educations,
+                              [row.id]: { ...current, additionalInfo: v },
+                            },
+                          }));
+                        }}
+                      />
                     </div>
+                    {canEdit ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn--primary btn--small"
+                          onClick={() => onUpdateEducation(row.id, current)}
+                        >
+                          Сохранить
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--small"
+                          onClick={() =>
+                            setSavedEdit((p) => {
+                              const next = { ...p, educations: { ...p.educations } };
+                              next.educations[row.id] = row;
+                              return next;
+                            })
+                          }
+                        >
+                          Сбросить
+                        </button>
+                      </>
+                    ) : null}
                     {onDeleteEducation && row.id != null ? (
                       <button
                         type="button"

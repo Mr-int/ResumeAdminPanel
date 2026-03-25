@@ -350,6 +350,66 @@ export function StudentDetail() {
     }
   }
 
+  async function updatePortfolio(portfolioId, row) {
+    setExtendedMsg(null);
+    try {
+      await portfolioApi.updatePortfolio(portfolioId, {
+        name: row.name?.trim() ?? '',
+        link: (row.link ?? '').trim(),
+        additionalInfo: (row.additionalInfo ?? '').trim(),
+        studentId: String(id),
+      });
+      setExtendedMsg({ type: 'ok', text: 'Портфолио обновлено' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    }
+  }
+
+  async function updateExperience(experienceId, row) {
+    setExtendedMsg(null);
+    try {
+      await experienceApi.updateExperience(
+        experienceId,
+        buildExperienceCreateBody(String(id), row)
+      );
+      setExtendedMsg({ type: 'ok', text: 'Опыт обновлён' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    }
+  }
+
+  async function updateInstitution(institutionId, row) {
+    setExtendedMsg(null);
+    try {
+      await institutionApi.updateInstitution(
+        institutionId,
+        buildInstitutionCreateBody(String(id), row)
+      );
+      setExtendedMsg({ type: 'ok', text: 'Заведение обновлено' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    }
+  }
+
+  async function updateEducation(educationId, row) {
+    setExtendedMsg(null);
+    try {
+      await educationApi.updateEducation(educationId, {
+        institution: row.institution?.trim() ?? '',
+        additionalInfo: (row.additionalInfo ?? '').trim(),
+        webUrl: (row.webUrl ?? '').trim(),
+        studentId: String(id),
+      });
+      setExtendedMsg({ type: 'ok', text: 'Education обновлено' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    }
+  }
+
   if (loading) return <div className="page"><p className="page__lead">Loading...</p></div>;
   if (error || !student) {
     return <div className="page"><div className="alert alert--error">{error ?? 'Not found'}</div><Link to="/students" className="btn btn--ghost">Back to list</Link></div>;
@@ -457,18 +517,22 @@ export function StudentDetail() {
           editLeadText="Сверху — новые строки (как при создании студента). Нажмите «Добавить новые в профиль» в блоке, чтобы сохранить их через API. Ниже — уже сохранённые записи; у них можно нажать «Удалить из профиля»."
           existingPortfolios={portfolios}
           onDeletePortfolio={(rid) => deleteExtendedPart('portfolio', rid)}
+          onUpdatePortfolio={updatePortfolio}
           onCommitPortfolios={commitPortfolios}
           committingPortfolio={committing.portfolio}
           existingExperiences={experiences}
           onDeleteExperience={(rid) => deleteExtendedPart('experience', rid)}
+          onUpdateExperience={updateExperience}
           onCommitExperiences={commitExperiences}
           committingExperience={committing.experience}
           existingInstitutions={institutions}
           onDeleteInstitution={(rid) => deleteExtendedPart('institution', rid)}
+          onUpdateInstitution={updateInstitution}
           onCommitInstitutions={commitInstitutions}
           committingInstitution={committing.institution}
           existingEducations={educations}
           onDeleteEducation={(rid) => deleteExtendedPart('education', rid)}
+          onUpdateEducation={updateEducation}
           onCommitEducations={commitEducations}
           committingEducation={committing.education}
         />
