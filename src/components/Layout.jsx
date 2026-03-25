@@ -1,4 +1,4 @@
-﻿import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import './Layout.css';
 
@@ -8,6 +8,7 @@ const nav = [
   { to: '/students', label: 'Students' },
   { to: '/skills', label: 'Skills' },
   { to: '/specialities', label: 'Specialities' },
+  { to: '/companies', label: 'Companies' },
   { to: '/recruiters', label: 'Recruiters' },
   { to: '/requests', label: 'Requests' },
 ];

@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import * as studentsApi from '../api/students.js';
+import * as portfolioApi from '../api/portfolio.js';
+import * as experienceApi from '../api/experience.js';
+import * as institutionApi from '../api/institutions.js';
+import * as companiesApi from '../api/companies.js';
 import * as skillsApi from '../api/skills.js';
 import * as specialitiesApi from '../api/specialities.js';
 import { compressImageForUpload } from '../utils/compressImage.js';
@@ -8,7 +12,18 @@ import {
   contactFieldsFromStudentDto,
   contactFieldsToApiPayload,
 } from '../utils/studentContact.js';
+import {
+  buildExperienceCreateBody,
+  buildInstitutionCreateBody,
+} from '../utils/experienceInstitutionPayload.js';
 import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
+import { StudentCreateExtendedBlocks } from '../components/StudentCreateExtendedBlocks.jsx';
+
+const emptyExtDraft = () => ({
+  portfolioRows: [],
+  experienceRows: [],
+  institutionRows: [],
+});
 
 export function StudentDetail() {
   const { id } = useParams();
@@ -22,7 +37,20 @@ export function StudentDetail() {
   const [photoUploading, setPhotoUploading] = useState(false);
   const [skillsOptions, setSkillsOptions] = useState([]);
   const [specialityOptions, setSpecialityOptions] = useState([]);
+  const [companyOptions, setCompanyOptions] = useState([]);
   const [optionsError, setOptionsError] = useState(null);
+  const [extendedMsg, setExtendedMsg] = useState(null);
+  const [extDraft, setExtDraft] = useState(emptyExtDraft);
+  const [extExisting, setExtExisting] = useState({
+    portfolios: [],
+    experiences: [],
+    institutions: [],
+  });
+  const [committing, setCommitting] = useState({
+    portfolio: false,
+    experience: false,
+    institution: false,
+  });
   const [form, setForm] = useState({
     city: '', hhLink: '', birthDate: '', bio: '', course: 'NEW', busyness: 'FREE',
     firstName: '', lastName: '', email: '', phoneNumber: '', telegramUsername: '',
@@ -52,28 +80,78 @@ export function StudentDetail() {
     });
   }
 
+  async function loadExtendedExisting(studentId) {
+    const sid = String(studentId);
+    const safePageData = (res) => res?.data?.data ?? res?.data ?? [];
+    const matchStudent = (raw) => {
+      if (!raw || typeof raw !== 'object') return false;
+      const candidates = [
+        raw.studentId,
+        raw.studentUuid,
+        raw.student_id,
+        raw.student?.id,
+      ].filter((v) => v != null);
+      return candidates.some((v) => String(v) === sid);
+    };
+    async function tryFilters(call, filters) {
+      let lastOk = [];
+      for (const f of filters) {
+        try {
+          const res = await call(f);
+          const arr = safePageData(res);
+          lastOk = Array.isArray(arr) ? arr : [];
+          if (lastOk.length) return lastOk;
+        } catch {
+          // try next filter shape
+        }
+      }
+      return lastOk;
+    }
+    try {
+      const filters = [{ studentId: sid }, { studentUuid: sid }, { student_id: sid }];
+      const [portfolios, experiences, institutions] = await Promise.all([
+        tryFilters((f) => portfolioApi.filterPortfolio(f, 0, 200, ['id,desc']), filters),
+        tryFilters((f) => experienceApi.filterExperience(f, 0, 200, ['id,desc']), filters),
+        tryFilters((f) => institutionApi.filterInstitutions(f, 0, 200, ['id,desc']), filters),
+      ]);
+
+      setExtExisting({
+        portfolios: (portfolios ?? []).filter(matchStudent),
+        experiences: (experiences ?? []).filter(matchStudent),
+        institutions: (institutions ?? []).filter(matchStudent),
+      });
+    } catch {
+      setExtExisting({ portfolios: [], experiences: [], institutions: [] });
+    }
+  }
+
   async function loadStudent() {
     setLoading(true);
     setError(null);
     setOptionsError(null);
     try {
-      const [{ data }, { data: specRes }, { data: skillsRes }] = await Promise.all([
+      const [{ data }, { data: specRes }, { data: skillsRes }, { data: companiesRes }] = await Promise.all([
         studentsApi.getStudent(id),
         specialitiesApi.filterSpecialities({}, 0, 500, ['id,asc']),
         skillsApi.filterSkills({}, 0, 500, ['id,asc']),
+        companiesApi.filterCompanies({}, 0, 500, ['id,asc']),
       ]);
       setStudent(data);
       const specList = specRes?.data ?? [];
       const skillsList = skillsRes?.data ?? [];
+      const companiesList = companiesRes?.data ?? [];
       setSpecialityOptions(specList);
       setSkillsOptions(skillsList);
+      setCompanyOptions(companiesList);
       applyStudentToForm(data, specList);
+      await loadExtendedExisting(id);
     } catch (e) {
       setOptionsError(e.message);
       try {
         const { data } = await studentsApi.getStudent(id);
         setStudent(data);
         applyStudentToForm(data, specialityOptions);
+        await loadExtendedExisting(id);
       } catch (e2) {
         setError(e2.message);
         setStudent(null);
@@ -84,6 +162,10 @@ export function StudentDetail() {
   }
 
   useEffect(() => { loadStudent(); }, [id]);
+
+  const portfolios = extExisting.portfolios;
+  const experiences = extExisting.experiences;
+  const institutions = extExisting.institutions;
 
   async function handleUpdate(e) {
     e.preventDefault();
@@ -146,6 +228,87 @@ export function StudentDetail() {
       setPhotoUploading(false);
     }
   }
+
+  async function commitPortfolios() {
+    setExtendedMsg(null);
+    const rows = extDraft.portfolioRows.filter((r) => r.name?.trim());
+    if (!rows.length) {
+      setExtendedMsg({ type: 'err', text: 'Укажите название хотя бы в одной строке портфолио' });
+      return;
+    }
+    setCommitting((c) => ({ ...c, portfolio: true }));
+    try {
+      for (const r of rows) {
+        await portfolioApi.createPortfolio({
+          name: r.name.trim(),
+          link: (r.link || '').trim(),
+          additionalInfo: (r.additionalInfo || '').trim(),
+          studentId: String(id),
+        });
+      }
+      setExtDraft((p) => ({ ...p, portfolioRows: [] }));
+      setExtendedMsg({ type: 'ok', text: 'Портфолио добавлено' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    } finally {
+      setCommitting((c) => ({ ...c, portfolio: false }));
+    }
+  }
+
+  async function commitExperiences() {
+    setExtendedMsg(null);
+    const rows = extDraft.experienceRows.filter(
+      (r) => r.position?.trim() && String(r.companyName ?? '').trim()
+    );
+    if (!rows.length) {
+      setExtendedMsg({ type: 'err', text: 'Для опыта укажите companyName и должность' });
+      return;
+    }
+    setCommitting((c) => ({ ...c, experience: true }));
+    try {
+      for (const r of rows) {
+        await experienceApi.createExperience(buildExperienceCreateBody(id, r));
+      }
+      setExtDraft((p) => ({ ...p, experienceRows: [] }));
+      setExtendedMsg({ type: 'ok', text: 'Опыт добавлен' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    } finally {
+      setCommitting((c) => ({ ...c, experience: false }));
+    }
+  }
+
+  async function commitInstitutions() {
+    setExtendedMsg(null);
+    const rows = extDraft.institutionRows.filter(
+      (r) =>
+        String(r.institution ?? '').trim() &&
+        r.startYear !== '' &&
+        r.endYear !== '' &&
+        !Number.isNaN(Number(r.startYear)) &&
+        !Number.isNaN(Number(r.endYear))
+    );
+    if (!rows.length) {
+      setExtendedMsg({ type: 'err', text: 'Для institution укажите заведение и оба года' });
+      return;
+    }
+    setCommitting((c) => ({ ...c, institution: true }));
+    try {
+      for (const r of rows) {
+        await institutionApi.createInstitution(buildInstitutionCreateBody(id, r));
+      }
+      setExtDraft((p) => ({ ...p, institutionRows: [] }));
+      setExtendedMsg({ type: 'ok', text: 'Institution добавлено' });
+      await loadStudent();
+    } catch (e) {
+      setExtendedMsg({ type: 'err', text: e.message });
+    } finally {
+      setCommitting((c) => ({ ...c, institution: false }));
+    }
+  }
+
 
   if (loading) return <div className="page"><p className="page__lead">Loading...</p></div>;
   if (error || !student) {
@@ -240,6 +403,30 @@ export function StudentDetail() {
             </form>
           </div>
         </div>
+      </div>
+
+      <div className="panel">
+        <h2 className="panel__title">Доп. блоки (портфолио / опыт / образование)</h2>
+        {extendedMsg?.type === 'ok' ? <div className="alert alert--success">{extendedMsg.text}</div> : null}
+        {extendedMsg?.type === 'err' ? <div className="alert alert--error">{extendedMsg.text}</div> : null}
+        <StudentCreateExtendedBlocks
+          form={extDraft}
+          setForm={setExtDraft}
+          showLead={false}
+          editMode
+          editLeadText="Добавляйте записи уже после создания студента (когда есть ID)."
+          companyOptions={companyOptions}
+          existingPortfolios={portfolios}
+          onCommitPortfolios={commitPortfolios}
+          committingPortfolio={committing.portfolio}
+          existingExperiences={experiences}
+          onCommitExperiences={commitExperiences}
+          committingExperience={committing.experience}
+          existingInstitutions={institutions}
+          onCommitInstitutions={commitInstitutions}
+          committingInstitution={committing.institution}
+          existingEducations={[]}
+        />
       </div>
 
     </div>

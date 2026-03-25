@@ -1,6 +1,10 @@
 /**
  * Плоское тело POST /experience (без вложенного experience).
- * Контракт: companyId > 0, studentId (UUID/строка), position/additionalInfo/startDate/endDate.
+ * Контракт (реальный бэк): companyId > 0 (int64), studentId (UUID/строка),
+ * position/additionalInfo/startDate/endDate.
+ *
+ * Примечание: companyName тоже можно передавать как fallback/для читаемости,
+ * если бэк допускает лишние поля.
  */
 export function buildExperienceCreateBody(studentId, row) {
   const normalizedStudentId = (() => {
@@ -28,12 +32,14 @@ export function buildExperienceCreateBody(studentId, row) {
   if (!Number.isFinite(companyIdNum) || companyIdNum <= 0) {
     throw new Error('companyId должен быть больше 0');
   }
+  const companyName = String(row?.companyName ?? '').trim();
 
   const body = {
     companyId: companyIdNum,
     position: row.position.trim(),
     additionalInfo: (row.additionalInfo || '').trim(),
   };
+  if (companyName) body.companyName = companyName;
   if (startDateRaw) body.startDate = startDateRaw;
   if (endDateRaw) body.endDate = endDateRaw;
 
@@ -42,8 +48,8 @@ export function buildExperienceCreateBody(studentId, row) {
 }
 
 /**
- * Плоское тело POST /institution.
- * Контракт: educationId > 0, studentId (UUID/строка), startYear/endYear.
+ * Плоское тело POST /institution (образование студента).
+ * Контракт (OpenAPI): institution (строка), webUrl/additionalInfo, startYear/endYear, studentId.
  */
 export function buildInstitutionCreateBody(studentId, row) {
   const normalizedStudentId = (() => {
@@ -54,13 +60,13 @@ export function buildInstitutionCreateBody(studentId, row) {
     return s;
   })();
 
-  const educationIdNum = Number(row?.educationId);
-  if (!Number.isFinite(educationIdNum) || educationIdNum <= 0) {
-    throw new Error('educationId должен быть больше 0');
-  }
+  const institution = String(row?.institution ?? '').trim();
+  if (!institution) throw new Error('Укажите institution (учебное заведение)');
 
   const body = {
-    educationId: educationIdNum,
+    institution,
+    webUrl: String(row?.webUrl ?? '').trim(),
+    additionalInfo: String(row?.additionalInfo ?? '').trim(),
     startYear: Number(row.startYear),
     endYear: Number(row.endYear),
   };
