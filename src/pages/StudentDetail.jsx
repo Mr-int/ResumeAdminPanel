@@ -248,12 +248,12 @@ export function StudentDetail() {
     const rows = extDraft.experienceRows.filter(
       (r) =>
         r.position?.trim() &&
-        (r.companyName ?? r.company ?? '').trim()
+        Number(r.companyId) > 0
     );
     if (!rows.length) {
       setExtendedMsg({
         type: 'err',
-        text: 'Для опыта укажите компанию и должность',
+        text: 'Для опыта укажите companyId (> 0) и должность',
       });
       return;
     }
@@ -278,7 +278,7 @@ export function StudentDetail() {
     setExtendedMsg(null);
     const rows = extDraft.institutionRows.filter(
       (r) =>
-        (r.institutionName ?? r.institution ?? '').trim() &&
+        Number(r.educationId) > 0 &&
         r.startYear !== '' &&
         r.endYear !== '' &&
         !Number.isNaN(Number(r.startYear)) &&
@@ -287,7 +287,7 @@ export function StudentDetail() {
     if (!rows.length) {
       setExtendedMsg({
         type: 'err',
-        text: 'Укажите заведение и оба года обучения',
+        text: 'Для institution укажите educationId (> 0) и оба года обучения',
       });
       return;
     }

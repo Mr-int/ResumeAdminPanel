@@ -26,15 +26,9 @@ function normalizePortfolio(raw) {
 
 function normalizeExperience(raw) {
   const e = raw?.experience && typeof raw.experience === 'object' ? raw.experience : raw;
-  const companyName =
-    (typeof raw?.companyName === 'string' && raw.companyName.trim()) ||
-    (typeof raw?.company === 'string' && raw.company.trim()) ||
-    (typeof e?.companyName === 'string' && e.companyName.trim()) ||
-    '';
   return {
     id: normalizeId(raw?.id ?? e?.id ?? raw?.experienceId ?? raw?.experienceID),
-    companyId: raw?.companyId != null ? String(raw.companyId) : '',
-    companyName,
+    companyId: raw?.companyId != null ? String(raw.companyId) : (e?.companyId != null ? String(e.companyId) : ''),
     position: e?.position ?? raw?.position ?? '',
     additionalInfo: e?.additionalInfo ?? raw?.additionalInfo ?? '',
     startDate: e?.startDate ?? raw?.startDate ?? '',
@@ -44,16 +38,9 @@ function normalizeExperience(raw) {
 
 function normalizeInstitution(raw) {
   const ins = raw?.institution && typeof raw.institution === 'object' ? raw.institution : raw;
-  const institutionName =
-    (typeof raw?.institutionName === 'string' && raw.institutionName.trim()) ||
-    (typeof ins?.institutionName === 'string' && ins.institutionName.trim()) ||
-    (typeof raw?.institution === 'string' && raw.institution.trim()) ||
-    (typeof ins?.institution === 'string' && ins.institution.trim()) ||
-    '';
   return {
     id: normalizeId(raw?.id ?? ins?.id ?? raw?.institutionId ?? raw?.institutionID),
-    educationId: raw?.educationId != null ? String(raw.educationId) : '',
-    institutionName,
+    educationId: raw?.educationId != null ? String(raw.educationId) : (ins?.educationId != null ? String(ins.educationId) : ''),
     startYear: ins?.startYear ?? raw?.startYear ?? '',
     endYear: ins?.endYear ?? raw?.endYear ?? '',
   };
@@ -367,7 +354,7 @@ export function StudentCreateExtendedBlocks({
                 experienceRows: [
                   ...p.experienceRows,
                   {
-                    companyName: '',
+                    companyId: '',
                     position: '',
                     additionalInfo: '',
                     startDate: '',
@@ -386,16 +373,18 @@ export function StudentCreateExtendedBlocks({
           form.experienceRows.map((row, idx) => (
             <div key={idx} className="extended-block__row">
               <div className="form-row">
-                <div className="field" style={{ minWidth: 180, flex: 1 }}>
-                  <label>Компания</label>
+                <div className="field">
+                  <label>ID компании</label>
                   <input
-                    value={row.companyName ?? ''}
+                    type="number"
+                    min="1"
+                    value={row.companyId ?? ''}
                     onChange={(e) =>
                       setForm((p) => {
                         const next = [...p.experienceRows];
                         next[idx] = {
                           ...next[idx],
-                          companyName: e.target.value,
+                          companyId: e.target.value,
                         };
                         return { ...p, experienceRows: next };
                       })
@@ -512,11 +501,13 @@ export function StudentCreateExtendedBlocks({
               return (
                 <div key={kid} className="extended-block__row extended-block__row--saved">
                   <div className="form-row">
-                    <div className="field" style={{ minWidth: 180, flex: 1 }}>
-                      <label>Компания</label>
+                    <div className="field">
+                      <label>ID компании</label>
                       <input
+                        type="number"
+                        min="1"
                         readOnly={!canEdit}
-                        value={current.companyName}
+                        value={current.companyId}
                         onChange={(e) => {
                           if (!canEdit) return;
                           const v = e.target.value;
@@ -524,7 +515,7 @@ export function StudentCreateExtendedBlocks({
                             ...p,
                             experiences: {
                               ...p.experiences,
-                              [row.id]: { ...current, companyName: v },
+                              [row.id]: { ...current, companyId: v },
                             },
                           }));
                         }}
@@ -659,7 +650,7 @@ export function StudentCreateExtendedBlocks({
                 institutionRows: [
                   ...p.institutionRows,
                   {
-                    institutionName: '',
+                    educationId: '',
                     startYear: '',
                     endYear: '',
                   },
@@ -676,16 +667,18 @@ export function StudentCreateExtendedBlocks({
           form.institutionRows.map((row, idx) => (
             <div key={idx} className="extended-block__row">
               <div className="form-row">
-                <div className="field" style={{ minWidth: 200, flex: 1 }}>
-                  <label>Заведение</label>
+                <div className="field">
+                  <label>ID education</label>
                   <input
-                    value={row.institutionName ?? ''}
+                    type="number"
+                    min="1"
+                    value={row.educationId ?? ''}
                     onChange={(e) =>
                       setForm((p) => {
                         const next = [...p.institutionRows];
                         next[idx] = {
                           ...next[idx],
-                          institutionName: e.target.value,
+                          educationId: e.target.value,
                         };
                         return { ...p, institutionRows: next };
                       })
@@ -762,7 +755,7 @@ export function StudentCreateExtendedBlocks({
             {existingInstitutions.map((raw) => {
               const row = normalizeInstitution(raw);
               const kid =
-                row.id != null ? `i-${row.id}` : `i-${row.institutionName || row.educationId}`;
+                row.id != null ? `i-${row.id}` : `i-${row.educationId}`;
               const canEdit = row.id != null && typeof onUpdateInstitution === 'function';
               const current =
                 row.id != null && savedEdit.institutions[row.id]
@@ -771,11 +764,13 @@ export function StudentCreateExtendedBlocks({
               return (
                 <div key={kid} className="extended-block__row extended-block__row--saved">
                   <div className="form-row">
-                    <div className="field" style={{ minWidth: 200, flex: 1 }}>
-                      <label>Заведение</label>
+                    <div className="field">
+                      <label>ID education</label>
                       <input
+                        type="number"
+                        min="1"
                         readOnly={!canEdit}
-                        value={current.institutionName}
+                        value={current.educationId}
                         onChange={(e) => {
                           if (!canEdit) return;
                           const v = e.target.value;
@@ -783,7 +778,7 @@ export function StudentCreateExtendedBlocks({
                             ...p,
                             institutions: {
                               ...p.institutions,
-                              [row.id]: { ...current, institutionName: v },
+                              [row.id]: { ...current, educationId: v },
                             },
                           }));
                         }}

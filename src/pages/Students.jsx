@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import * as studentsApi from '../api/students.js';
+import * as requestsApi from '../api/requests.js';
 import * as portfolioApi from '../api/portfolio.js';
 import * as experienceApi from '../api/experience.js';
 import * as institutionApi from '../api/institutions.js';
@@ -8,14 +9,8 @@ import * as educationApi from '../api/education.js';
 import * as skillsApi from '../api/skills.js';
 import * as specialitiesApi from '../api/specialities.js';
 import { API_BASE } from '../config.js';
-import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
-import { compressImageForUpload } from '../utils/compressImage.js';
+import { SkillPicker } from '../components/SkillPicker.jsx';
 import { contactFieldsToApiPayload } from '../utils/studentContact.js';
-import {
-  buildExperienceCreateBody,
-  buildInstitutionCreateBody,
-} from '../utils/experienceInstitutionPayload.js';
-import { StudentCreateExtendedBlocks } from '../components/StudentCreateExtendedBlocks.jsx';
 
 const PAGE_SIZE = 12;
 
@@ -25,6 +20,7 @@ function avatarUrl(imagePath) {
 }
 
 export function Students() {
+  const navigate = useNavigate();
   const [findString, setFindString] = useState('');
   const [page, setPage] = useState(0);
   const [data, setData] = useState(null);
@@ -36,9 +32,7 @@ export function Students() {
   const [specialityOptions, setSpecialityOptions] = useState([]);
   const [optionsError, setOptionsError] = useState(null);
   const [createdStudent, setCreatedStudent] = useState(null);
-  const [createPhotoFile, setCreatePhotoFile] = useState(null);
-  const [createPhotoUploading, setCreatePhotoUploading] = useState(false);
-  const [createPhotoMsg, setCreatePhotoMsg] = useState(null);
+  // Доп. блоки (портфолио/опыт/образование) добавляются после создания студента на его странице.
   const [createForm, setCreateForm] = useState({
     city: '',
     hhLink: '',
@@ -83,13 +77,56 @@ export function Students() {
     load();
   }, [load]);
 
+  async function cascadeDeleteStudent(studentId) {
+    const sid = String(studentId);
+    const safeList = (res) => {
+      const v = res?.data?.data ?? res?.data ?? [];
+      return Array.isArray(v) ? v : [];
+    };
+
+    async function deleteAllByFilter(filterFn, deleteFn, filter) {
+      // удаляем пачками, пока не опустеет (на случай пагинации/нестабильного бэка)
+      for (let i = 0; i < 10; i += 1) {
+        const { data } = await filterFn(filter, 0, 200);
+        const rows = safeList({ data });
+        if (!rows.length) return;
+        for (const r of rows) {
+          const rid = r?.id ?? r;
+          if (rid != null) await deleteFn(rid);
+        }
+      }
+    }
+
+    // 1) Requests (частая FK причина 409)
+    await deleteAllByFilter(requestsApi.filterRequests, requestsApi.deleteRequest, { studentId: sid });
+
+    // 2) Extended сущности
+    await deleteAllByFilter(portfolioApi.filterPortfolio, portfolioApi.deletePortfolio, { studentId: sid });
+    await deleteAllByFilter(experienceApi.filterExperience, experienceApi.deleteExperience, { studentId: sid });
+    await deleteAllByFilter(institutionApi.filterInstitutions, institutionApi.deleteInstitution, { studentId: sid });
+    await deleteAllByFilter(educationApi.filterEducation, educationApi.deleteEducation, { studentId: sid });
+  }
+
   async function handleDelete(id) {
     if (!window.confirm('Удалить студента?')) return;
     try {
       await studentsApi.deleteStudent(id);
       await load();
     } catch (e) {
-      setError(e.message);
+      // если 409 — пробуем удалить зависимости и повторить
+      const msg = String(e?.message ?? '');
+      if (msg.includes('409') || msg.toLowerCase().includes('conflict')) {
+        try {
+          await cascadeDeleteStudent(id);
+          await studentsApi.deleteStudent(id);
+          await load();
+          return;
+        } catch (e2) {
+          setError(e2.message);
+          return;
+        }
+      }
+      setError(msg || 'Ошибка удаления');
     }
   }
 
@@ -129,7 +166,6 @@ export function Students() {
   async function handleCreate(e) {
     e.preventDefault();
     setCreateMsg(null);
-    setCreatePhotoMsg(null);
     try {
       const skillsIds = createForm.skillsIds
         .map((x) => Number(x))
@@ -158,67 +194,10 @@ export function Students() {
       // 1) создаём студента без расширенных сущностей
       const { data: resData } = await studentsApi.createStudent(payload);
       const newId = extractCreatedStudentId(resData);
-      setCreateMsg({ type: 'ok', text: 'Студент создан' });
+      if (newId == null) throw new Error('Не удалось получить ID созданного студента');
+      setCreateMsg({ type: 'ok', text: 'Студент создан. Открываю карточку…' });
 
-      // 2) по очереди добавляем расширенные записи (если они есть)
-      if (newId != null) {
-        const sid = String(newId);
-
-        const portfolios = (createForm.portfolioRows ?? []).filter((r) => r.name?.trim());
-        for (const r of portfolios) {
-          await portfolioApi.createPortfolio({
-            name: r.name.trim(),
-            link: (r.link || '').trim(),
-            additionalInfo: (r.additionalInfo || '').trim(),
-            studentId: sid,
-          });
-        }
-
-        const experiences = (createForm.experienceRows ?? []).filter(
-          (r) =>
-            r.position?.trim() &&
-            (r.companyName ?? r.company ?? '').trim()
-        );
-        for (const r of experiences) {
-          await experienceApi.createExperience(buildExperienceCreateBody(sid, r));
-        }
-
-        const institutions = (createForm.institutionRows ?? []).filter(
-          (r) =>
-            (r.institutionName ?? r.institution ?? '').trim() &&
-            r.startYear !== '' &&
-            r.endYear !== '' &&
-            !Number.isNaN(Number(r.startYear)) &&
-            !Number.isNaN(Number(r.endYear))
-        );
-        for (const r of institutions) {
-          await institutionApi.createInstitution(buildInstitutionCreateBody(sid, r));
-        }
-
-        const educations = (createForm.educationRows ?? []).filter((r) => r.institution?.trim());
-        for (const r of educations) {
-          await educationApi.createEducation({
-            institution: r.institution.trim(),
-            additionalInfo: (r.additionalInfo || '').trim(),
-            webUrl: (r.webUrl || '').trim(),
-            studentId: sid,
-          });
-        }
-      }
-
-      if (newId != null) {
-        setCreatedStudent({
-          id: newId,
-          imagePath:
-            typeof resData === 'object' && resData?.imagePath != null
-              ? resData.imagePath
-              : null,
-          firstName: createForm.firstName.trim(),
-        });
-        setCreatePhotoFile(null);
-      } else {
-        setCreatedStudent(null);
-      }
+      setCreatedStudent(null);
       setCreateForm({
         city: '',
         hhLink: '',
@@ -240,51 +219,9 @@ export function Students() {
       });
       setPage(0);
       await load();
+      navigate(`/students/${newId}`);
     } catch (e) {
       setCreateMsg({ type: 'err', text: e.message });
-    }
-  }
-
-  async function handleCreatePhotoUpload(e) {
-    e.preventDefault();
-    setCreatePhotoMsg(null);
-    if (!createdStudent?.id) {
-      setCreatePhotoMsg({ type: 'err', text: 'Нет ID студента' });
-      return;
-    }
-    if (!createPhotoFile) {
-      setCreatePhotoMsg({ type: 'err', text: 'Выберите файл фото' });
-      return;
-    }
-    setCreatePhotoUploading(true);
-    try {
-      let fileToSend = createPhotoFile;
-      if (createPhotoFile.type.startsWith('image/')) {
-        try {
-          fileToSend = await compressImageForUpload(createPhotoFile);
-        } catch {
-          fileToSend = createPhotoFile;
-        }
-      }
-      await studentsApi.uploadStudentPhoto(createdStudent.id, fileToSend);
-      setCreatePhotoFile(null);
-      setCreatePhotoMsg({ type: 'ok', text: 'Фото загружено' });
-      const { data: fresh } = await studentsApi.getStudent(createdStudent.id);
-      if (fresh && typeof fresh === 'object') {
-        setCreatedStudent((prev) =>
-          prev
-            ? {
-                ...prev,
-                imagePath: fresh.imagePath ?? prev.imagePath,
-              }
-            : prev
-        );
-      }
-      await load();
-    } catch (err) {
-      setCreatePhotoMsg({ type: 'err', text: err.message });
-    } finally {
-      setCreatePhotoUploading(false);
     }
   }
 
@@ -496,69 +433,15 @@ export function Students() {
                 />
               </div>
             </div>
-            <StudentCreateExtendedBlocks form={createForm} setForm={setCreateForm} />
+            <p className="page__lead" style={{ marginTop: '0.75rem' }}>
+              Портфолио / опыт / образование добавляются после создания — на странице студента.
+            </p>
             <div className="form-row" style={{ marginTop: '1rem' }}>
               <button type="submit" className="btn btn--primary">
                 Создать студента
               </button>
             </div>
           </form>
-        ) : null}
-        {createdStudent ? (
-          <div className="created-student-photo panel panel--nested">
-            <h3 className="panel__title panel__title--small">
-              Фото студента (ID: {createdStudent.id})
-            </h3>
-            {createPhotoMsg?.type === 'ok' ? (
-              <div className="alert alert--success">{createPhotoMsg.text}</div>
-            ) : null}
-            {createPhotoMsg?.type === 'err' ? (
-              <div className="alert alert--error">{createPhotoMsg.text}</div>
-            ) : null}
-            <StudentPhotoBlock
-              imagePath={createdStudent.imagePath}
-              studentId={createdStudent.id}
-              firstName={createdStudent.firstName}
-              title="Превью"
-            >
-              <form
-                className="student-photo-block__upload"
-                onSubmit={handleCreatePhotoUpload}
-              >
-                <div className="field">
-                  <label htmlFor="create-student-photo-file">Файл изображения</label>
-                  <input
-                    id="create-student-photo-file"
-                    key={createdStudent.id}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) =>
-                      setCreatePhotoFile(e.target.files?.[0] ?? null)
-                    }
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="btn btn--primary"
-                  disabled={createPhotoUploading}
-                >
-                  {createPhotoUploading ? 'Загрузка…' : 'Загрузить / сменить фото'}
-                </button>
-              </form>
-            </StudentPhotoBlock>
-            <button
-              type="button"
-              className="btn btn--ghost"
-              style={{ marginTop: '0.75rem' }}
-              onClick={() => {
-                setCreatedStudent(null);
-                setCreatePhotoMsg(null);
-                setCreatePhotoFile(null);
-              }}
-            >
-              Скрыть блок фото
-            </button>
-          </div>
         ) : null}
       </div>
 

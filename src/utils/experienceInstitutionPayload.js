@@ -1,6 +1,6 @@
 /**
  * Плоское тело POST /experience (без вложенного experience).
- * Компания — текст; companyId: 0, если нет привязки к справочнику.
+ * Контракт: companyId > 0, studentId (UUID/строка), position/additionalInfo/startDate/endDate.
  */
 export function buildExperienceCreateBody(studentId, row) {
   const normalizedStudentId = (() => {
@@ -24,25 +24,26 @@ export function buildExperienceCreateBody(studentId, row) {
     throw new Error(`Некорректная дата (endDate): ${endDateRaw}`);
   }
 
+  const companyIdNum = Number(row?.companyId);
+  if (!Number.isFinite(companyIdNum) || companyIdNum <= 0) {
+    throw new Error('companyId должен быть больше 0');
+  }
+
   const body = {
-    companyId: 0,
+    companyId: companyIdNum,
     position: row.position.trim(),
     additionalInfo: (row.additionalInfo || '').trim(),
   };
   if (startDateRaw) body.startDate = startDateRaw;
   if (endDateRaw) body.endDate = endDateRaw;
 
-  const companyName = (row.companyName ?? row.company ?? '').trim();
-  if (companyName) {
-    body.companyName = companyName;
-    body.company = companyName;
-  }
   if (normalizedStudentId) body.studentId = normalizedStudentId;
   return body;
 }
 
 /**
- * Плоское тело POST /institution: заведение текстом, educationId: 0 при отсутствии справочника.
+ * Плоское тело POST /institution.
+ * Контракт: educationId > 0, studentId (UUID/строка), startYear/endYear.
  */
 export function buildInstitutionCreateBody(studentId, row) {
   const normalizedStudentId = (() => {
@@ -53,16 +54,16 @@ export function buildInstitutionCreateBody(studentId, row) {
     return s;
   })();
 
+  const educationIdNum = Number(row?.educationId);
+  if (!Number.isFinite(educationIdNum) || educationIdNum <= 0) {
+    throw new Error('educationId должен быть больше 0');
+  }
+
   const body = {
-    educationId: 0,
+    educationId: educationIdNum,
     startYear: Number(row.startYear),
     endYear: Number(row.endYear),
   };
-  const name = (row.institutionName ?? row.institution ?? '').trim();
-  if (name) {
-    body.institutionName = name;
-    body.institution = name;
-  }
   if (normalizedStudentId) body.studentId = normalizedStudentId;
   return body;
 }
