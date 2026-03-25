@@ -3,6 +3,14 @@
  * Компания — текст; companyId: 0, если нет привязки к справочнику.
  */
 export function buildExperienceCreateBody(studentId, row) {
+  const normalizedStudentId = (() => {
+    if (studentId == null) return '';
+    const s = String(studentId).trim();
+    if (!s) return '';
+    if (s.toLowerCase() === 'nan') return '';
+    return s;
+  })();
+
   const startDateRaw = row?.startDate ?? '';
   const endDateRaw = row?.endDate ?? '';
 
@@ -29,9 +37,7 @@ export function buildExperienceCreateBody(studentId, row) {
     body.companyName = companyName;
     body.company = companyName;
   }
-  if (studentId != null && String(studentId) !== '') {
-    body.studentId = String(studentId);
-  }
+  if (normalizedStudentId) body.studentId = normalizedStudentId;
   return body;
 }
 
@@ -39,6 +45,14 @@ export function buildExperienceCreateBody(studentId, row) {
  * Плоское тело POST /institution: заведение текстом, educationId: 0 при отсутствии справочника.
  */
 export function buildInstitutionCreateBody(studentId, row) {
+  const normalizedStudentId = (() => {
+    if (studentId == null) return '';
+    const s = String(studentId).trim();
+    if (!s) return '';
+    if (s.toLowerCase() === 'nan') return '';
+    return s;
+  })();
+
   const body = {
     educationId: 0,
     startYear: Number(row.startYear),
@@ -49,8 +63,6 @@ export function buildInstitutionCreateBody(studentId, row) {
     body.institutionName = name;
     body.institution = name;
   }
-  if (studentId != null && String(studentId) !== '') {
-    body.studentId = String(studentId);
-  }
+  if (normalizedStudentId) body.studentId = normalizedStudentId;
   return body;
 }

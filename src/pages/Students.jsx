@@ -114,9 +114,15 @@ export function Students() {
   function extractCreatedStudentId(data) {
     if (data == null) return null;
     if (typeof data === 'object' && 'id' in data && data.id != null) {
-      return Number(data.id);
+      const raw = data.id;
+      if (typeof raw === 'number' && Number.isInteger(raw)) return String(raw);
+      const s = String(raw).trim();
+      if (!s) return null;
+      if (s.toLowerCase() === 'nan') return null;
+      return s;
     }
-    if (typeof data === 'number' && Number.isInteger(data)) return data;
+    if (typeof data === 'number' && Number.isInteger(data)) return String(data);
+    if (typeof data === 'string' && data.trim()) return data.trim();
     return null;
   }
 

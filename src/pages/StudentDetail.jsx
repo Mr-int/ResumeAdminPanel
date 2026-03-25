@@ -445,7 +445,7 @@ export function StudentDetail() {
             {mediaMsg?.type === 'err' ? <div className="alert alert--error">{mediaMsg.text}</div> : null}
             <StudentPhotoBlock
               imagePath={student.imagePath}
-              studentId={Number(id)}
+              studentId={id}
               firstName={student.firstName}
               title="Фото"
             >
