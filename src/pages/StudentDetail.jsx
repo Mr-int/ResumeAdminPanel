@@ -60,6 +60,39 @@ export function StudentDetail() {
     specialityId: '', skillsIds: [],
   });
 
+  function readSkillsIdsFromStudentDto(data) {
+    if (!data || typeof data !== 'object') return [];
+
+    const direct = data.skillsIds ?? data.skillIds ?? data.skills_ids ?? null;
+    if (Array.isArray(direct) && direct.length) {
+      return direct
+        .map((x) => Number(x))
+        .filter((x) => Number.isInteger(x) && x > 0);
+    }
+
+    const skillsArr = Array.isArray(data.skills) ? data.skills : [];
+    const fromIds = skillsArr
+      .map((s) => (s && typeof s === 'object' ? s.id : null))
+      .map((x) => Number(x))
+      .filter((x) => Number.isInteger(x) && x > 0);
+    if (fromIds.length) return fromIds;
+
+    // fallback: сопоставление по имени (если skills = ["React", ...] или [{name:"React"}])
+    const names = skillsArr
+      .map((s) => {
+        if (typeof s === 'string') return s.trim();
+        if (s && typeof s === 'object' && typeof s.name === 'string') return s.name.trim();
+        return '';
+      })
+      .filter(Boolean);
+    if (!names.length) return [];
+    const byName = new Map((skillsOptions ?? []).map((s) => [String(s.name).toLowerCase(), s.id]));
+    return names
+      .map((n) => byName.get(n.toLowerCase()))
+      .map((x) => Number(x))
+      .filter((x) => Number.isInteger(x) && x > 0);
+  }
+
   function applyStudentToForm(data, specList) {
     const contact = contactFieldsFromStudentDto(data);
     let specialityId = '';
@@ -79,7 +112,7 @@ export function StudentDetail() {
       phoneNumber: contact.phoneNumber,
       telegramUsername: contact.telegramUsername,
       specialityId,
-      skillsIds: (data.skills ?? []).map((s) => s.id),
+      skillsIds: readSkillsIdsFromStudentDto(data),
     });
   }
 
