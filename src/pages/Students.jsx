@@ -11,6 +11,7 @@ import * as specialitiesApi from '../api/specialities.js';
 import { API_BASE } from '../config.js';
 import { SkillPicker } from '../components/SkillPicker.jsx';
 import { contactFieldsToApiPayload } from '../utils/studentContact.js';
+import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
 
 const PAGE_SIZE = 12;
 
@@ -431,12 +432,13 @@ export function Students() {
                 />
               </div>
               <div className="field" style={{ minWidth: 300, flex: 1 }}>
-                <label>Bio</label>
-                <input
+                <TextAreaWithToolbar
+                  label="Bio"
+                  id="create-student-bio"
+                  rows={4}
                   value={createForm.bio}
-                  onChange={(e) =>
-                    setCreateForm((p) => ({ ...p, bio: e.target.value }))
-                  }
+                  onChange={(v) => setCreateForm((p) => ({ ...p, bio: v }))}
+                  hint="Жирный и списки — кнопками; сохраняется как текст с Markdown, если используете разметку."
                 />
               </div>
             </div>

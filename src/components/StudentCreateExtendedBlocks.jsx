@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { TextAreaWithToolbar } from './TextAreaWithToolbar.jsx';
 
 function normalizeId(v) {
   if (v == null) return null;
@@ -196,16 +197,14 @@ export function StudentCreateExtendedBlocks({
               </div>
               <div className="form-row">
                 <div className="field" style={{ flex: 1, minWidth: 200 }}>
-                  <label>Доп. информация</label>
-                  <input
+                  <TextAreaWithToolbar
+                    label="Доп. информация"
+                    id={`portfolio-draft-${idx}`}
                     value={row.additionalInfo}
-                    onChange={(e) =>
+                    onChange={(v) =>
                       setForm((p) => {
                         const next = [...p.portfolioRows];
-                        next[idx] = {
-                          ...next[idx],
-                          additionalInfo: e.target.value,
-                        };
+                        next[idx] = { ...next[idx], additionalInfo: v };
                         return { ...p, portfolioRows: next };
                       })
                     }
@@ -292,13 +291,13 @@ export function StudentCreateExtendedBlocks({
                   </div>
                   <div className="form-row">
                     <div className="field" style={{ flex: 1, minWidth: 200 }}>
-                      <label>Доп. информация</label>
-                      <input
+                      <TextAreaWithToolbar
+                        label="Доп. информация"
+                        id={`portfolio-saved-${row.id}`}
                         readOnly={!canEdit}
                         value={current.additionalInfo}
-                        onChange={(e) => {
+                        onChange={(v) => {
                           if (!canEdit) return;
-                          const v = e.target.value;
                           setSavedEdit((p) => ({
                             ...p,
                             portfolios: {
@@ -461,16 +460,14 @@ export function StudentCreateExtendedBlocks({
               </div>
               <div className="form-row">
                 <div className="field" style={{ flex: 1, minWidth: 200 }}>
-                  <label>Доп. информация</label>
-                  <input
+                  <TextAreaWithToolbar
+                    label="Доп. информация"
+                    id={`experience-draft-${idx}`}
                     value={row.additionalInfo}
-                    onChange={(e) =>
+                    onChange={(v) =>
                       setForm((p) => {
                         const next = [...p.experienceRows];
-                        next[idx] = {
-                          ...next[idx],
-                          additionalInfo: e.target.value,
-                        };
+                        next[idx] = { ...next[idx], additionalInfo: v };
                         return { ...p, experienceRows: next };
                       })
                     }
@@ -607,13 +604,13 @@ export function StudentCreateExtendedBlocks({
                   </div>
                   <div className="form-row">
                     <div className="field" style={{ flex: 1, minWidth: 200 }}>
-                      <label>Доп. информация</label>
-                      <input
+                      <TextAreaWithToolbar
+                        label="Доп. информация"
+                        id={`experience-saved-${row.id}`}
                         readOnly={!canEdit}
                         value={current.additionalInfo}
-                        onChange={(e) => {
+                        onChange={(v) => {
                           if (!canEdit) return;
-                          const v = e.target.value;
                           setSavedEdit((p) => ({
                             ...p,
                             experiences: {
@@ -949,13 +946,14 @@ export function StudentCreateExtendedBlocks({
               </div>
               <div className="form-row">
                 <div className="field" style={{ minWidth: 240, flex: 1 }}>
-                  <label>Доп. информация</label>
-                  <input
+                  <TextAreaWithToolbar
+                    label="Доп. информация"
+                    id={`education-draft-${idx}`}
                     value={row.additionalInfo ?? ''}
-                    onChange={(e) =>
+                    onChange={(v) =>
                       setForm((p) => {
                         const next = [...p.educationRows];
-                        next[idx] = { ...next[idx], additionalInfo: e.target.value };
+                        next[idx] = { ...next[idx], additionalInfo: v };
                         return { ...p, educationRows: next };
                       })
                     }
@@ -1044,13 +1042,13 @@ export function StudentCreateExtendedBlocks({
                   </div>
                   <div className="form-row">
                     <div className="field" style={{ minWidth: 240, flex: 1 }}>
-                      <label>Доп. информация</label>
-                      <input
+                      <TextAreaWithToolbar
+                        label="Доп. информация"
+                        id={`education-saved-${row.id}`}
                         readOnly={!canEdit}
                         value={current.additionalInfo}
-                        onChange={(e) => {
+                        onChange={(v) => {
                           if (!canEdit) return;
-                          const v = e.target.value;
                           setSavedEdit((p) => ({
                             ...p,
                             educations: {

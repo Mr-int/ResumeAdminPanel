@@ -18,6 +18,7 @@ import {
 } from '../utils/experienceInstitutionPayload.js';
 import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
 import { StudentCreateExtendedBlocks } from '../components/StudentCreateExtendedBlocks.jsx';
+import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
 
 const emptyExtDraft = () => ({
   portfolioRows: [],
@@ -511,7 +512,16 @@ export function StudentDetail() {
               </div>
               <div className="form-row">
                 <div className="field" style={{ minWidth: 300, flex: 1 }}><label>HH</label><input value={form.hhLink} onChange={(e) => setForm((p) => ({ ...p, hhLink: e.target.value }))} /></div>
-                <div className="field" style={{ minWidth: 300, flex: 1 }}><label>Bio</label><input value={form.bio} onChange={(e) => setForm((p) => ({ ...p, bio: e.target.value }))} /></div>
+                <div className="field" style={{ minWidth: 300, flex: 1 }}>
+                  <TextAreaWithToolbar
+                    label="Bio"
+                    id="student-bio"
+                    rows={5}
+                    value={form.bio}
+                    onChange={(v) => setForm((p) => ({ ...p, bio: v }))}
+                    hint="Жирный и списки — кнопками выше; в тексте это Markdown (**текст**, − и 1.)."
+                  />
+                </div>
                 <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Сохранение…' : 'Сохранить'}</button>
               </div>
             </form>
