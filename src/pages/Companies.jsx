@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as companiesApi from '../api/companies.js';
+import { PageHeader } from '../components/ui/PageHeader.jsx';
+import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
+import { FlashMessages } from '../components/ui/FlashMessages.jsx';
 
 const PAGE_SIZE = 15;
 
@@ -81,8 +84,10 @@ export function Companies() {
 
   return (
     <div className="page">
-      <h1 className="page__title">Компании</h1>
-      <p className="page__lead">POST /company, PUT/DELETE /company/{'{id}'}, POST /company/filter</p>
+      <PageHeader
+        title="Компании"
+        lead="Справочник компаний для опыта работы студентов и профилей рекрутеров."
+      />
 
       <div className="panel">
         <h2 className="panel__title">Фильтр и создание</h2>

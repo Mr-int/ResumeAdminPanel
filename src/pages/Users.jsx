@@ -1,12 +1,24 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as usersApi from '../api/users.js';
+import { PageHeader } from '../components/ui/PageHeader.jsx';
+import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
+import { Pagination } from '../components/ui/Pagination.jsx';
+import { FlashMessages } from '../components/ui/FlashMessages.jsx';
+import { ROLE_LABELS, labelOf } from '../lib/labels.js';
 
 const PAGE_SIZE = 10;
 
 function roleBadge(role) {
   const c =
-    role === 'ADMIN' ? 'badge--admin' : role === 'USER' ? 'badge--user' : 'badge--guest';
-  return <span className={`badge ${c}`}>{role}</span>;
+    role === 'ADMIN'
+      ? 'badge--admin'
+      : role === 'STUDENT'
+        ? 'badge--student'
+        : role === 'RECRUITER'
+          ? 'badge--recruiter'
+          : null;
+  if (!c) return <span>{labelOf(ROLE_LABELS, role, role ?? '—')}</span>;
+  return <span className={`badge ${c}`}>{labelOf(ROLE_LABELS, role, role)}</span>;
 }
 
 export function Users() {
@@ -79,15 +91,15 @@ export function Users() {
 
   return (
     <div className="page">
-      <h1 className="page__title">Пользователи</h1>
-      <p className="page__lead">Фильтр по username, создание и удаление (DELETE /user/&#123;id&#125;)</p>
+      <PageHeader
+        title="Учётные записи"
+        lead="Управление пользователями системы: создание студентов и рекрутеров, удаление."
+      />
 
-      {createMsg?.type === 'ok' ? (
-        <div className="alert alert--success">{createMsg.text}</div>
-      ) : null}
-      {createMsg?.type === 'err' ? (
-        <div className="alert alert--error">{createMsg.text}</div>
-      ) : null}
+      <FlashMessages
+        success={createMsg?.type === 'ok' ? createMsg.text : null}
+        error={createMsg?.type === 'err' ? createMsg.text : error}
+      />
 
       <div className="panel">
         <h2 className="panel__title">Фильтр</h2>
@@ -100,7 +112,7 @@ export function Users() {
           }}
         >
           <div className="field">
-            <label htmlFor="ufilter">Username (частично)</label>
+            <label htmlFor="ufilter">Логин (частично)</label>
             <input
               id="ufilter"
               value={username}
@@ -131,7 +143,7 @@ export function Users() {
                 />
               </div>
               <div className="field">
-                <label>Username</label>
+                <label>Логин</label>
                 <input
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.target.value)}
@@ -157,12 +169,10 @@ export function Users() {
         ) : null}
       </div>
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-
       <div className="panel">
         <h2 className="panel__title">Список</h2>
         {loading ? (
-          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Загрузка…</p>
+          <LoadingBlock />
         ) : (
           <>
             <div className="table-wrap">
@@ -170,7 +180,7 @@ export function Users() {
                 <thead>
                   <tr>
                     <th>Имя</th>
-                    <th>Username</th>
+                    <th>Логин</th>
                     <th>Роль</th>
                     <th />
                   </tr>
@@ -195,30 +205,13 @@ export function Users() {
                 </tbody>
               </table>
             </div>
-            <div className="pager">
-              <span>
-                Стр. {data ? data.page + 1 : 1} из {Math.max(totalPages, 1)} · всего{' '}
-                {data?.totalElements ?? 0}
-              </span>
-              <div className="pager__btns">
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  disabled={page <= 0}
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                >
-                  Назад
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  disabled={totalPages && page >= totalPages - 1}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Вперёд
-                </button>
-              </div>
-            </div>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              totalElements={data?.totalElements}
+              onPrev={() => setPage((p) => Math.max(0, p - 1))}
+              onNext={() => setPage((p) => p + 1)}
+            />
           </>
         )}
       </div>

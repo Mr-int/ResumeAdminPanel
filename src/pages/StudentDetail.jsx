@@ -19,6 +19,7 @@ import {
 import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
 import { StudentCreateExtendedBlocks } from '../components/StudentCreateExtendedBlocks.jsx';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
+import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 
 const emptyExtDraft = () => ({
   portfolioRows: [],
@@ -425,7 +426,13 @@ export function StudentDetail() {
   }
 
 
-  if (loading) return <div className="page"><p className="page__lead">Loading...</p></div>;
+  if (loading) {
+    return (
+      <div className="page">
+        <LoadingBlock text="Загрузка карточки студента…" />
+      </div>
+    );
+  }
   if (error || !student) {
     return <div className="page"><div className="alert alert--error">{error ?? 'Not found'}</div><Link to="/students" className="btn btn--ghost">Back to list</Link></div>;
   }

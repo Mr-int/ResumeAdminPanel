@@ -1,5 +1,10 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as recruitersApi from '../api/recruiters.js';
+import { PageHeader } from '../components/ui/PageHeader.jsx';
+import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
+import { EmptyState } from '../components/ui/EmptyState.jsx';
+import { Pagination } from '../components/ui/Pagination.jsx';
+import { FlashMessages } from '../components/ui/FlashMessages.jsx';
 
 const PAGE_SIZE = 10;
 
@@ -41,7 +46,9 @@ export function Recruiters() {
     }
   }, [name, page]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const totalPages = data?.totalPages ?? 0;
   const rows = data?.data ?? [];
@@ -60,7 +67,7 @@ export function Recruiters() {
   }, [selected]);
 
   async function handleDelete(id) {
-    if (!window.confirm('Delete recruiter?')) return;
+    if (!window.confirm('Удалить профиль рекрутера?')) return;
     setMsg(null);
     try {
       await recruitersApi.deleteRecruiter(id);
@@ -69,7 +76,7 @@ export function Recruiters() {
         setForm(emptyForm());
       }
       await load();
-      setMsg({ type: 'ok', text: 'Recruiter deleted' });
+      setMsg({ type: 'ok', text: 'Рекрутер удалён' });
     } catch (e) {
       setMsg({ type: 'err', text: e.message });
     }
@@ -90,7 +97,7 @@ export function Recruiters() {
         telegramUsername: form.telegramUsername || undefined,
       });
       await load();
-      setMsg({ type: 'ok', text: 'Full update done (PUT)' });
+      setMsg({ type: 'ok', text: 'Профиль полностью обновлён' });
     } catch (e) {
       setMsg({ type: 'err', text: e.message });
     } finally {
@@ -113,7 +120,7 @@ export function Recruiters() {
 
       await recruitersApi.patchRecruiter(selectedId, payload);
       await load();
-      setMsg({ type: 'ok', text: 'Partial update done (PATCH)' });
+      setMsg({ type: 'ok', text: 'Изменения сохранены (частичное обновление)' });
     } catch (e) {
       setMsg({ type: 'err', text: e.message });
     } finally {
@@ -123,72 +130,164 @@ export function Recruiters() {
 
   return (
     <div className="page">
-      <h1 className="page__title">Recruiters</h1>
-      <p className="page__lead">POST /recruiter/filter, PUT/PATCH/DELETE /recruiter/{'{id}'}</p>
+      <PageHeader
+        title="Рекрутеры"
+        lead="Профили работодателей: компания, контакты, привязка к учётной записи."
+      />
+
       <div className="panel">
-        <h2 className="panel__title">Filter</h2>
-        <form className="form-row" onSubmit={(e) => { e.preventDefault(); setPage(0); load(); }}>
-          <div className="field"><label>Name</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Empty = all" /></div>
-          <button type="submit" className="btn btn--primary">Search</button>
+        <h2 className="panel__title">Поиск</h2>
+        <form
+          className="form-row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setPage(0);
+            load();
+          }}
+        >
+          <div className="field">
+            <label>Имя или компания</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Пусто — показать всех"
+            />
+          </div>
+          <button type="submit" className="btn btn--primary">
+            Найти
+          </button>
         </form>
       </div>
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {msg?.type === 'ok' ? <div className="alert alert--success">{msg.text}</div> : null}
-      {msg?.type === 'err' ? <div className="alert alert--error">{msg.text}</div> : null}
+      <FlashMessages
+        error={error || (msg?.type === 'err' ? msg.text : null)}
+        success={msg?.type === 'ok' ? msg.text : null}
+      />
 
       <div className="panel">
-        <h2 className="panel__title">List</h2>
-        {loading ? <p style={{ color: 'var(--text-muted)', margin: 0 }}>Loading...</p> : (
+        <h2 className="panel__title">Список</h2>
+        {loading ? (
+          <LoadingBlock />
+        ) : rows.length === 0 ? (
+          <EmptyState title="Рекрутеры не найдены" />
+        ) : (
           <>
             <div className="table-wrap">
               <table className="data">
-                <thead><tr><th>Company</th><th>Name</th><th>Email</th><th>Telegram</th><th /></tr></thead>
+                <thead>
+                  <tr>
+                    <th>Компания</th>
+                    <th>ФИО</th>
+                    <th>Email</th>
+                    <th>Telegram</th>
+                    <th />
+                  </tr>
+                </thead>
                 <tbody>
                   {rows.map((r) => (
                     <tr key={r.id}>
                       <td>{r.companyName}</td>
-                      <td>{r.firstName} {r.lastName}</td>
-                      <td>{r.email ?? '-'}</td>
-                      <td>{r.telegramUsername ?? '-'}</td>
-                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        <button type="button" className="btn btn--ghost" onClick={() => setSelectedId(r.id)}>Edit</button>
-                        <button type="button" className="btn btn--danger" style={{ marginLeft: '0.5rem' }} onClick={() => handleDelete(r.id)}>Delete</button>
+                      <td>
+                        {[r.firstName, r.lastName].filter(Boolean).join(' ') || '—'}
+                      </td>
+                      <td>{r.email ?? '—'}</td>
+                      <td>{r.telegramUsername ? `@${r.telegramUsername.replace(/^@/, '')}` : '—'}</td>
+                      <td>
+                        <div className="table-actions">
+                          <button type="button" className="btn btn--ghost btn--small" onClick={() => setSelectedId(r.id)}>
+                            Редактировать
+                          </button>
+                          <button type="button" className="btn btn--danger btn--small" onClick={() => handleDelete(r.id)}>
+                            Удалить
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="pager">
-              <span>Page {data ? data.page + 1 : 1} of {Math.max(totalPages, 1)} - total {data?.totalElements ?? 0}</span>
-              <div className="pager__btns">
-                <button type="button" className="btn btn--ghost" disabled={page <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Prev</button>
-                <button type="button" className="btn btn--ghost" disabled={totalPages && page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Next</button>
-              </div>
-            </div>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              totalElements={data?.totalElements}
+              onPrev={() => setPage((p) => Math.max(0, p - 1))}
+              onNext={() => setPage((p) => p + 1)}
+            />
           </>
         )}
       </div>
 
       {selectedId ? (
-        <div className="panel">
-          <h2 className="panel__title">Edit recruiter</h2>
+        <div className="panel panel--accent">
+          <h2 className="panel__title">Редактирование рекрутера</h2>
           <form onSubmit={handlePut}>
             <div className="form-row">
-              <div className="field"><label>Company *</label><input required value={form.companyName} onChange={(e) => setForm((p) => ({ ...p, companyName: e.target.value }))} /></div>
-              <div className="field"><label>First name</label><input value={form.firstName} onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))} /></div>
-              <div className="field"><label>Last name</label><input value={form.lastName} onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))} /></div>
+              <div className="field">
+                <label>Компания *</label>
+                <input
+                  required
+                  value={form.companyName}
+                  onChange={(e) => setForm((p) => ({ ...p, companyName: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label>Имя</label>
+                <input
+                  value={form.firstName}
+                  onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label>Фамилия</label>
+                <input
+                  value={form.lastName}
+                  onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))}
+                />
+              </div>
             </div>
             <div className="form-row">
-              <div className="field"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} /></div>
-              <div className="field"><label>Phone</label><input value={form.phoneNumber} onChange={(e) => setForm((p) => ({ ...p, phoneNumber: e.target.value }))} /></div>
-              <div className="field"><label>Telegram username</label><input value={form.telegramUsername} onChange={(e) => setForm((p) => ({ ...p, telegramUsername: e.target.value }))} /></div>
+              <div className="field">
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label>Телефон</label>
+                <input
+                  value={form.phoneNumber}
+                  onChange={(e) => setForm((p) => ({ ...p, phoneNumber: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label>Telegram</label>
+                <input
+                  value={form.telegramUsername}
+                  onChange={(e) => setForm((p) => ({ ...p, telegramUsername: e.target.value }))}
+                  placeholder="username"
+                />
+              </div>
             </div>
             <div className="form-row">
-              <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Save (PUT)'}</button>
-              <button type="button" className="btn btn--ghost" disabled={saving} onClick={handlePatch}>Patch</button>
-              <button type="button" className="btn btn--ghost" onClick={() => { setSelectedId(null); setForm(emptyForm()); }}>Close</button>
+              <button type="submit" className="btn btn--primary" disabled={saving}>
+                {saving ? 'Сохранение…' : 'Сохранить полностью'}
+              </button>
+              <button type="button" className="btn btn--ghost" disabled={saving} onClick={handlePatch}>
+                Сохранить изменённые поля
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => {
+                  setSelectedId(null);
+                  setForm(emptyForm());
+                }}
+              >
+                Закрыть
+              </button>
             </div>
           </form>
         </div>
@@ -196,4 +295,3 @@ export function Recruiters() {
     </div>
   );
 }
-

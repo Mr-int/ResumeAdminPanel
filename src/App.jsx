@@ -11,11 +11,17 @@ import { Companies } from './pages/Companies.jsx';
 import { StudentDetail } from './pages/StudentDetail.jsx';
 import { Students } from './pages/Students.jsx';
 import { Users } from './pages/Users.jsx';
+import { RecruiterRegistrations } from './pages/RecruiterRegistrations.jsx';
+import { Vacancies } from './pages/Vacancies.jsx';
+import { Projects } from './pages/Projects.jsx';
+import { ProjectDetail } from './pages/ProjectDetail.jsx';
+import { Storage } from './pages/Storage.jsx';
+import { Analytics } from './pages/Analytics.jsx';
 
 function RequireAuth() {
   const { ready, authenticated } = useAuth();
   if (!ready) {
-    return <div className="page-loading">Loading...</div>;
+    return <div className="page-loading">Загрузка…</div>;
   }
   if (!authenticated) {
     return <Navigate to="/login" replace />;
@@ -38,6 +44,12 @@ export default function App() {
           <Route path="/companies" element={<Companies />} />
           <Route path="/recruiters" element={<Recruiters />} />
           <Route path="/requests" element={<Requests />} />
+          <Route path="/recruiter-registrations" element={<RecruiterRegistrations />} />
+          <Route path="/vacancies" element={<Vacancies />} />
+          <Route path="/projects" element={<Projects />} />
+          <Route path="/projects/:id" element={<ProjectDetail />} />
+          <Route path="/storage" element={<Storage />} />
+          <Route path="/analytics" element={<Analytics />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

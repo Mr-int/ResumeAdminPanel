@@ -12,6 +12,7 @@ import { API_BASE } from '../config.js';
 import { SkillPicker } from '../components/SkillPicker.jsx';
 import { contactFieldsToApiPayload } from '../utils/studentContact.js';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
+import { PageHeader } from '../components/ui/PageHeader.jsx';
 
 const PAGE_SIZE = 12;
 
@@ -43,6 +44,8 @@ export function Students() {
     busyness: 'FREE',
     firstName: '',
     lastName: '',
+    username: '',
+    password: '',
     email: '',
     phoneNumber: '',
     telegramUsername: '',
@@ -181,6 +184,17 @@ export function Students() {
       if (!skillsIds.length) {
         throw new Error('Укажите хотя бы один навык');
       }
+      const login = createForm.username.trim();
+      const pass = createForm.password;
+      if (!login || login.length < 3) {
+        throw new Error('Укажите логин (минимум 3 символа)');
+      }
+      if (!pass || pass.length < 8) {
+        throw new Error('Укажите пароль (минимум 12 символов)');
+      }
+      if (createForm.specialityId === '') {
+        throw new Error('Выберите специальность');
+      }
 
       const payload = {
         city: createForm.city || undefined,
@@ -191,11 +205,10 @@ export function Students() {
         busyness: createForm.busyness,
         firstName: createForm.firstName.trim(),
         lastName: createForm.lastName.trim(),
+        username: login,
+        password: pass,
         ...contactFieldsToApiPayload(createForm),
-        specialityId:
-          createForm.specialityId === ''
-            ? undefined
-            : Number(createForm.specialityId),
+        specialityId: Number(createForm.specialityId),
         skillsIds,
       };
 
@@ -215,6 +228,8 @@ export function Students() {
         busyness: 'FREE',
         firstName: '',
         lastName: '',
+        username: '',
+        password: '',
         email: '',
         phoneNumber: '',
         telegramUsername: '',
@@ -238,11 +253,10 @@ export function Students() {
 
   return (
     <div className="page">
-      <h1 className="page__title">Студенты</h1>
-      <p className="page__lead">
-        Краткие карточки (POST /student/cardsFilter). Полный профиль — отдельная
-        страница по ID.
-      </p>
+      <PageHeader
+        title="Студенты"
+        lead="Карточка резюме создаётся вместе с учётной записью (логин и пароль обязательны)."
+      />
 
       <div className="panel">
         <h2 className="panel__title">Поиск</h2>
@@ -270,9 +284,7 @@ export function Students() {
       </div>
 
       <div className="panel">
-        <h2 className="panel__title">
-          Создание студента (POST /student)
-        </h2>
+        <h2 className="panel__title">Создание студента</h2>
         {createMsg?.type === 'ok' ? (
           <div className="alert alert--success">{createMsg.text}</div>
         ) : null}
@@ -308,6 +320,32 @@ export function Students() {
                   value={createForm.lastName}
                   onChange={(e) =>
                     setCreateForm((p) => ({ ...p, lastName: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="field">
+                <label>Логин</label>
+                <input
+                  required
+                  minLength={3}
+                  autoComplete="off"
+                  value={createForm.username}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, username: e.target.value.replace(/\s/g, '') }))
+                  }
+                  placeholder="latin_letters_123"
+                />
+              </div>
+              <div className="field">
+                <label>Пароль</label>
+                <input
+                  required
+                  type="password"
+                  minLength={12}
+                  autoComplete="new-password"
+                  value={createForm.password}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, password: e.target.value }))
                   }
                 />
               </div>
@@ -359,6 +397,7 @@ export function Students() {
                   onChange={(e) =>
                     setCreateForm((p) => ({ ...p, specialityId: e.target.value }))
                   }
+                  required
                 >
                   <option value="">Не выбрано</option>
                   {specialityOptions.map((s) => (

@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as skillsApi from '../api/skills.js';
+import { PageHeader } from '../components/ui/PageHeader.jsx';
+import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
+import { Pagination } from '../components/ui/Pagination.jsx';
+import { FlashMessages } from '../components/ui/FlashMessages.jsx';
+import { EmptyState } from '../components/ui/EmptyState.jsx';
 
 const PAGE_SIZE = 15;
 
@@ -81,8 +86,10 @@ export function Skills() {
 
   return (
     <div className="page">
-      <h1 className="page__title">Навыки</h1>
-      <p className="page__lead">GET/PUT/DELETE /skill/{'{id}'}, POST /skill, POST /skill/filter</p>
+      <PageHeader
+        title="Навыки"
+        lead="Справочник навыков для резюме студентов и фильтров вакансий."
+      />
 
       <div className="panel">
         <h2 className="panel__title">Фильтр и создание</h2>
@@ -122,14 +129,17 @@ export function Skills() {
         </form>
       </div>
 
-      {error ? <div className="alert alert--error">{error}</div> : null}
-      {msg?.type === 'ok' ? <div className="alert alert--success">{msg.text}</div> : null}
-      {msg?.type === 'err' ? <div className="alert alert--error">{msg.text}</div> : null}
+      <FlashMessages
+        error={error || (msg?.type === 'err' ? msg.text : null)}
+        success={msg?.type === 'ok' ? msg.text : null}
+      />
 
       <div className="panel">
         <h2 className="panel__title">Список</h2>
         {loading ? (
-          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Загрузка…</p>
+          <LoadingBlock />
+        ) : rows.length === 0 ? (
+          <EmptyState title="Навыки не найдены" />
         ) : (
           <>
             <div className="table-wrap">
@@ -205,30 +215,13 @@ export function Skills() {
                 </tbody>
               </table>
             </div>
-            <div className="pager">
-              <span>
-                Стр. {data ? data.page + 1 : 1} из {Math.max(totalPages, 1)} · всего{' '}
-                {data?.totalElements ?? 0}
-              </span>
-              <div className="pager__btns">
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  disabled={page <= 0}
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                >
-                  Назад
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  disabled={totalPages && page >= totalPages - 1}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Вперёд
-                </button>
-              </div>
-            </div>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              totalElements={data?.totalElements}
+              onPrev={() => setPage((p) => Math.max(0, p - 1))}
+              onNext={() => setPage((p) => p + 1)}
+            />
           </>
         )}
       </div>
