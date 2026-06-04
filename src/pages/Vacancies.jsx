@@ -8,6 +8,10 @@ import { DetailGrid } from '../components/ui/DetailGrid.jsx';
 import { StatusBadge, vacancyStatusVariant } from '../components/ui/StatusBadge.jsx';
 import { VACANCY_STATUS_LABELS, labelOf } from '../lib/labels.js';
 import { fmtDate } from '../lib/format.js';
+import { SortableTable } from '../components/SortableTable.jsx';
+
+const PAGE_SIZE = 10;
+const STATUSES = Object.keys(VACANCY_STATUS_LABELS);
 
 export function Vacancies() {
   const [status, setStatus] = useState('PENDING_REVIEW');
@@ -24,6 +28,29 @@ export function Vacancies() {
   const [rejectId, setRejectId] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [msg, setMsg] = useState(null);
+  const [vitrinaRows, setVitrinaRows] = useState([]);
+  const [vitrinaLoading, setVitrinaLoading] = useState(false);
+  const [vitrinaReordering, setVitrinaReordering] = useState(false);
+  const [vitrinaToggling, setVitrinaToggling] = useState(null);
+
+  const loadVitrina = useCallback(async () => {
+    setVitrinaLoading(true);
+    try {
+      const { data: res } = await vacanciesApi.filterVacancies({ status: 'PUBLISHED' }, 0, 200);
+      const list = [...(res?.data ?? [])].sort(
+        (a, b) => (a.manualSortOrder ?? 9999) - (b.manualSortOrder ?? 9999)
+      );
+      setVitrinaRows(list);
+    } catch {
+      setVitrinaRows([]);
+    } finally {
+      setVitrinaLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadVitrina();
+  }, [loadVitrina]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -70,6 +97,7 @@ export function Vacancies() {
       setMsg({ type: 'ok', text: 'Вакансия опубликована' });
       if (selectedId === id) await openDetails(id);
       await load();
+      await loadVitrina();
     } catch (e) {
       setError(e.message);
     }
@@ -88,8 +116,46 @@ export function Vacancies() {
       setMsg({ type: 'ok', text: 'Вакансия отклонена' });
       if (selectedId === rejectId) await openDetails(rejectId);
       await load();
+      await loadVitrina();
     } catch (e) {
       setError(e.message);
+    }
+  }
+
+  async function handleVitrinaReorder(orderedIds) {
+    const byId = new Map(vitrinaRows.map((v) => [String(v.id), v]));
+    const next = orderedIds.map((id) => byId.get(String(id))).filter(Boolean);
+    setVitrinaRows(next);
+    setVitrinaReordering(true);
+    setError(null);
+    try {
+      await vacanciesApi.reorderVacancies(orderedIds);
+      setMsg({ type: 'ok', text: 'Порядок вакансий сохранён' });
+      await loadVitrina();
+    } catch (e) {
+      setError(e.message);
+      await loadVitrina();
+    } finally {
+      setVitrinaReordering(false);
+    }
+  }
+
+  async function handleVisibleToggle(v, checked) {
+    setVitrinaToggling(v.id);
+    setError(null);
+    try {
+      await vacanciesApi.patchVacancyVitrina(v.id, { visibleToAnonymous: checked });
+      setVitrinaRows((rows) =>
+        rows.map((r) => (r.id === v.id ? { ...r, visibleToAnonymous: checked } : r))
+      );
+      if (selectedId === v.id && details) {
+        setDetails({ ...details, visibleToAnonymous: checked });
+      }
+      setMsg({ type: 'ok', text: 'Настройки витрины обновлены' });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setVitrinaToggling(null);
     }
   }
 
@@ -285,6 +351,20 @@ export function Vacancies() {
                 { label: 'Занятость', value: details.employmentType },
                 { label: 'Навыки', value: (details.skills ?? []).map((s) => s.name).join(', ') || '—' },
                 { label: 'Откликов', value: details.applicationsCount ?? 0 },
+                {
+                  label: 'Видна анонимам',
+                  value: (
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={!!details.visibleToAnonymous}
+                        disabled={vitrinaToggling === details.id || details.status !== 'PUBLISHED'}
+                        onChange={(e) => handleVisibleToggle(details, e.target.checked)}
+                      />
+                      {details.visibleToAnonymous ? 'да' : 'нет'}
+                    </label>
+                  ),
+                },
                 ...(details.moderationRejectionReason
                   ? [{ label: 'Причина отклонения', value: details.moderationRejectionReason }]
                   : []),
@@ -295,6 +375,50 @@ export function Vacancies() {
           )}
         </div>
       ) : null}
+
+      <div className="panel">
+        <h2 className="panel__title">
+          Витрина (опубликованные) {vitrinaReordering ? '(сохранение…)' : ''}
+        </h2>
+        <p className="page__lead" style={{ marginTop: 0 }}>
+          Drag-and-drop задаёт порядок; переключатель «Анонимам» — PATCH /admin/vacancies/…/vitrina.
+        </p>
+        {vitrinaLoading ? (
+          <LoadingBlock />
+        ) : vitrinaRows.length ? (
+          <SortableTable
+            items={vitrinaRows}
+            disabled={vitrinaReordering}
+            onReorder={handleVitrinaReorder}
+            headerCells={
+              <>
+                <th>Название</th>
+                <th>Компания</th>
+                <th>Анонимам</th>
+              </>
+            }
+            renderCells={(v) => (
+              <>
+                <td>{v.title}</td>
+                <td>{v.companyName ?? '—'}</td>
+                <td>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!v.visibleToAnonymous}
+                      disabled={vitrinaToggling === v.id}
+                      onChange={(e) => handleVisibleToggle(v, e.target.checked)}
+                    />
+                    {v.visibleToAnonymous ? 'да' : 'нет'}
+                  </label>
+                </td>
+              </>
+            )}
+          />
+        ) : (
+          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Нет опубликованных вакансий</p>
+        )}
+      </div>
 
       {rejectId ? (
         <div className="panel">

@@ -13,6 +13,8 @@ import { SkillPicker } from '../components/SkillPicker.jsx';
 import { contactFieldsToApiPayload } from '../utils/studentContact.js';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
+import { SortableTable } from '../components/SortableTable.jsx';
+import * as studentsAdminApi from '../api/studentsAdmin.js';
 
 const PAGE_SIZE = 12;
 
@@ -34,6 +36,10 @@ export function Students() {
   const [specialityOptions, setSpecialityOptions] = useState([]);
   const [optionsError, setOptionsError] = useState(null);
   const [createdStudent, setCreatedStudent] = useState(null);
+  const [orderRows, setOrderRows] = useState([]);
+  const [orderLoading, setOrderLoading] = useState(false);
+  const [orderReordering, setOrderReordering] = useState(false);
+  const [orderMsg, setOrderMsg] = useState(null);
   // Доп. блоки (портфолио/опыт/образование) добавляются после создания студента на его странице.
   const [createForm, setCreateForm] = useState({
     city: '',
@@ -80,6 +86,45 @@ export function Students() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadOrderRows = useCallback(async () => {
+    setOrderLoading(true);
+    try {
+      const { data: res } = await studentsApi.filterStudentCards(
+        { useDefaultRanking: false, sortBy: 'MANUAL_SORT_ORDER', sortDirection: 'ASC' },
+        0,
+        100
+      );
+      setOrderRows(res?.data ?? []);
+    } catch {
+      setOrderRows([]);
+    } finally {
+      setOrderLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadOrderRows();
+  }, [loadOrderRows]);
+
+  async function handleStudentsReorder(orderedIds) {
+    const byId = new Map(orderRows.map((s) => [String(s.id), s]));
+    const next = orderedIds.map((id) => byId.get(String(id))).filter(Boolean);
+    setOrderRows(next);
+    setOrderReordering(true);
+    setOrderMsg(null);
+    try {
+      await studentsAdminApi.reorderStudents(orderedIds);
+      setOrderMsg({ type: 'ok', text: 'Порядок витрины сохранён' });
+      await loadOrderRows();
+      await load();
+    } catch (e) {
+      setOrderMsg({ type: 'err', text: e.message });
+      await loadOrderRows();
+    } finally {
+      setOrderReordering(false);
+    }
+  }
 
   async function cascadeDeleteStudent(studentId) {
     const sid = String(studentId);
@@ -494,6 +539,42 @@ export function Students() {
       </div>
 
       {error ? <div className="alert alert--error">{error}</div> : null}
+
+      <div className="panel">
+        <h2 className="panel__title">Порядок на витрине {orderReordering ? '(сохранение…)' : ''}</h2>
+        <p className="page__lead" style={{ marginTop: 0 }}>
+          Перетащите строки — порядок сохраняется через POST /admin/students/reorder.
+        </p>
+        {orderMsg?.type === 'ok' ? <div className="alert alert--success">{orderMsg.text}</div> : null}
+        {orderMsg?.type === 'err' ? <div className="alert alert--error">{orderMsg.text}</div> : null}
+        {orderLoading ? (
+          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Загрузка…</p>
+        ) : orderRows.length ? (
+          <SortableTable
+            items={orderRows}
+            disabled={orderReordering}
+            onReorder={handleStudentsReorder}
+            headerCells={
+              <>
+                <th>ФИО</th>
+                <th>Специальность</th>
+                <th>Курс</th>
+              </>
+            }
+            renderCells={(s) => (
+              <>
+                <td>
+                  {s.firstName} {s.lastName}
+                </td>
+                <td>{s.speciality ?? '—'}</td>
+                <td>{s.course}</td>
+              </>
+            )}
+          />
+        ) : (
+          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Нет студентов для сортировки</p>
+        )}
+      </div>
 
       <div className="panel">
         <h2 className="panel__title">Карточки</h2>

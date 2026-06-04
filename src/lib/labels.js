@@ -47,6 +47,32 @@ export const BUSyness_LABELS = {
   FULL_TIME: 'Полная занятость',
 };
 
+export const ANALYTICS_EVENT_LABELS = {
+  PAGE_VIEW: 'Просмотр страницы',
+  REGISTRATION_STARTED: 'Начало регистрации',
+  REGISTRATION_COMPLETED: 'Регистрация завершена',
+  ACCOUNT_APPROVED: 'Аккаунт одобрен',
+  APPLICATION_SUBMITTED: 'Отклик на вакансию',
+  REQUEST_SUBMITTED: 'Заявка на контакт',
+  CHAT_MESSAGE_SENT: 'Сообщение в чате',
+  CHAT_TU_CONFIRMED: 'ТУ подтверждено',
+  CHAT_TU_REJECTED: 'ТУ отклонено',
+  CHAT_SUCCESS: 'Успешный чат',
+};
+
+export const FUNNEL_EVENT_ORDER = [
+  'PAGE_VIEW',
+  'REGISTRATION_STARTED',
+  'REGISTRATION_COMPLETED',
+  'ACCOUNT_APPROVED',
+  'APPLICATION_SUBMITTED',
+  'REQUEST_SUBMITTED',
+  'CHAT_MESSAGE_SENT',
+  'CHAT_TU_CONFIRMED',
+  'CHAT_TU_REJECTED',
+  'CHAT_SUCCESS',
+];
+
 export function labelOf(map, key, fallback = '—') {
   if (key == null || key === '') return fallback;
   return map[key] ?? key;

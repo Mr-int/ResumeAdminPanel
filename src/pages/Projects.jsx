@@ -8,6 +8,7 @@ import { SkillPicker } from '../components/SkillPicker.jsx';
 import * as skillsApi from '../api/skills.js';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { FlashMessages } from '../components/ui/FlashMessages.jsx';
+import { SortableTable } from '../components/SortableTable.jsx';
 
 const emptyCreate = () => ({
   title: '',
@@ -110,18 +111,14 @@ export function Projects() {
     }
   }
 
-  async function moveProject(index, direction) {
-    const next = index + direction;
-    if (next < 0 || next >= rows.length) return;
-    const copy = [...rows];
-    const tmp = copy[index];
-    copy[index] = copy[next];
-    copy[next] = tmp;
-    setRows(copy);
+  async function handleReorder(orderedIds) {
+    const byId = new Map(rows.map((p) => [String(p.id), p]));
+    const next = orderedIds.map((id) => byId.get(String(id))).filter(Boolean);
+    setRows(next);
     setReordering(true);
     setError(null);
     try {
-      await projectsApi.reorderProjects(copy.map((p) => p.id));
+      await projectsApi.reorderProjects(orderedIds);
       setMsg({ type: 'ok', text: 'Порядок сохранён' });
     } catch (e) {
       setError(e.message);
@@ -271,87 +268,63 @@ export function Projects() {
         {loading ? (
           <p style={{ color: 'var(--text-muted)', margin: 0 }}>Загрузка…</p>
         ) : (
-          <div className="table-wrap">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Заголовок</th>
-                  <th>Раздел</th>
-                  <th>Навыки</th>
-                  <th>Анонимы</th>
-                  <th>Публикация</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((p, index) => (
-                  <tr key={p.id}>
-                    <td>{p.sortOrder}</td>
-                    <td>{p.title}</td>
-                    <td>{p.section || '—'}</td>
-                    <td>
-                      <div className="project-table-skills">
-                        {(p.skills ?? []).length ? (
-                          p.skills.map((s) => (
-                            <span key={s.id} className="project-table-skills__tag">
-                              {s.name}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="project-table-skills__empty">—</span>
-                        )}
-                      </div>
-                    </td>
-                    <td>{p.visibleToAnonymous ? 'да' : 'нет'}</td>
-                    <td style={{ fontSize: '0.8rem' }}>
-                      {fromApiDateTime(p.publishedFrom) || '—'} —{' '}
-                      {fromApiDateTime(p.publishedTo) || '—'}
-                    </td>
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <button
-                        type="button"
-                        className="btn btn--ghost"
-                        disabled={index === 0 || reordering}
-                        onClick={() => moveProject(index, -1)}
-                        title="Выше"
-                      >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn--ghost"
-                        disabled={index >= rows.length - 1 || reordering}
-                        onClick={() => moveProject(index, 1)}
-                        title="Ниже"
-                      >
-                        ↓
-                      </button>
-                      <Link
-                        className="btn btn--ghost"
-                        to={`/projects/${p.id}`}
-                        style={{
-                          marginLeft: '0.5rem',
-                          textDecoration: 'none',
-                          display: 'inline-flex',
-                        }}
-                      >
-                        Открыть
-                      </Link>
-                      <button
-                        type="button"
-                        className="btn btn--danger"
-                        style={{ marginLeft: '0.5rem' }}
-                        onClick={() => handleDelete(p.id)}
-                      >
-                        Удалить
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SortableTable
+            items={rows}
+            disabled={reordering}
+            onReorder={handleReorder}
+            headerCells={
+              <>
+                <th>#</th>
+                <th>Заголовок</th>
+                <th>Раздел</th>
+                <th>Навыки</th>
+                <th>Анонимы</th>
+                <th>Публикация</th>
+              </>
+            }
+            extraHeaderCells={<th />}
+            renderCells={(p) => (
+              <>
+                <td>{p.sortOrder}</td>
+                <td>{p.title}</td>
+                <td>{p.section || '—'}</td>
+                <td>
+                  <div className="project-table-skills">
+                    {(p.skills ?? []).length ? (
+                      p.skills.map((s) => (
+                        <span key={s.id} className="project-table-skills__tag">
+                          {s.name}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="project-table-skills__empty">—</span>
+                    )}
+                  </div>
+                </td>
+                <td>{p.visibleToAnonymous ? 'да' : 'нет'}</td>
+                <td style={{ fontSize: '0.8rem' }}>
+                  {fromApiDateTime(p.publishedFrom) || '—'} — {fromApiDateTime(p.publishedTo) || '—'}
+                </td>
+                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <Link
+                    className="btn btn--ghost"
+                    to={`/projects/${p.id}`}
+                    style={{ textDecoration: 'none', display: 'inline-flex' }}
+                  >
+                    Открыть
+                  </Link>
+                  <button
+                    type="button"
+                    className="btn btn--danger"
+                    style={{ marginLeft: '0.5rem' }}
+                    onClick={() => handleDelete(p.id)}
+                  >
+                    Удалить
+                  </button>
+                </td>
+              </>
+            )}
+          />
         )}
       </div>
     </div>

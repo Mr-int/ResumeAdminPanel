@@ -24,6 +24,8 @@ const NAV_GROUPS = [
 
       { to: '/users', label: 'Учётные записи' },
 
+      { to: '/account-approvals', label: 'Одобрение аккаунтов' },
+
       { to: '/students', label: 'Студенты' },
 
       { to: '/recruiters', label: 'Рекрутеры' },
@@ -47,6 +49,8 @@ const NAV_GROUPS = [
       { to: '/storage', label: 'Хранилище' },
 
       { to: '/requests', label: 'Заявки на контакт' },
+
+      { to: '/chats', label: 'Чаты' },
 
     ],
 

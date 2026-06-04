@@ -4,6 +4,12 @@ import { toApiDateTime } from '../utils/dateTimeApi.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { FlashMessages } from '../components/ui/FlashMessages.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
+import { BarChart } from '../components/BarChart.jsx';
+import {
+  ANALYTICS_EVENT_LABELS,
+  FUNNEL_EVENT_ORDER,
+  labelOf,
+} from '../lib/labels.js';
 
 function defaultRange() {
   const to = new Date();
@@ -16,6 +22,15 @@ function defaultRange() {
   return { from: fmt(from), to: fmt(to) };
 }
 
+function buildFunnelRows(byEventType) {
+  const map = new Map((byEventType ?? []).map((r) => [r.eventType, r.count]));
+  return FUNNEL_EVENT_ORDER.map((code) => ({
+    label: labelOf(ANALYTICS_EVENT_LABELS, code, code),
+    value: map.get(code) ?? 0,
+    code,
+  }));
+}
+
 export function Analytics() {
   const initial = defaultRange();
   const [summaryFrom, setSummaryFrom] = useState(initial.from);
@@ -23,6 +38,7 @@ export function Analytics() {
   const [popFrom, setPopFrom] = useState('');
   const [popTo, setPopTo] = useState('');
   const [summary, setSummary] = useState(null);
+  const [funnel, setFunnel] = useState(null);
   const [population, setPopulation] = useState(null);
   const [error, setError] = useState(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
@@ -33,14 +49,20 @@ export function Analytics() {
     setError(null);
     setLoadingSummary(true);
     try {
-      const { data } = await analyticsApi.analyticsSummary({
+      const body = {
         from: toApiDateTime(summaryFrom),
         to: toApiDateTime(summaryTo),
-      });
-      setSummary(data);
+      };
+      const [{ data: sum }, { data: fun }] = await Promise.all([
+        analyticsApi.analyticsSummary(body),
+        analyticsApi.analyticsFunnel(body),
+      ]);
+      setSummary(sum);
+      setFunnel(fun);
     } catch (e) {
       setError(e.message);
       setSummary(null);
+      setFunnel(null);
     } finally {
       setLoadingSummary(false);
     }
@@ -70,19 +92,23 @@ export function Analytics() {
     }
   }
 
-  const pathRows = summary?.byPath ?? [];
+  const pathRows = (summary?.byPath ?? []).map((row) => ({
+    label: row.path,
+    value: row.events,
+  }));
+  const funnelRows = buildFunnelRows(funnel?.byEventType);
 
   return (
     <div className="page">
       <PageHeader
         title="Аналитика"
-        lead="Просмотры страниц сайта и сводка по пользователям, студентам и рекрутерам."
+        lead="Просмотры по path, воронка по типам событий и сводка по пользователям."
       />
 
       <FlashMessages error={error} />
 
       <div className="panel">
-        <h2 className="panel__title">Просмотры по path</h2>
+        <h2 className="panel__title">Период отчётов</h2>
         <form className="form-row" onSubmit={loadSummary}>
           <div className="field">
             <label htmlFor="sum-from">С</label>
@@ -105,38 +131,33 @@ export function Analytics() {
             />
           </div>
           <button type="submit" className="btn btn--primary" disabled={loadingSummary}>
-            {loadingSummary ? 'Загрузка…' : 'Загрузить'}
+            {loadingSummary ? 'Загрузка…' : 'Загрузить сводку и воронку'}
           </button>
         </form>
-        {summary ? (
-          <div className="table-wrap" style={{ marginTop: '1rem' }}>
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Path</th>
-                  <th>Событий</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pathRows.length ? (
-                  pathRows.map((row) => (
-                    <tr key={row.path}>
-                      <td>{row.path}</td>
-                      <td>{row.events}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={2} style={{ color: 'var(--text-muted)' }}>
-                      Нет данных за период
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
       </div>
+
+      {loadingSummary ? <LoadingBlock /> : null}
+
+      {summary || funnel ? (
+        <div className="analytics-charts">
+          <div className="panel">
+            <h2 className="panel__title">Воронка (типы событий)</h2>
+            {funnelRows.length ? (
+              <BarChart rows={funnelRows} />
+            ) : (
+              <p style={{ color: 'var(--text-muted)', margin: 0 }}>Нет данных за период</p>
+            )}
+          </div>
+          <div className="panel">
+            <h2 className="panel__title">Просмотры по path</h2>
+            {pathRows.length ? (
+              <BarChart rows={pathRows.slice(0, 20)} />
+            ) : (
+              <p style={{ color: 'var(--text-muted)', margin: 0 }}>Нет PAGE_VIEW за период</p>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       <div className="panel">
         <h2 className="panel__title">Население сущностей</h2>
@@ -164,37 +185,29 @@ export function Analytics() {
           </button>
         </form>
         {population ? (
-          <dl
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '280px 1fr',
-              gap: '0.35rem 1rem',
-              margin: '1rem 0 0',
-              fontSize: '0.9rem',
-            }}
-          >
-            <dt style={{ color: 'var(--text-muted)' }}>Всего пользователей</dt>
-            <dd style={{ margin: 0 }}>{population.totalUsers}</dd>
-            <dt style={{ color: 'var(--text-muted)' }}>ADMIN</dt>
-            <dd style={{ margin: 0 }}>{population.usersAdmin}</dd>
-            <dt style={{ color: 'var(--text-muted)' }}>STUDENT</dt>
-            <dd style={{ margin: 0 }}>{population.usersStudent}</dd>
-            <dt style={{ color: 'var(--text-muted)' }}>RECRUITER</dt>
-            <dd style={{ margin: 0 }}>{population.usersRecruiter}</dd>
-            <dt style={{ color: 'var(--text-muted)' }}>Всего студентов (таблица)</dt>
-            <dd style={{ margin: 0 }}>{population.totalStudents}</dd>
-            <dt style={{ color: 'var(--text-muted)' }}>Всего рекрутеров (таблица)</dt>
-            <dd style={{ margin: 0 }}>{population.totalRecruiters}</dd>
+          <dl className="detail-dl">
+            <dt>Всего пользователей</dt>
+            <dd>{population.totalUsers}</dd>
+            <dt>ADMIN</dt>
+            <dd>{population.usersAdmin}</dd>
+            <dt>STUDENT</dt>
+            <dd>{population.usersStudent}</dd>
+            <dt>RECRUITER</dt>
+            <dd>{population.usersRecruiter}</dd>
+            <dt>Всего студентов (таблица)</dt>
+            <dd>{population.totalStudents}</dd>
+            <dt>Всего рекрутеров (таблица)</dt>
+            <dd>{population.totalRecruiters}</dd>
             {population.newStudentsInWindow != null ? (
               <>
-                <dt style={{ color: 'var(--text-muted)' }}>Новых студентов за окно</dt>
-                <dd style={{ margin: 0 }}>{population.newStudentsInWindow}</dd>
+                <dt>Новых студентов за окно</dt>
+                <dd>{population.newStudentsInWindow}</dd>
               </>
             ) : null}
             {population.newRecruitersInWindow != null ? (
               <>
-                <dt style={{ color: 'var(--text-muted)' }}>Новых рекрутеров за окно</dt>
-                <dd style={{ margin: 0 }}>{population.newRecruitersInWindow}</dd>
+                <dt>Новых рекрутеров за окно</dt>
+                <dd>{population.newRecruitersInWindow}</dd>
               </>
             ) : null}
           </dl>

@@ -10,3 +10,7 @@ export function entityPopulation(body) {
     json: body ?? {},
   });
 }
+
+export function analyticsFunnel(body) {
+  return apiFetch('/admin/analytics/funnel', { method: 'POST', json: body });
+}

@@ -22,3 +22,17 @@ export function rejectVacancy(id, body) {
     json: body ?? {},
   });
 }
+
+export function reorderVacancies(orderedIds) {
+  return apiFetch('/admin/vacancies/reorder', {
+    method: 'POST',
+    json: { orderedIds },
+  });
+}
+
+export function patchVacancyVitrina(id, body) {
+  return apiFetch(`/admin/vacancies/${id}/vitrina`, {
+    method: 'PATCH',
+    json: body,
+  });
+}

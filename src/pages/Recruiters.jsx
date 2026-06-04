@@ -67,7 +67,12 @@ export function Recruiters() {
   }, [selected]);
 
   async function handleDelete(id) {
-    if (!window.confirm('Удалить профиль рекрутера?')) return;
+    const ok = window.confirm(
+      'Удалить профиль рекрутера?\n\n' +
+        'Каскадно будут удалены: вакансии и отклики, заявки на контакт, чаты, ' +
+        'связанная учётная запись пользователя. Это действие необратимо.'
+    );
+    if (!ok) return;
     setMsg(null);
     try {
       await recruitersApi.deleteRecruiter(id);

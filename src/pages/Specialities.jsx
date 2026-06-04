@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as specialitiesApi from '../api/specialities.js';
+import * as storageApi from '../api/storage.js';
+import { API_BASE } from '../config.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { EmptyState } from '../components/ui/EmptyState.jsx';
@@ -17,7 +19,14 @@ export function Specialities() {
   const [newName, setNewName] = useState('');
   const [editId, setEditId] = useState(null);
   const [editName, setEditName] = useState('');
+  const [editIconPath, setEditIconPath] = useState('');
+  const [iconUploading, setIconUploading] = useState(false);
   const [msg, setMsg] = useState(null);
+
+  function iconUrl(path) {
+    if (!path) return null;
+    return `${API_BASE}/main/photo/${encodeURIComponent(path)}`;
+  }
 
   const load = useCallback(async () => {
     setError(null);
@@ -58,13 +67,39 @@ export function Specialities() {
     if (!editId) return;
     setMsg(null);
     try {
-      await specialitiesApi.updateSpeciality(editId, { name: editName.trim() });
+      await specialitiesApi.updateSpeciality(editId, {
+        name: editName.trim(),
+        iconPath: editIconPath.trim() || null,
+      });
       setEditId(null);
       setEditName('');
+      setEditIconPath('');
       setMsg({ type: 'ok', text: 'Специальность обновлена' });
       await load();
     } catch (e) {
       setMsg({ type: 'err', text: e.message });
+    }
+  }
+
+  async function handleIconUpload(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !editId) return;
+    setIconUploading(true);
+    setMsg(null);
+    try {
+      const { data } = await storageApi.uploadStorageFile(file);
+      const path =
+        typeof data === 'string'
+          ? data
+          : data?.fileName ?? data?.path ?? data?.name ?? null;
+      if (!path) throw new Error('Не удалось получить путь файла из ответа storage');
+      setEditIconPath(String(path));
+      setMsg({ type: 'ok', text: 'Иконка загружена — нажмите «Сохранить»' });
+    } catch (e) {
+      setMsg({ type: 'err', text: e.message });
+    } finally {
+      setIconUploading(false);
     }
   }
 
@@ -142,6 +177,7 @@ export function Specialities() {
                 <thead>
                   <tr>
                     <th>ID</th>
+                    <th>Иконка</th>
                     <th>Название</th>
                     <th />
                   </tr>
@@ -150,9 +186,39 @@ export function Specialities() {
                   {rows.map((s) => (
                     <tr key={s.id}>
                       <td className="cell-mono">{s.id}</td>
+                      <td style={{ width: 56 }}>
+                        {iconUrl(editId === s.id ? editIconPath || s.iconPath : s.iconPath) ? (
+                          <img
+                            className="avatar"
+                            src={iconUrl(editId === s.id ? editIconPath || s.iconPath : s.iconPath)}
+                            alt=""
+                          />
+                        ) : (
+                          <span className="avatar avatar--placeholder">—</span>
+                        )}
+                      </td>
                       <td>
                         {editId === s.id ? (
-                          <input value={editName} onChange={(e) => setEditName(e.target.value)} />
+                          <div>
+                            <input value={editName} onChange={(e) => setEditName(e.target.value)} />
+                            <div style={{ marginTop: '0.5rem' }}>
+                              <input
+                                value={editIconPath}
+                                onChange={(e) => setEditIconPath(e.target.value)}
+                                placeholder="icon_path"
+                              />
+                              <label className="btn btn--ghost btn--small" style={{ marginTop: '0.35rem' }}>
+                                {iconUploading ? 'Загрузка…' : 'Загрузить иконку'}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  hidden
+                                  disabled={iconUploading}
+                                  onChange={handleIconUpload}
+                                />
+                              </label>
+                            </div>
+                          </div>
                         ) : (
                           s.name
                         )}
@@ -170,6 +236,7 @@ export function Specialities() {
                                 onClick={() => {
                                   setEditId(null);
                                   setEditName('');
+                                  setEditIconPath('');
                                 }}
                               >
                                 Отмена
@@ -183,6 +250,7 @@ export function Specialities() {
                                 onClick={() => {
                                   setEditId(s.id);
                                   setEditName(s.name);
+                                  setEditIconPath(s.iconPath ?? '');
                                 }}
                               >
                                 Изменить

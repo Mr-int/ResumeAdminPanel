@@ -58,6 +58,7 @@ export function StudentDetail() {
     firstName: '', lastName: '', email: '', phoneNumber: '', telegramUsername: '',
     specialityId: '', skillsIds: [],
   });
+  const [consentSaving, setConsentSaving] = useState(false);
 
   function readSkillsIdsFromStudentDto(data) {
     if (!data || typeof data !== 'object') return [];
@@ -201,6 +202,23 @@ export function StudentDetail() {
   const portfolios = extExisting.portfolios;
   const experiences = extExisting.experiences;
   const institutions = extExisting.institutions;
+
+  async function handleConsentToggle(checked) {
+    setConsentSaving(true);
+    setMsg(null);
+    try {
+      await studentsApi.patchStudent(id, { publicProfileConsent: checked });
+      setStudent((s) => (s ? { ...s, publicProfileConsent: checked } : s));
+      setMsg({
+        type: 'ok',
+        text: checked ? 'Согласие на публичный профиль включено' : 'Согласие отключено',
+      });
+    } catch (e) {
+      setMsg({ type: 'err', text: e.message });
+    } finally {
+      setConsentSaving(false);
+    }
+  }
 
   async function handleUpdate(e) {
     e.preventDefault();
@@ -443,6 +461,21 @@ export function StudentDetail() {
       <div style={{ marginBottom: '1rem' }}>
         <h1 className="page__title" style={{ marginBottom: '0.25rem' }}>{student.firstName} {student.lastName}</h1>
         <p className="page__lead" style={{ margin: 0 }}>{student.course} · {student.busyness}{student.speciality ? ` · ${student.speciality}` : ''}</p>
+      </div>
+
+      <div className="panel panel--accent">
+        <h2 className="panel__title">Публичная витрина</h2>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+          <input
+            type="checkbox"
+            checked={!!student.publicProfileConsent}
+            disabled={consentSaving}
+            onChange={(e) => handleConsentToggle(e.target.checked)}
+          />
+          <span>
+            Согласие на показ профиля анонимам (<code>publicProfileConsent</code>, PATCH)
+          </span>
+        </label>
       </div>
 
       <div className="panel">

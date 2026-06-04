@@ -17,6 +17,8 @@ import { Projects } from './pages/Projects.jsx';
 import { ProjectDetail } from './pages/ProjectDetail.jsx';
 import { Storage } from './pages/Storage.jsx';
 import { Analytics } from './pages/Analytics.jsx';
+import { AccountApprovals } from './pages/AccountApprovals.jsx';
+import { Chats } from './pages/Chats.jsx';
 
 function RequireAuth() {
   const { ready, authenticated } = useAuth();
@@ -37,6 +39,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/users" element={<Users />} />
+          <Route path="/account-approvals" element={<AccountApprovals />} />
           <Route path="/students" element={<Students />} />
           <Route path="/students/:id" element={<StudentDetail />} />
           <Route path="/skills" element={<Skills />} />
@@ -44,6 +47,7 @@ export default function App() {
           <Route path="/companies" element={<Companies />} />
           <Route path="/recruiters" element={<Recruiters />} />
           <Route path="/requests" element={<Requests />} />
+          <Route path="/chats" element={<Chats />} />
           <Route path="/recruiter-registrations" element={<RecruiterRegistrations />} />
           <Route path="/vacancies" element={<Vacancies />} />
           <Route path="/projects" element={<Projects />} />
