@@ -953,6 +953,20 @@ table.data tbody tr:hover td {
   color: var(--text-secondary);
 }
 
+.extended-saved-section {
+  margin-top: 0.75rem;
+}
+
+.extended-saved-section__toggle {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.extended-saved-section__body {
+  margin-top: 0.5rem;
+}
+
 .extended-block__row--saved {
   background: rgba(0, 0, 0, 0.08);
   border-radius: 6px;

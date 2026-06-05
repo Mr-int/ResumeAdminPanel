@@ -12,10 +12,11 @@ export function deleteInstitution(id) {
   return apiFetch(`/institution/${id}`, { method: 'DELETE' });
 }
 
-export function filterInstitutions(filter, page = 0, size = 50, sort) {
+export function filterInstitutions(filter, page = 0, size = 50, sort, fetchOptions = {}) {
   const q = pageableQuery(page, size, sort);
   return apiFetch(`/institution/filter${q}`, {
     method: 'POST',
     json: filter,
+    ...fetchOptions,
   });
 }

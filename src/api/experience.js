@@ -12,10 +12,11 @@ export function deleteExperience(id) {
   return apiFetch(`/experience/${id}`, { method: 'DELETE' });
 }
 
-export function filterExperience(filter, page = 0, size = 50, sort) {
+export function filterExperience(filter, page = 0, size = 50, sort, fetchOptions = {}) {
   const q = pageableQuery(page, size, sort);
   return apiFetch(`/experience/filter${q}`, {
     method: 'POST',
     json: filter,
+    ...fetchOptions,
   });
 }

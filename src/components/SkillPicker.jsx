@@ -27,7 +27,11 @@ export function SkillPicker({
     return options.filter((s) => s.name.toLowerCase().includes(needle));
   }, [options, q]);
 
-  const selectedCount = selectedIds.length;
+  const selectedSet = useMemo(
+    () => new Set(selectedIds.map((x) => Number(x))),
+    [selectedIds]
+  );
+  const selectedCount = selectedSet.size;
 
   function toggle(id) {
     const sid = Number(id);
@@ -67,7 +71,7 @@ export function SkillPicker({
                 <label className="skill-picker__label">
                   <input
                     type="checkbox"
-                    checked={selectedIds.map(Number).includes(Number(s.id))}
+                    checked={selectedSet.has(Number(s.id))}
                     onChange={() => toggle(s.id)}
                   />
                   <span className="skill-picker__name">{s.name}</span>

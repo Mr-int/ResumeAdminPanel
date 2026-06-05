@@ -16,10 +16,11 @@ export function deleteSpeciality(id) {
   return apiFetch(`/speciality/${id}`, { method: 'DELETE' });
 }
 
-export function filterSpecialities(filter, page, size, sort) {
+export function filterSpecialities(filter, page, size, sort, fetchOptions = {}) {
   const q = pageableQuery(page, size, sort);
   return apiFetch(`/speciality/filter${q}`, {
     method: 'POST',
     json: filter,
+    ...fetchOptions,
   });
 }

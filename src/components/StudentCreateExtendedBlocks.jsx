@@ -62,6 +62,35 @@ function normalizeEducation(raw) {
   };
 }
 
+const COMPANY_DATALIST_ID = 'extended-company-options';
+
+function pickCompanyByName(companyOptions, name) {
+  const trimmed = String(name ?? '').trim();
+  if (!trimmed) return { companyId: '', companyName: '' };
+  const picked = companyOptions.find((c) => c.name === trimmed);
+  return {
+    companyId: picked ? String(picked.id) : '',
+    companyName: trimmed,
+  };
+}
+
+function SavedRecordsSection({ count, label, children }) {
+  const [open, setOpen] = useState(false);
+  if (!count) return null;
+  return (
+    <div className="extended-saved-section">
+      <button
+        type="button"
+        className="btn btn--ghost btn--small extended-saved-section__toggle"
+        onClick={() => setOpen((v) => !v)}
+      >
+        {label} ({count}) {open ? '▾' : '▸'}
+      </button>
+      {open ? <div className="extended-saved-section__body">{children}</div> : null}
+    </div>
+  );
+}
+
 export function StudentCreateExtendedBlocks({
   form,
   setForm,
@@ -118,22 +147,50 @@ export function StudentCreateExtendedBlocks({
   useEffect(() => {
     if (!editMode) return;
     setSavedEdit((prev) => {
+      let changed = false;
       const next = {
         portfolios: { ...prev.portfolios },
         experiences: { ...prev.experiences },
         institutions: { ...prev.institutions },
         educations: { ...prev.educations },
       };
-      for (const r of portfolioSaved) if (next.portfolios[r.id] == null) next.portfolios[r.id] = r;
-      for (const r of experienceSaved) if (next.experiences[r.id] == null) next.experiences[r.id] = r;
-      for (const r of institutionSaved) if (next.institutions[r.id] == null) next.institutions[r.id] = r;
-      for (const r of educationSaved) if (next.educations[r.id] == null) next.educations[r.id] = r;
-      return next;
+      for (const r of portfolioSaved) {
+        if (next.portfolios[r.id] == null) {
+          next.portfolios[r.id] = r;
+          changed = true;
+        }
+      }
+      for (const r of experienceSaved) {
+        if (next.experiences[r.id] == null) {
+          next.experiences[r.id] = r;
+          changed = true;
+        }
+      }
+      for (const r of institutionSaved) {
+        if (next.institutions[r.id] == null) {
+          next.institutions[r.id] = r;
+          changed = true;
+        }
+      }
+      for (const r of educationSaved) {
+        if (next.educations[r.id] == null) {
+          next.educations[r.id] = r;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
     });
   }, [editMode, portfolioSaved, experienceSaved, institutionSaved, educationSaved]);
 
   return (
     <div className="extended-blocks">
+      {companyOptions.length ? (
+        <datalist id={COMPANY_DATALIST_ID}>
+          {companyOptions.map((c) => (
+            <option key={c.id} value={c.name} />
+          ))}
+        </datalist>
+      ) : null}
       {showLead ? (
         <p className="extended-blocks__lead">
           Ниже — необязательные блоки. Пустые или неполные строки в запрос не попадают.
@@ -239,8 +296,7 @@ export function StudentCreateExtendedBlocks({
           </div>
         ) : null}
         {editMode && existingPortfolios?.length ? (
-          <>
-            <p className="extended-block__saved">Уже в профиле</p>
+          <SavedRecordsSection count={existingPortfolios.length} label="Уже в профиле — портфолио">
             {existingPortfolios.map((raw) => {
               const row = normalizePortfolio(raw);
               const kid = row.id != null ? `p-${row.id}` : `p-${row.name}`;
@@ -345,7 +401,7 @@ export function StudentCreateExtendedBlocks({
                 </div>
               );
             })}
-          </>
+          </SavedRecordsSection>
         ) : null}
       </div>
 
@@ -383,29 +439,23 @@ export function StudentCreateExtendedBlocks({
               <div className="form-row">
                 <div className="field" style={{ minWidth: 220, flex: 1 }}>
                   <label>Компания</label>
-                  <select
-                    value={row.companyId ?? ''}
+                  <input
+                    list={companyOptions.length ? COMPANY_DATALIST_ID : undefined}
+                    value={row.companyName ?? ''}
+                    placeholder="Название компании"
                     onChange={(e) => {
-                      const v = e.target.value;
-                      const picked = companyOptions.find((c) => String(c.id) === String(v));
+                      const picked = pickCompanyByName(companyOptions, e.target.value);
                       setForm((p) => {
                         const next = [...p.experienceRows];
                         next[idx] = {
                           ...next[idx],
-                          companyId: v,
-                          companyName: picked?.name ?? next[idx].companyName ?? '',
+                          companyId: picked.companyId,
+                          companyName: picked.companyName,
                         };
                         return { ...p, experienceRows: next };
                       });
                     }}
-                  >
-                    <option value="">Не выбрано</option>
-                    {companyOptions.map((c) => (
-                      <option key={c.id} value={String(c.id)}>
-                        {c.name} (ID: {c.id})
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
                 <div className="field" style={{ minWidth: 160, flex: 1 }}>
                   <label>Должность</label>
@@ -502,8 +552,7 @@ export function StudentCreateExtendedBlocks({
           </div>
         ) : null}
         {editMode && existingExperiences?.length ? (
-          <>
-            <p className="extended-block__saved">Уже в профиле</p>
+          <SavedRecordsSection count={existingExperiences.length} label="Уже в профиле — опыт">
             {existingExperiences.map((raw) => {
               const row = normalizeExperience(raw);
               const kid = row.id != null ? `e-${row.id}` : `e-${row.position}`;
@@ -517,33 +566,27 @@ export function StudentCreateExtendedBlocks({
                   <div className="form-row">
                     <div className="field" style={{ minWidth: 220, flex: 1 }}>
                       <label>Компания</label>
-                      <select
-                        disabled={!canEdit}
-                        value={current.companyId ?? ''}
+                      <input
+                        readOnly={!canEdit}
+                        list={canEdit && companyOptions.length ? COMPANY_DATALIST_ID : undefined}
+                        value={current.companyName ?? ''}
+                        placeholder="Название компании"
                         onChange={(e) => {
                           if (!canEdit) return;
-                          const v = e.target.value;
-                          const picked = companyOptions.find((c) => String(c.id) === String(v));
+                          const picked = pickCompanyByName(companyOptions, e.target.value);
                           setSavedEdit((p) => ({
                             ...p,
                             experiences: {
                               ...p.experiences,
                               [row.id]: {
                                 ...current,
-                                companyId: v,
-                                companyName: picked?.name ?? current.companyName ?? '',
+                                companyId: picked.companyId,
+                                companyName: picked.companyName,
                               },
                             },
                           }));
                         }}
-                      >
-                        <option value="">Не выбрано</option>
-                        {companyOptions.map((c) => (
-                          <option key={c.id} value={String(c.id)}>
-                            {c.name} (ID: {c.id})
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </div>
                     <div className="field" style={{ minWidth: 160, flex: 1 }}>
                       <label>Должность</label>
@@ -658,7 +701,7 @@ export function StudentCreateExtendedBlocks({
                 </div>
               );
             })}
-          </>
+          </SavedRecordsSection>
         ) : null}
       </div>
 
@@ -776,8 +819,7 @@ export function StudentCreateExtendedBlocks({
           </div>
         ) : null}
         {editMode && existingInstitutions?.length ? (
-          <>
-            <p className="extended-block__saved">Уже в профиле</p>
+          <SavedRecordsSection count={existingInstitutions.length} label="Уже в профиле — обучение">
             {existingInstitutions.map((raw) => {
               const row = normalizeInstitution(raw);
               const kid = row.id != null ? `i-${row.id}` : `i-${row.educationId || row.startYear}`;
@@ -887,7 +929,7 @@ export function StudentCreateExtendedBlocks({
                 </div>
               );
             })}
-          </>
+          </SavedRecordsSection>
         ) : null}
       </div>
 
@@ -990,8 +1032,7 @@ export function StudentCreateExtendedBlocks({
         ) : null}
 
         {editMode && existingEducations?.length ? (
-          <>
-            <p className="extended-block__saved">Уже в справочнике</p>
+          <SavedRecordsSection count={existingEducations.length} label="Уже в справочнике — education">
             {existingEducations.map((raw) => {
               const row = normalizeEducation(raw);
               const kid = row.id != null ? `ed-${row.id}` : `ed-${row.institution}`;
@@ -1096,7 +1137,7 @@ export function StudentCreateExtendedBlocks({
                 </div>
               );
             })}
-          </>
+          </SavedRecordsSection>
         ) : null}
       </div>
 

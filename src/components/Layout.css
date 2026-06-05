@@ -7,6 +7,8 @@
 }
 
 .sidebar {
+  position: relative;
+  z-index: 2;
   width: 260px;
   flex-shrink: 0;
   display: flex;

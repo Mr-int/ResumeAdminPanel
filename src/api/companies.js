@@ -12,8 +12,12 @@ export function deleteCompany(id) {
   return apiFetch(`/company/${id}`, { method: 'DELETE' });
 }
 
-export function filterCompanies(filter, page = 0, size = 50, sort) {
+export function filterCompanies(filter, page = 0, size = 50, sort, fetchOptions = {}) {
   const q = pageableQuery(page, size, sort);
-  return apiFetch(`/company/filter${q}`, { method: 'POST', json: filter });
+  return apiFetch(`/company/filter${q}`, {
+    method: 'POST',
+    json: filter,
+    ...fetchOptions,
+  });
 }
 
