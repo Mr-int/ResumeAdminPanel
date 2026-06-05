@@ -15,6 +15,16 @@ export function submitRecruiterVacancyForReview(id) {
   return apiFetch(`/vacancies/${id}/submit-for-review`, { method: 'POST' });
 }
 
+/** Список вакансий текущего рекрутёра. */
+export function listMyVacancies(page, size) {
+  const q = pageableQuery(page, size);
+  return apiFetch(`/vacancies/mine${q}`, { method: 'GET' });
+}
+
+export function getRecruiterVacancy(id) {
+  return apiFetch(`/vacancies/${id}`, { method: 'GET' });
+}
+
 export function filterVacancies(filter, page, size) {
   const q = pageableQuery(page, size);
   return apiFetch(`/admin/vacancies/filter${q}`, {

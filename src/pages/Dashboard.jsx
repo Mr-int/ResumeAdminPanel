@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext.jsx';
 import * as mainApi from '../api/main.js';
 import * as analyticsApi from '../api/analytics.js';
 import * as accountApi from '../api/accountApprovals.js';
@@ -21,12 +22,14 @@ const QUICK_LINKS = [
 ];
 
 export function Dashboard() {
+  const { isRecruiter } = useAuth();
   const [ok, setOk] = useState(null);
   const [err, setErr] = useState(null);
   const [stats, setStats] = useState(null);
   const [statsErr, setStatsErr] = useState(null);
 
   useEffect(() => {
+    if (isRecruiter) return;
     let cancelled = false;
     (async () => {
       try {
@@ -45,9 +48,10 @@ export function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isRecruiter]);
 
   useEffect(() => {
+    if (isRecruiter) return;
     let cancelled = false;
     (async () => {
       try {
@@ -76,7 +80,11 @@ export function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isRecruiter]);
+
+  if (isRecruiter) {
+    return <Navigate to="/vacancies" replace />;
+  }
 
   const pop = stats?.population;
 

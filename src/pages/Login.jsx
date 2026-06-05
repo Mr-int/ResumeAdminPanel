@@ -3,7 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export function Login() {
-  const { ready, authenticated, login } = useAuth();
+  const { ready, authenticated, isRecruiter, login } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -15,7 +15,7 @@ export function Login() {
   }
 
   if (authenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={isRecruiter ? '/vacancies' : '/'} replace />;
   }
 
   async function handleSubmit(e) {
@@ -23,8 +23,8 @@ export function Login() {
     setError(null);
     setPending(true);
     try {
-      await login(username.trim(), password);
-      navigate('/', { replace: true });
+      const sessionRole = await login(username.trim(), password);
+      navigate(sessionRole === 'RECRUITER' ? '/vacancies' : '/', { replace: true });
     } catch (err) {
       setError(err.message ?? 'Ошибка входа');
     } finally {
@@ -36,7 +36,7 @@ export function Login() {
     <div className="login-page">
       <div className="login-card">
         <h1>Вход</h1>
-        <p>Админ-панель Singularity Resume</p>
+        <p>Singularity Resume — вход для администратора или рекрутёра</p>
         {error ? <div className="alert alert--error">{error}</div> : null}
         <form onSubmit={handleSubmit}>
           <div className="field">

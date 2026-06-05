@@ -39,10 +39,8 @@ export async function apiFetch(path, options = {}) {
 
   if (!res.ok) {
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-    if (
-      (res.status === 401 || res.status === 403) &&
-      !normalizedPath.startsWith('/auth/')
-    ) {
+    // 401 — сессия истекла; 403 — нет прав на эндпоинт (рекрутёр в /admin/*), не разлогиниваем.
+    if (res.status === 401 && !normalizedPath.startsWith('/auth/')) {
       notifyUnauthorized();
     }
 

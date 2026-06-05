@@ -7,7 +7,7 @@ import './Layout.css';
 
 
 
-const NAV_GROUPS = [
+const ADMIN_NAV_GROUPS = [
 
   {
 
@@ -83,10 +83,16 @@ const NAV_GROUPS = [
 
 ];
 
-
+const RECRUITER_NAV_GROUPS = [
+  {
+    title: 'Рекрутёр',
+    items: [{ to: '/vacancies', label: 'Мои вакансии' }],
+  },
+];
 
 export function Layout() {
-  const { logout } = useAuth();
+  const { logout, isRecruiter } = useAuth();
+  const navGroups = isRecruiter ? RECRUITER_NAV_GROUPS : ADMIN_NAV_GROUPS;
   const navigate = useNavigate();
   const location = useLocation();
   const mainRef = useRef(null);
@@ -121,7 +127,9 @@ export function Layout() {
 
             <div className="sidebar__title">Singularity Resume</div>
 
-            <div className="sidebar__subtitle">Панель администратора</div>
+            <div className="sidebar__subtitle">
+              {isRecruiter ? 'Панель рекрутёра' : 'Панель администратора'}
+            </div>
 
           </div>
 
@@ -129,7 +137,7 @@ export function Layout() {
 
         <nav className="sidebar__nav" aria-label="Основное меню">
 
-          {NAV_GROUPS.map((group) => (
+          {navGroups.map((group) => (
 
             <div key={group.title} className="sidebar__group">
 

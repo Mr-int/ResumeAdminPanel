@@ -14,3 +14,18 @@ export function refresh() {
 export function logout() {
   return apiFetch('/auth/logout', { method: 'POST' });
 }
+
+export function getRecruiterMe() {
+  return apiFetch('/recruiter/me', { method: 'GET' });
+}
+
+/** RECRUITER, если есть профиль рекрутёра; иначе ADMIN (модератор). */
+export async function detectSessionRole() {
+  try {
+    await getRecruiterMe();
+    return 'RECRUITER';
+  } catch (e) {
+    if (e.status === 401) throw e;
+    return 'ADMIN';
+  }
+}

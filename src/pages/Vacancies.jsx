@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '../context/AuthContext.jsx';
 import * as vacanciesApi from '../api/vacancies.js';
 import * as skillsApi from '../api/skills.js';
 import * as specialitiesApi from '../api/specialities.js';
@@ -42,7 +43,8 @@ const emptyCreateForm = () => ({
 });
 
 export function Vacancies() {
-  const [status, setStatus] = useState('PENDING_REVIEW');
+  const { isRecruiter } = useAuth();
+  const [status, setStatus] = useState(isRecruiter ? '' : 'PENDING_REVIEW');
   const [findString, setFindString] = useState('');
   const [recruiterId, setRecruiterId] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -84,6 +86,7 @@ export function Vacancies() {
   }, []);
 
   const loadVitrina = useCallback(async () => {
+    if (isRecruiter) return;
     setVitrinaLoading(true);
     try {
       const { data: res } = await vacanciesApi.filterVacancies({ status: 'PUBLISHED' }, 0, 200);
@@ -96,7 +99,7 @@ export function Vacancies() {
     } finally {
       setVitrinaLoading(false);
     }
-  }, []);
+  }, [isRecruiter]);
 
   useEffect(() => {
     loadVitrina();
@@ -106,20 +109,41 @@ export function Vacancies() {
     setError(null);
     setLoading(true);
     try {
-      const filter = {};
-      if (status) filter.status = status;
-      if (findString.trim()) filter.findString = findString.trim();
-      if (recruiterId.trim()) filter.recruiterId = recruiterId.trim();
-      if (companyName.trim()) filter.companyName = companyName.trim();
-      const { data: res } = await vacanciesApi.filterVacancies(filter, page, PAGE_SIZE);
-      setData(res);
+      if (isRecruiter) {
+        const { data: res } = await vacanciesApi.listMyVacancies(page, PAGE_SIZE);
+        let rows = res?.data ?? (Array.isArray(res) ? res : []);
+        if (status) rows = rows.filter((v) => v.status === status);
+        const q = findString.trim().toLowerCase();
+        if (q) {
+          rows = rows.filter(
+            (v) =>
+              (v.title ?? '').toLowerCase().includes(q) ||
+              (v.description ?? '').toLowerCase().includes(q)
+          );
+        }
+        setData({
+          ...res,
+          data: rows,
+          totalElements: res?.totalElements ?? rows.length,
+          totalPages: res?.totalPages ?? 1,
+          page: res?.page ?? page,
+        });
+      } else {
+        const filter = {};
+        if (status) filter.status = status;
+        if (findString.trim()) filter.findString = findString.trim();
+        if (recruiterId.trim()) filter.recruiterId = recruiterId.trim();
+        if (companyName.trim()) filter.companyName = companyName.trim();
+        const { data: res } = await vacanciesApi.filterVacancies(filter, page, PAGE_SIZE);
+        setData(res);
+      }
     } catch (e) {
       setError(e.message);
       setData(null);
     } finally {
       setLoading(false);
     }
-  }, [status, findString, recruiterId, companyName, page]);
+  }, [isRecruiter, status, findString, recruiterId, companyName, page]);
 
   useEffect(() => {
     load();
@@ -129,13 +153,27 @@ export function Vacancies() {
     setSelectedId(id);
     setDetailsLoading(true);
     try {
-      const { data } = await vacanciesApi.getVacancy(id);
+      const getVacancy = isRecruiter ? vacanciesApi.getRecruiterVacancy : vacanciesApi.getVacancy;
+      const { data } = await getVacancy(id);
       setDetails(data);
     } catch (e) {
       setDetails(null);
       setError(e.message);
     } finally {
       setDetailsLoading(false);
+    }
+  }
+
+  async function handleSubmitForReview(id) {
+    if (!window.confirm('Отправить вакансию на модерацию?')) return;
+    setMsg(null);
+    try {
+      await vacanciesApi.submitRecruiterVacancyForReview(id);
+      setMsg({ type: 'ok', text: 'Вакансия отправлена на модерацию' });
+      if (selectedId === id) await openDetails(id);
+      await load();
+    } catch (e) {
+      setError(e.message);
     }
   }
 
@@ -308,18 +346,24 @@ export function Vacancies() {
   return (
     <div className="page">
       <PageHeader
-        title="Модерация вакансий"
-        lead="Модерация и публикация вакансий. Создание — в сессии рекрутёра, одобрение — admin."
+        title={isRecruiter ? 'Мои вакансии' : 'Модерация вакансий'}
+        lead={
+          isRecruiter
+            ? 'Создавайте черновики и отправляйте на модерацию. Публикация — после одобрения администратором.'
+            : 'Модерация и публикация вакансий. Создание — в сессии рекрутёра, одобрение — admin.'
+        }
       />
 
       <div className="panel">
-        <h2 className="panel__title">Создание вакансии (рекрутер)</h2>
-        <div className="alert alert--warning" style={{ marginBottom: '1rem' }}>
-          Шаги 1–3 работают только при входе как <strong>рекрутёр</strong> (не admin):{' '}
-          <code>POST /vacancies</code> → <code>submit-for-review</code>. Шаг 4 (публикация) — под
-          admin: <code>POST /admin/vacancies/&#123;id&#125;/approve</code>. Без approve вакансия не
-          видна студентам.
-        </div>
+        <h2 className="panel__title">Создание вакансии</h2>
+        {!isRecruiter ? (
+          <div className="alert alert--warning" style={{ marginBottom: '1rem' }}>
+            Шаги 1–3 работают только при входе как <strong>рекрутёр</strong> (не admin):{' '}
+            <code>POST /vacancies</code> → <code>submit-for-review</code>. Шаг 4 (публикация) — под
+            admin: <code>POST /admin/vacancies/&#123;id&#125;/approve</code>. Без approve вакансия не
+            видна студентам.
+          </div>
+        ) : null}
         {optionsError ? <div className="alert alert--error">{optionsError}</div> : null}
         <button
           type="button"
@@ -493,17 +537,19 @@ export function Vacancies() {
                 />
                 Отправить на модерацию
               </label>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-                <input
-                  type="checkbox"
-                  checked={createForm.approveImmediately}
-                  disabled={!createForm.submitForReview}
-                  onChange={(e) =>
-                    setCreateForm((p) => ({ ...p, approveImmediately: e.target.checked }))
-                  }
-                />
-                Опубликовать сразу (только admin, шаг 4)
-              </label>
+              {!isRecruiter ? (
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={createForm.approveImmediately}
+                    disabled={!createForm.submitForReview}
+                    onChange={(e) =>
+                      setCreateForm((p) => ({ ...p, approveImmediately: e.target.checked }))
+                    }
+                  />
+                  Опубликовать сразу (только admin, шаг 4)
+                </label>
+              ) : null}
             </div>
             <div className="form-row" style={{ marginTop: '1rem' }}>
               <button type="submit" className="btn btn--primary" disabled={createPending}>
@@ -548,24 +594,28 @@ export function Vacancies() {
                 placeholder="Заголовок, описание…"
               />
             </div>
-            <div className="field">
-              <label htmlFor="vac-rec">UUID рекрутера</label>
-              <input
-                id="vac-rec"
-                value={recruiterId}
-                onChange={(e) => setRecruiterId(e.target.value)}
-                placeholder="необязательно"
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="vac-co">Компания</label>
-              <input
-                id="vac-co"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                placeholder="необязательно"
-              />
-            </div>
+            {!isRecruiter ? (
+              <>
+                <div className="field">
+                  <label htmlFor="vac-rec">UUID рекрутера</label>
+                  <input
+                    id="vac-rec"
+                    value={recruiterId}
+                    onChange={(e) => setRecruiterId(e.target.value)}
+                    placeholder="необязательно"
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="vac-co">Компания</label>
+                  <input
+                    id="vac-co"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="необязательно"
+                  />
+                </div>
+              </>
+            ) : null}
             <button type="submit" className="btn btn--primary">
               Применить
             </button>
@@ -579,7 +629,7 @@ export function Vacancies() {
       />
 
       <div className="panel">
-        <h2 className="panel__title">Очередь</h2>
+        <h2 className="panel__title">{isRecruiter ? 'Список' : 'Очередь'}</h2>
         {loading ? (
           <LoadingBlock />
         ) : (
@@ -618,7 +668,17 @@ export function Vacancies() {
                         >
                           Открыть
                         </button>
-                        {v.status === 'PENDING_REVIEW' ? (
+                        {isRecruiter && (v.status === 'DRAFT' || v.status === 'REJECTED') ? (
+                          <button
+                            type="button"
+                            className="btn btn--primary"
+                            style={{ marginLeft: '0.5rem' }}
+                            onClick={() => handleSubmitForReview(v.id)}
+                          >
+                            На модерацию
+                          </button>
+                        ) : null}
+                        {!isRecruiter && v.status === 'PENDING_REVIEW' ? (
                           <>
                             <button
                               type="button"
@@ -700,7 +760,9 @@ export function Vacancies() {
                 { label: 'Откликов', value: details.applicationsCount ?? 0 },
                 {
                   label: 'Видна анонимам',
-                  value: (
+                  value: isRecruiter ? (
+                    details.visibleToAnonymous ? 'да' : 'нет'
+                  ) : (
                     <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                       <input
                         type="checkbox"
@@ -723,6 +785,7 @@ export function Vacancies() {
         </div>
       ) : null}
 
+      {!isRecruiter ? (
       <div className="panel">
         <h2 className="panel__title">
           Витрина (опубликованные) {vitrinaReordering ? '(сохранение…)' : ''}
@@ -766,8 +829,9 @@ export function Vacancies() {
           <p style={{ color: 'var(--text-muted)', margin: 0 }}>Нет опубликованных вакансий</p>
         )}
       </div>
+      ) : null}
 
-      {rejectId ? (
+      {!isRecruiter && rejectId ? (
         <div className="panel">
           <h2 className="panel__title">Отклонение вакансии</h2>
           <form onSubmit={handleReject}>

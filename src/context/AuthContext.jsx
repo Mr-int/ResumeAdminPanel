@@ -20,6 +20,7 @@ export function AuthProvider({ children }) {
   const navigate = useNavigate();
   const [ready, setReady] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
+  const [role, setRole] = useState(null);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
@@ -34,12 +35,17 @@ export function AuthProvider({ children }) {
     (async () => {
       try {
         await authApi.refresh();
+        const sessionRole = await authApi.detectSessionRole();
         if (!cancelled) {
           resetUnauthorizedRedirect();
+          setRole(sessionRole);
           setAuthenticated(true);
         }
       } catch {
-        if (!cancelled) setAuthenticated(false);
+        if (!cancelled) {
+          setRole(null);
+          setAuthenticated(false);
+        }
       } finally {
         if (!cancelled) setReady(true);
       }
@@ -51,8 +57,11 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (username, password) => {
     await authApi.login(username, password);
+    const sessionRole = await authApi.detectSessionRole();
     resetUnauthorizedRedirect();
+    setRole(sessionRole);
     setAuthenticated(true);
+    return sessionRole;
   }, []);
 
   const logout = useCallback(async () => {
@@ -60,6 +69,7 @@ export function AuthProvider({ children }) {
       await authApi.logout();
     } finally {
       resetUnauthorizedRedirect();
+      setRole(null);
       setAuthenticated(false);
     }
   }, []);
@@ -68,10 +78,13 @@ export function AuthProvider({ children }) {
     () => ({
       ready,
       authenticated,
+      role,
+      isRecruiter: role === 'RECRUITER',
+      isAdmin: role === 'ADMIN',
       login,
       logout,
     }),
-    [ready, authenticated, login, logout]
+    [ready, authenticated, role, login, logout]
   );
 
   return (
