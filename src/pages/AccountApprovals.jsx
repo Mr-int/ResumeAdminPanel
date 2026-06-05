@@ -21,7 +21,7 @@ export function AccountApprovals() {
   const [rejectComment, setRejectComment] = useState('');
   const [msg, setMsg] = useState(null);
 
-  const load = useCallback(async (signal, isActive = () => true) => {
+  const load = useCallback(async (isActive = () => true) => {
     if (isActive()) {
       setError(null);
       setLoading(true);
@@ -30,12 +30,10 @@ export function AccountApprovals() {
       const { data: res } = await accountApi.listAccountApprovals(
         role || undefined,
         page,
-        PAGE_SIZE,
-        { signal }
+        PAGE_SIZE
       );
       if (isActive()) setData(res);
     } catch (e) {
-      if (e.name === 'AbortError') return;
       if (isActive()) {
         setError(e.message);
         setData(null);
@@ -45,7 +43,7 @@ export function AccountApprovals() {
     }
   }, [role, page]);
 
-  useEffectWithAbort((signal, isActive) => load(signal, isActive), [load]);
+  useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
 
   async function handleApprove(userId) {
     if (!window.confirm('Одобрить учётную запись?')) return;

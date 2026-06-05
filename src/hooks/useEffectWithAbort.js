@@ -1,21 +1,21 @@
 import { useEffect } from 'react';
 
 /**
- * Запускает эффект с AbortSignal; при смене deps или размонтировании отменяет запрос.
- * @param {(signal: AbortSignal, isActive: () => boolean) => void | Promise<void>} effect
+ * Запускает эффект с флагом isActive; при смене deps или размонтировании
+ * результат устаревшего запроса игнорируется (без AbortController — иначе
+ * в StrictMode и при быстрой навигации список может не загрузиться).
+ * @param {(signal: AbortSignal | null, isActive: () => boolean) => void | Promise<void>} effect
  * @param {unknown[]} deps
  */
 export function useEffectWithAbort(effect, deps) {
   useEffect(() => {
-    const controller = new AbortController();
     let active = true;
     const isActive = () => active;
 
-    void effect(controller.signal, isActive);
+    void effect(null, isActive);
 
     return () => {
       active = false;
-      controller.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);

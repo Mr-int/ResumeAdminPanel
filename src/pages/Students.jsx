@@ -64,7 +64,7 @@ export function Students() {
     educationRows: [],
   });
 
-  const load = useCallback(async (signal, isActive = () => true) => {
+  const load = useCallback(async (isActive = () => true) => {
     if (isActive()) {
       setError(null);
       setLoading(true);
@@ -72,15 +72,9 @@ export function Students() {
     try {
       const filter = {};
       if (findString.trim()) filter.findString = findString.trim();
-      const { data: res } = await studentsApi.filterStudentCards(
-        filter,
-        page,
-        PAGE_SIZE,
-        { signal }
-      );
+      const { data: res } = await studentsApi.filterStudentCards(filter, page, PAGE_SIZE);
       if (isActive()) setData(res);
     } catch (e) {
-      if (e.name === 'AbortError') return;
       if (isActive()) {
         setError(e.message);
         setData(null);
@@ -90,27 +84,25 @@ export function Students() {
     }
   }, [findString, page]);
 
-  useEffectWithAbort((signal, isActive) => load(signal, isActive), [load]);
+  useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
 
-  const loadOrderRows = useCallback(async (signal, isActive = () => true) => {
+  const loadOrderRows = useCallback(async (isActive = () => true) => {
     if (isActive()) setOrderLoading(true);
     try {
       const { data: res } = await studentsApi.filterStudentCards(
         { useDefaultRanking: false, sortBy: 'MANUAL_SORT_ORDER', sortDirection: 'ASC' },
         0,
-        100,
-        { signal }
+        100
       );
       if (isActive()) setOrderRows(res?.data ?? []);
-    } catch (e) {
-      if (e.name === 'AbortError') return;
+    } catch {
       if (isActive()) setOrderRows([]);
     } finally {
       if (isActive()) setOrderLoading(false);
     }
   }, []);
 
-  useEffectWithAbort((signal, isActive) => loadOrderRows(signal, isActive), [loadOrderRows]);
+  useEffectWithAbort((_signal, isActive) => loadOrderRows(isActive), [loadOrderRows]);
 
   async function handleStudentsReorder(orderedIds) {
     const byId = new Map(orderRows.map((s) => [String(s.id), s]));

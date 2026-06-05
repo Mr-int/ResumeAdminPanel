@@ -31,7 +31,7 @@ export function Recruiters() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
 
-  const load = useCallback(async (signal, isActive = () => true) => {
+  const load = useCallback(async (isActive = () => true) => {
     if (isActive()) {
       setError(null);
       setLoading(true);
@@ -39,12 +39,9 @@ export function Recruiters() {
     try {
       const filter = {};
       if (name.trim()) filter.name = name.trim();
-      const { data: res } = await recruitersApi.filterRecruiters(filter, page, PAGE_SIZE, {
-        signal,
-      });
+      const { data: res } = await recruitersApi.filterRecruiters(filter, page, PAGE_SIZE);
       if (isActive()) setData(res);
     } catch (e) {
-      if (e.name === 'AbortError') return;
       if (isActive()) {
         setError(e.message);
         setData(null);
@@ -54,7 +51,7 @@ export function Recruiters() {
     }
   }, [name, page]);
 
-  useEffectWithAbort((signal, isActive) => load(signal, isActive), [load]);
+  useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
 
   const totalPages = data?.totalPages ?? 0;
   const rows = data?.data ?? [];

@@ -120,6 +120,10 @@ export function StudentDetail() {
     });
   }
 
+  function fetchOpts(signal) {
+    return signal ? { signal } : {};
+  }
+
   async function loadExtendedExisting(studentId, signal, isActive = () => true) {
     const sid = String(studentId);
     const safePageData = (res) => res?.data?.data ?? res?.data ?? [];
@@ -137,7 +141,7 @@ export function StudentDetail() {
       let lastOk = [];
       for (const f of filters) {
         try {
-          const res = await call(f, { signal });
+          const res = await call(f, fetchOpts(signal));
           const arr = safePageData(res);
           lastOk = Array.isArray(arr) ? arr : [];
           if (lastOk.length) return lastOk.filter(matchStudent);
@@ -177,10 +181,10 @@ export function StudentDetail() {
     if (isActive()) setExtendedLoading(true);
     try {
       const [{ data }, { data: specRes }, { data: skillsRes }, { data: companiesRes }] = await Promise.all([
-        studentsApi.getStudent(id, { signal }),
-        specialitiesApi.filterSpecialities({}, 0, 500, ['id,asc'], { signal }),
-        skillsApi.filterSkills({}, 0, 500, ['id,asc'], { signal }),
-        companiesApi.filterCompanies({}, 0, 500, ['id,asc'], { signal }),
+        studentsApi.getStudent(id, fetchOpts(signal)),
+        specialitiesApi.filterSpecialities({}, 0, 500, ['id,asc'], fetchOpts(signal)),
+        skillsApi.filterSkills({}, 0, 500, ['id,asc'], fetchOpts(signal)),
+        companiesApi.filterCompanies({}, 0, 500, ['id,asc'], fetchOpts(signal)),
       ]);
       if (!isActive()) return;
       const specList = specRes?.data ?? [];
@@ -198,7 +202,7 @@ export function StudentDetail() {
       if (!isActive()) return;
       setOptionsError(e.message);
       try {
-        const { data } = await studentsApi.getStudent(id, { signal });
+        const { data } = await studentsApi.getStudent(id, fetchOpts(signal));
         if (!isActive()) return;
         setStudent(data);
         if (!silent) setLoading(false);

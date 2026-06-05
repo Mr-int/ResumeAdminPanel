@@ -35,7 +35,7 @@ export function Users() {
   const [newPassword, setNewPassword] = useState('');
   const [createMsg, setCreateMsg] = useState(null);
 
-  const load = useCallback(async (signal, isActive = () => true) => {
+  const load = useCallback(async (isActive = () => true) => {
     if (isActive()) {
       setError(null);
       setLoading(true);
@@ -44,12 +44,10 @@ export function Users() {
       const { data: res } = await usersApi.filterUsers(
         { username: username.trim() || undefined },
         page,
-        PAGE_SIZE,
-        { signal }
+        PAGE_SIZE
       );
       if (isActive()) setData(res);
     } catch (e) {
-      if (e.name === 'AbortError') return;
       if (isActive()) {
         setError(e.message);
         setData(null);
@@ -59,7 +57,7 @@ export function Users() {
     }
   }, [username, page]);
 
-  useEffectWithAbort((signal, isActive) => load(signal, isActive), [load]);
+  useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
 
   async function handleCreate(e) {
     e.preventDefault();
