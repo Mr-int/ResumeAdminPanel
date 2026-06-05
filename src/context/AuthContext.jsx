@@ -6,20 +6,38 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as authApi from '../api/auth.js';
+import {
+  clearUnauthorizedHandler,
+  resetUnauthorizedRedirect,
+  setUnauthorizedHandler,
+} from '../lib/unauthorized.js';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
+  const navigate = useNavigate();
   const [ready, setReady] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setAuthenticated(false);
+      navigate('/login', { replace: true });
+    });
+    return () => clearUnauthorizedHandler();
+  }, [navigate]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         await authApi.refresh();
-        if (!cancelled) setAuthenticated(true);
+        if (!cancelled) {
+          resetUnauthorizedRedirect();
+          setAuthenticated(true);
+        }
       } catch {
         if (!cancelled) setAuthenticated(false);
       } finally {
@@ -33,6 +51,7 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (username, password) => {
     await authApi.login(username, password);
+    resetUnauthorizedRedirect();
     setAuthenticated(true);
   }, []);
 
@@ -40,6 +59,7 @@ export function AuthProvider({ children }) {
     try {
       await authApi.logout();
     } finally {
+      resetUnauthorizedRedirect();
       setAuthenticated(false);
     }
   }, []);

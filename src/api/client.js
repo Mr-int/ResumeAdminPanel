@@ -1,4 +1,5 @@
 import { API_BASE } from '../config.js';
+import { notifyUnauthorized } from '../lib/unauthorized.js';
 
 /**
  * @param {string} path - путь от корня API, например /auth/login
@@ -37,6 +38,14 @@ export async function apiFetch(path, options = {}) {
   }
 
   if (!res.ok) {
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    if (
+      (res.status === 401 || res.status === 403) &&
+      !normalizedPath.startsWith('/auth/')
+    ) {
+      notifyUnauthorized();
+    }
+
     let msg =
       typeof data === 'object' && data && (data.message || data.error)
         ? data.message || data.error
