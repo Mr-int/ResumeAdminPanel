@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as recruitersApi from '../api/recruiters.js';
+import { useEffectWithAbort } from '../hooks/useEffectWithAbort.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { EmptyState } from '../components/ui/EmptyState.jsx';
@@ -30,25 +31,30 @@ export function Recruiters() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
 
-  const load = useCallback(async () => {
-    setError(null);
-    setLoading(true);
+  const load = useCallback(async (signal, isActive = () => true) => {
+    if (isActive()) {
+      setError(null);
+      setLoading(true);
+    }
     try {
       const filter = {};
       if (name.trim()) filter.name = name.trim();
-      const { data: res } = await recruitersApi.filterRecruiters(filter, page, PAGE_SIZE);
-      setData(res);
+      const { data: res } = await recruitersApi.filterRecruiters(filter, page, PAGE_SIZE, {
+        signal,
+      });
+      if (isActive()) setData(res);
     } catch (e) {
-      setError(e.message);
-      setData(null);
+      if (e.name === 'AbortError') return;
+      if (isActive()) {
+        setError(e.message);
+        setData(null);
+      }
     } finally {
-      setLoading(false);
+      if (isActive()) setLoading(false);
     }
   }, [name, page]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffectWithAbort((signal, isActive) => load(signal, isActive), [load]);
 
   const totalPages = data?.totalPages ?? 0;
   const rows = data?.data ?? [];

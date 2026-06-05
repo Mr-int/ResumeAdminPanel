@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import * as usersApi from '../api/users.js';
+import { useEffectWithAbort } from '../hooks/useEffectWithAbort.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { Pagination } from '../components/ui/Pagination.jsx';
@@ -34,27 +35,31 @@ export function Users() {
   const [newPassword, setNewPassword] = useState('');
   const [createMsg, setCreateMsg] = useState(null);
 
-  const load = useCallback(async () => {
-    setError(null);
-    setLoading(true);
+  const load = useCallback(async (signal, isActive = () => true) => {
+    if (isActive()) {
+      setError(null);
+      setLoading(true);
+    }
     try {
       const { data: res } = await usersApi.filterUsers(
         { username: username.trim() || undefined },
         page,
-        PAGE_SIZE
+        PAGE_SIZE,
+        { signal }
       );
-      setData(res);
+      if (isActive()) setData(res);
     } catch (e) {
-      setError(e.message);
-      setData(null);
+      if (e.name === 'AbortError') return;
+      if (isActive()) {
+        setError(e.message);
+        setData(null);
+      }
     } finally {
-      setLoading(false);
+      if (isActive()) setLoading(false);
     }
   }, [username, page]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffectWithAbort((signal, isActive) => load(signal, isActive), [load]);
 
   async function handleCreate(e) {
     e.preventDefault();

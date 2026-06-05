@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useEffectWithAbort } from '../hooks/useEffectWithAbort.js';
 import { Link, useNavigate } from 'react-router-dom';
 import * as studentsApi from '../api/students.js';
 import * as requestsApi from '../api/requests.js';
@@ -63,49 +64,53 @@ export function Students() {
     educationRows: [],
   });
 
-  const load = useCallback(async () => {
-    setError(null);
-    setLoading(true);
+  const load = useCallback(async (signal, isActive = () => true) => {
+    if (isActive()) {
+      setError(null);
+      setLoading(true);
+    }
     try {
       const filter = {};
       if (findString.trim()) filter.findString = findString.trim();
       const { data: res } = await studentsApi.filterStudentCards(
         filter,
         page,
-        PAGE_SIZE
+        PAGE_SIZE,
+        { signal }
       );
-      setData(res);
+      if (isActive()) setData(res);
     } catch (e) {
-      setError(e.message);
-      setData(null);
+      if (e.name === 'AbortError') return;
+      if (isActive()) {
+        setError(e.message);
+        setData(null);
+      }
     } finally {
-      setLoading(false);
+      if (isActive()) setLoading(false);
     }
   }, [findString, page]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffectWithAbort((signal, isActive) => load(signal, isActive), [load]);
 
-  const loadOrderRows = useCallback(async () => {
-    setOrderLoading(true);
+  const loadOrderRows = useCallback(async (signal, isActive = () => true) => {
+    if (isActive()) setOrderLoading(true);
     try {
       const { data: res } = await studentsApi.filterStudentCards(
         { useDefaultRanking: false, sortBy: 'MANUAL_SORT_ORDER', sortDirection: 'ASC' },
         0,
-        100
+        100,
+        { signal }
       );
-      setOrderRows(res?.data ?? []);
-    } catch {
-      setOrderRows([]);
+      if (isActive()) setOrderRows(res?.data ?? []);
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      if (isActive()) setOrderRows([]);
     } finally {
-      setOrderLoading(false);
+      if (isActive()) setOrderLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadOrderRows();
-  }, [loadOrderRows]);
+  useEffectWithAbort((signal, isActive) => loadOrderRows(signal, isActive), [loadOrderRows]);
 
   async function handleStudentsReorder(orderedIds) {
     const byId = new Map(orderRows.map((s) => [String(s.id), s]));

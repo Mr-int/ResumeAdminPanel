@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import * as accountApi from '../api/accountApprovals.js';
+import { useEffectWithAbort } from '../hooks/useEffectWithAbort.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { Pagination } from '../components/ui/Pagination.jsx';
@@ -20,23 +21,31 @@ export function AccountApprovals() {
   const [rejectComment, setRejectComment] = useState('');
   const [msg, setMsg] = useState(null);
 
-  const load = useCallback(async () => {
-    setError(null);
-    setLoading(true);
+  const load = useCallback(async (signal, isActive = () => true) => {
+    if (isActive()) {
+      setError(null);
+      setLoading(true);
+    }
     try {
-      const { data: res } = await accountApi.listAccountApprovals(role || undefined, page, PAGE_SIZE);
-      setData(res);
+      const { data: res } = await accountApi.listAccountApprovals(
+        role || undefined,
+        page,
+        PAGE_SIZE,
+        { signal }
+      );
+      if (isActive()) setData(res);
     } catch (e) {
-      setError(e.message);
-      setData(null);
+      if (e.name === 'AbortError') return;
+      if (isActive()) {
+        setError(e.message);
+        setData(null);
+      }
     } finally {
-      setLoading(false);
+      if (isActive()) setLoading(false);
     }
   }, [role, page]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffectWithAbort((signal, isActive) => load(signal, isActive), [load]);
 
   async function handleApprove(userId) {
     if (!window.confirm('Одобрить учётную запись?')) return;

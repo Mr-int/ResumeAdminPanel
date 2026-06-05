@@ -20,11 +20,12 @@ export function filterStudents(filter, page, size) {
   });
 }
 
-export function filterStudentCards(filter, page, size) {
+export function filterStudentCards(filter, page, size, fetchOptions = {}) {
   const q = pageableQuery(page, size);
   return apiFetch(`/student/cardsFilter${q}`, {
     method: 'POST',
     json: filter,
+    ...fetchOptions,
   });
 }
 

@@ -1,11 +1,14 @@
 import { apiFetch } from './client.js';
 
-export function listAccountApprovals(role, page, size) {
+export function listAccountApprovals(role, page, size, fetchOptions = {}) {
   const p = new URLSearchParams();
   p.set('page', String(page));
   p.set('size', String(size));
   if (role) p.set('role', role);
-  return apiFetch(`/admin/account-approvals?${p.toString()}`, { method: 'GET' });
+  return apiFetch(`/admin/account-approvals?${p.toString()}`, {
+    method: 'GET',
+    ...fetchOptions,
+  });
 }
 
 export function approveAccount(userId) {

@@ -1,4 +1,5 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -85,10 +86,14 @@ const NAV_GROUPS = [
 
 
 export function Layout() {
-
   const { logout } = useAuth();
-
   const navigate = useNavigate();
+  const location = useLocation();
+  const mainRef = useRef(null);
+
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [location.pathname]);
 
 
 
@@ -168,10 +173,8 @@ export function Layout() {
 
       </aside>
 
-      <main className="main">
-
-        <Outlet />
-
+      <main ref={mainRef} className="main">
+        <Outlet key={location.pathname} />
       </main>
 
     </div>
