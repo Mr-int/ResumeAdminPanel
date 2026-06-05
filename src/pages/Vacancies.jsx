@@ -1,17 +1,46 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as vacanciesApi from '../api/vacancies.js';
+import * as recruitersApi from '../api/recruiters.js';
+import * as skillsApi from '../api/skills.js';
+import * as specialitiesApi from '../api/specialities.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
-import { Pagination } from '../components/ui/Pagination.jsx';
 import { FlashMessages } from '../components/ui/FlashMessages.jsx';
 import { DetailGrid } from '../components/ui/DetailGrid.jsx';
 import { StatusBadge, vacancyStatusVariant } from '../components/ui/StatusBadge.jsx';
-import { VACANCY_STATUS_LABELS, labelOf } from '../lib/labels.js';
+import { SkillPicker } from '../components/SkillPicker.jsx';
+import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
+import {
+  EMPLOYMENT_TYPE_LABELS,
+  VACANCY_STATUS_LABELS,
+  WORK_FORMAT_LABELS,
+  labelOf,
+} from '../lib/labels.js';
 import { fmtDate } from '../lib/format.js';
 import { SortableTable } from '../components/SortableTable.jsx';
+import { toApiDateTime } from '../utils/dateTimeApi.js';
 
 const PAGE_SIZE = 10;
 const STATUSES = Object.keys(VACANCY_STATUS_LABELS);
+const WORK_FORMATS = Object.keys(WORK_FORMAT_LABELS);
+const EMPLOYMENT_TYPES = Object.keys(EMPLOYMENT_TYPE_LABELS);
+
+const emptyCreateForm = () => ({
+  recruiterId: '',
+  title: '',
+  description: '',
+  city: '',
+  workFormat: 'REMOTE',
+  employmentType: 'INTERNSHIP',
+  specialityId: '',
+  skillIds: [],
+  publishedFrom: '',
+  publishedTo: '',
+  slotsCount: '',
+  visibleToAnonymous: true,
+  submitForReview: true,
+  approveImmediately: false,
+});
 
 export function Vacancies() {
   const [status, setStatus] = useState('PENDING_REVIEW');
@@ -32,6 +61,31 @@ export function Vacancies() {
   const [vitrinaLoading, setVitrinaLoading] = useState(false);
   const [vitrinaReordering, setVitrinaReordering] = useState(false);
   const [vitrinaToggling, setVitrinaToggling] = useState(null);
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState(emptyCreateForm);
+  const [createPending, setCreatePending] = useState(false);
+  const [recruiterOptions, setRecruiterOptions] = useState([]);
+  const [skillsOptions, setSkillsOptions] = useState([]);
+  const [specialityOptions, setSpecialityOptions] = useState([]);
+  const [optionsError, setOptionsError] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      setOptionsError(null);
+      try {
+        const [{ data: recRes }, { data: skillsRes }, { data: specRes }] = await Promise.all([
+          recruitersApi.filterRecruiters({}, 0, 200),
+          skillsApi.filterSkills({}, 0, 500, ['id,asc']),
+          specialitiesApi.filterSpecialities({}, 0, 500, ['id,asc']),
+        ]);
+        setRecruiterOptions(recRes?.data ?? []);
+        setSkillsOptions(skillsRes?.data ?? []);
+        setSpecialityOptions(specRes?.data ?? []);
+      } catch (e) {
+        setOptionsError(e.message);
+      }
+    })();
+  }, []);
 
   const loadVitrina = useCallback(async () => {
     setVitrinaLoading(true);
@@ -86,6 +140,87 @@ export function Vacancies() {
       setError(e.message);
     } finally {
       setDetailsLoading(false);
+    }
+  }
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    setMsg(null);
+    setError(null);
+
+    const recruiterId = createForm.recruiterId.trim();
+    const title = createForm.title.trim();
+    const description = createForm.description.trim();
+
+    if (!recruiterId) {
+      setMsg({ type: 'err', text: 'Выберите рекрутёра' });
+      return;
+    }
+    if (!title) {
+      setMsg({ type: 'err', text: 'Укажите название вакансии' });
+      return;
+    }
+    if (createForm.submitForReview && description.length < 20) {
+      setMsg({
+        type: 'err',
+        text: 'Для отправки на модерацию описание должно быть не короче 20 символов',
+      });
+      return;
+    }
+
+    setCreatePending(true);
+    try {
+      const skillIds = createForm.skillIds
+        .map((x) => Number(x))
+        .filter((x) => Number.isInteger(x) && x > 0);
+
+      const payload = {
+        recruiterId,
+        title,
+        description: description || undefined,
+        city: createForm.city.trim() || undefined,
+        workFormat: createForm.workFormat || undefined,
+        employmentType: createForm.employmentType || undefined,
+        specialityId:
+          createForm.specialityId !== '' ? Number(createForm.specialityId) : undefined,
+        skillIds: skillIds.length ? skillIds : undefined,
+        publishedFrom: toApiDateTime(createForm.publishedFrom),
+        publishedTo: toApiDateTime(createForm.publishedTo),
+        slotsCount:
+          createForm.slotsCount !== '' && !Number.isNaN(Number(createForm.slotsCount))
+            ? Number(createForm.slotsCount)
+            : null,
+        visibleToAnonymous: createForm.visibleToAnonymous,
+      };
+
+      const { data: created } = await vacanciesApi.createVacancy(payload);
+      const vacancyId = created?.id;
+      if (!vacancyId) throw new Error('Не удалось получить ID созданной вакансии');
+
+      let statusNote = 'черновик (DRAFT)';
+
+      if (createForm.submitForReview) {
+        await vacanciesApi.submitVacancyForReview(vacancyId);
+        statusNote = 'на модерации (PENDING_REVIEW)';
+      }
+
+      if (createForm.approveImmediately) {
+        await vacanciesApi.approveVacancy(vacancyId);
+        statusNote = 'опубликована (PUBLISHED)';
+      }
+
+      setCreateForm(emptyCreateForm());
+      setCreating(false);
+      setMsg({ type: 'ok', text: `Вакансия создана — ${statusNote}` });
+      setStatus(createForm.approveImmediately ? 'PUBLISHED' : createForm.submitForReview ? 'PENDING_REVIEW' : 'DRAFT');
+      setPage(0);
+      await load();
+      await loadVitrina();
+      await openDetails(vacancyId);
+    } catch (e) {
+      setMsg({ type: 'err', text: e.message });
+    } finally {
+      setCreatePending(false);
     }
   }
 
@@ -166,8 +301,216 @@ export function Vacancies() {
     <div className="page">
       <PageHeader
         title="Модерация вакансий"
-        lead="Проверка и публикация вакансий от рекрутеров перед показом студентам."
+        lead="Создание от имени рекрутёра, проверка и публикация перед показом студентам."
       />
+
+      <div className="panel">
+        <h2 className="panel__title">Создание вакансии</h2>
+        <p className="page__lead" style={{ marginTop: 0 }}>
+          Цикл: черновик → модерация → публикация. Без публикации вакансия не видна студентам и на
+          витрине.
+        </p>
+        {optionsError ? <div className="alert alert--error">{optionsError}</div> : null}
+        <button
+          type="button"
+          className="btn btn--ghost"
+          onClick={() => setCreating((v) => !v)}
+          style={{ marginBottom: creating ? '1rem' : 0 }}
+        >
+          {creating ? 'Скрыть форму' : 'Создать вакансию'}
+        </button>
+        {creating ? (
+          <form onSubmit={handleCreate}>
+            <div className="form-row">
+              <div className="field" style={{ minWidth: 260, flex: 1 }}>
+                <label htmlFor="vac-create-recruiter">Рекрутёр</label>
+                <select
+                  id="vac-create-recruiter"
+                  required
+                  value={createForm.recruiterId}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, recruiterId: e.target.value }))
+                  }
+                >
+                  <option value="">Выберите рекрутёра</option>
+                  {recruiterOptions.map((r) => (
+                    <option key={r.id} value={String(r.id)}>
+                      {r.companyName ?? '—'} — {r.firstName ?? ''} {r.lastName ?? ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field" style={{ minWidth: 220, flex: 1 }}>
+                <label htmlFor="vac-create-title">Название</label>
+                <input
+                  id="vac-create-title"
+                  required
+                  maxLength={255}
+                  value={createForm.title}
+                  onChange={(e) => setCreateForm((p) => ({ ...p, title: e.target.value }))}
+                  placeholder="Java Intern"
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="vac-create-city">Город</label>
+                <input
+                  id="vac-create-city"
+                  value={createForm.city}
+                  onChange={(e) => setCreateForm((p) => ({ ...p, city: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="field">
+                <label htmlFor="vac-create-format">Формат работы</label>
+                <select
+                  id="vac-create-format"
+                  value={createForm.workFormat}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, workFormat: e.target.value }))
+                  }
+                >
+                  {WORK_FORMATS.map((v) => (
+                    <option key={v} value={v}>
+                      {labelOf(WORK_FORMAT_LABELS, v, v)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="vac-create-employment">Тип занятости</label>
+                <select
+                  id="vac-create-employment"
+                  value={createForm.employmentType}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, employmentType: e.target.value }))
+                  }
+                >
+                  {EMPLOYMENT_TYPES.map((v) => (
+                    <option key={v} value={v}>
+                      {labelOf(EMPLOYMENT_TYPE_LABELS, v, v)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="vac-create-speciality">Специальность</label>
+                <select
+                  id="vac-create-speciality"
+                  value={createForm.specialityId}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, specialityId: e.target.value }))
+                  }
+                >
+                  <option value="">Не выбрано</option>
+                  {specialityOptions.map((s) => (
+                    <option key={s.id} value={String(s.id)}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="vac-create-slots">Лимит откликов</label>
+                <input
+                  id="vac-create-slots"
+                  type="number"
+                  min={1}
+                  placeholder="Пусто — без лимита"
+                  value={createForm.slotsCount}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, slotsCount: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="field skill-picker-field">
+              <label>Навыки</label>
+              <SkillPicker
+                options={skillsOptions}
+                selectedIds={createForm.skillIds}
+                onChange={(ids) => setCreateForm((p) => ({ ...p, skillIds: ids }))}
+              />
+            </div>
+            <div className="field" style={{ marginBottom: '1rem' }}>
+              <TextAreaWithToolbar
+                label="Описание"
+                id="vac-create-description"
+                rows={5}
+                value={createForm.description}
+                onChange={(v) => setCreateForm((p) => ({ ...p, description: v }))}
+                hint="Минимум 20 символов, если отправляете на модерацию."
+              />
+            </div>
+            <div className="form-row">
+              <div className="field">
+                <label htmlFor="vac-create-from">Публикация с</label>
+                <input
+                  id="vac-create-from"
+                  type="datetime-local"
+                  value={createForm.publishedFrom}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, publishedFrom: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="vac-create-to">Публикация до</label>
+                <input
+                  id="vac-create-to"
+                  type="datetime-local"
+                  value={createForm.publishedTo}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, publishedTo: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="form-row" style={{ marginTop: '0.5rem' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={createForm.visibleToAnonymous}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, visibleToAnonymous: e.target.checked }))
+                  }
+                />
+                Видна анонимам после публикации
+              </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={createForm.submitForReview}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({
+                      ...p,
+                      submitForReview: e.target.checked,
+                      approveImmediately: e.target.checked ? p.approveImmediately : false,
+                    }))
+                  }
+                />
+                Отправить на модерацию
+              </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={createForm.approveImmediately}
+                  disabled={!createForm.submitForReview}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, approveImmediately: e.target.checked }))
+                  }
+                />
+                Опубликовать сразу (admin approve)
+              </label>
+            </div>
+            <div className="form-row" style={{ marginTop: '1rem' }}>
+              <button type="submit" className="btn btn--primary" disabled={createPending}>
+                {createPending ? 'Создание…' : 'Создать вакансию'}
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </div>
 
       <div className="panel">
         <h2 className="panel__title">Фильтр</h2>
@@ -228,8 +571,10 @@ export function Vacancies() {
         </form>
       </div>
 
-      {msg?.type === 'ok' ? <div className="alert alert--success">{msg.text}</div> : null}
-      {error ? <div className="alert alert--error">{error}</div> : null}
+      <FlashMessages
+        success={msg?.type === 'ok' ? msg.text : null}
+        error={msg?.type === 'err' ? msg.text : error}
+      />
 
       <div className="panel">
         <h2 className="panel__title">Очередь</h2>

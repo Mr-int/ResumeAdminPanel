@@ -1,5 +1,13 @@
 import { apiFetch, pageableQuery } from './client.js';
 
+export function createVacancy(body) {
+  return apiFetch('/admin/vacancies', { method: 'POST', json: body });
+}
+
+export function submitVacancyForReview(id) {
+  return apiFetch(`/admin/vacancies/${id}/submit-for-review`, { method: 'POST' });
+}
+
 export function filterVacancies(filter, page, size) {
   const q = pageableQuery(page, size);
   return apiFetch(`/admin/vacancies/filter${q}`, {

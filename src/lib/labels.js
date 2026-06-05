@@ -16,6 +16,19 @@ export const REQUEST_STATUS_LABELS = {
   REFUSAL: 'Отклонено',
 };
 
+export const WORK_FORMAT_LABELS = {
+  REMOTE: 'Удалённо',
+  OFFICE: 'В офисе',
+  HYBRID: 'Гибрид',
+};
+
+export const EMPLOYMENT_TYPE_LABELS = {
+  INTERNSHIP: 'Стажировка',
+  PART_TIME: 'Частичная занятость',
+  FULL_TIME: 'Полная занятость',
+  PROJECT: 'Проект',
+};
+
 export const VACANCY_STATUS_LABELS = {
   PENDING_REVIEW: 'На модерации',
   PUBLISHED: 'Опубликована',
