@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as vacanciesApi from '../api/vacancies.js';
-import * as recruitersApi from '../api/recruiters.js';
 import * as skillsApi from '../api/skills.js';
 import * as specialitiesApi from '../api/specialities.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
@@ -26,7 +25,7 @@ const WORK_FORMATS = Object.keys(WORK_FORMAT_LABELS);
 const EMPLOYMENT_TYPES = Object.keys(EMPLOYMENT_TYPE_LABELS);
 
 const emptyCreateForm = () => ({
-  recruiterId: '',
+  useOnboarding: false,
   title: '',
   description: '',
   city: '',
@@ -64,7 +63,6 @@ export function Vacancies() {
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(emptyCreateForm);
   const [createPending, setCreatePending] = useState(false);
-  const [recruiterOptions, setRecruiterOptions] = useState([]);
   const [skillsOptions, setSkillsOptions] = useState([]);
   const [specialityOptions, setSpecialityOptions] = useState([]);
   const [optionsError, setOptionsError] = useState(null);
@@ -73,12 +71,10 @@ export function Vacancies() {
     (async () => {
       setOptionsError(null);
       try {
-        const [{ data: recRes }, { data: skillsRes }, { data: specRes }] = await Promise.all([
-          recruitersApi.filterRecruiters({}, 0, 200),
+        const [{ data: skillsRes }, { data: specRes }] = await Promise.all([
           skillsApi.filterSkills({}, 0, 500, ['id,asc']),
           specialitiesApi.filterSpecialities({}, 0, 500, ['id,asc']),
         ]);
-        setRecruiterOptions(recRes?.data ?? []);
         setSkillsOptions(skillsRes?.data ?? []);
         setSpecialityOptions(specRes?.data ?? []);
       } catch (e) {
@@ -148,14 +144,9 @@ export function Vacancies() {
     setMsg(null);
     setError(null);
 
-    const recruiterId = createForm.recruiterId.trim();
     const title = createForm.title.trim();
     const description = createForm.description.trim();
 
-    if (!recruiterId) {
-      setMsg({ type: 'err', text: 'Выберите рекрутёра' });
-      return;
-    }
     if (!title) {
       setMsg({ type: 'err', text: 'Укажите название вакансии' });
       return;
@@ -175,7 +166,6 @@ export function Vacancies() {
         .filter((x) => Number.isInteger(x) && x > 0);
 
       const payload = {
-        recruiterId,
         title,
         description: description || undefined,
         city: createForm.city.trim() || undefined,
@@ -193,20 +183,38 @@ export function Vacancies() {
         visibleToAnonymous: createForm.visibleToAnonymous,
       };
 
-      const { data: created } = await vacanciesApi.createVacancy(payload);
+      const createCall = createForm.useOnboarding
+        ? vacanciesApi.createOnboardingVacancy
+        : vacanciesApi.createRecruiterVacancy;
+      const { data: created } = await createCall(payload);
       const vacancyId = created?.id;
       if (!vacancyId) throw new Error('Не удалось получить ID созданной вакансии');
 
       let statusNote = 'черновик (DRAFT)';
 
       if (createForm.submitForReview) {
-        await vacanciesApi.submitVacancyForReview(vacancyId);
+        await vacanciesApi.submitRecruiterVacancyForReview(vacancyId);
         statusNote = 'на модерации (PENDING_REVIEW)';
       }
 
       if (createForm.approveImmediately) {
-        await vacanciesApi.approveVacancy(vacancyId);
-        statusNote = 'опубликована (PUBLISHED)';
+        try {
+          await vacanciesApi.approveVacancy(vacancyId);
+          statusNote = 'опубликована (PUBLISHED)';
+        } catch (approveErr) {
+          setCreateForm(emptyCreateForm());
+          setCreating(false);
+          setStatus('PENDING_REVIEW');
+          setPage(0);
+          await load();
+          await openDetails(vacancyId);
+          setMsg({
+            type: 'err',
+            text:
+              `${statusNote}. Публикация (approve) доступна только admin: ${approveErr.message}`,
+          });
+          return;
+        }
       }
 
       setCreateForm(emptyCreateForm());
@@ -301,15 +309,17 @@ export function Vacancies() {
     <div className="page">
       <PageHeader
         title="Модерация вакансий"
-        lead="Создание от имени рекрутёра, проверка и публикация перед показом студентам."
+        lead="Модерация и публикация вакансий. Создание — в сессии рекрутёра, одобрение — admin."
       />
 
       <div className="panel">
-        <h2 className="panel__title">Создание вакансии</h2>
-        <p className="page__lead" style={{ marginTop: 0 }}>
-          Цикл: черновик → модерация → публикация. Без публикации вакансия не видна студентам и на
-          витрине.
-        </p>
+        <h2 className="panel__title">Создание вакансии (рекрутер)</h2>
+        <div className="alert alert--warning" style={{ marginBottom: '1rem' }}>
+          Шаги 1–3 работают только при входе как <strong>рекрутёр</strong> (не admin):{' '}
+          <code>POST /vacancies</code> → <code>submit-for-review</code>. Шаг 4 (публикация) — под
+          admin: <code>POST /admin/vacancies/&#123;id&#125;/approve</code>. Без approve вакансия не
+          видна студентам.
+        </div>
         {optionsError ? <div className="alert alert--error">{optionsError}</div> : null}
         <button
           type="button"
@@ -322,24 +332,6 @@ export function Vacancies() {
         {creating ? (
           <form onSubmit={handleCreate}>
             <div className="form-row">
-              <div className="field" style={{ minWidth: 260, flex: 1 }}>
-                <label htmlFor="vac-create-recruiter">Рекрутёр</label>
-                <select
-                  id="vac-create-recruiter"
-                  required
-                  value={createForm.recruiterId}
-                  onChange={(e) =>
-                    setCreateForm((p) => ({ ...p, recruiterId: e.target.value }))
-                  }
-                >
-                  <option value="">Выберите рекрутёра</option>
-                  {recruiterOptions.map((r) => (
-                    <option key={r.id} value={String(r.id)}>
-                      {r.companyName ?? '—'} — {r.firstName ?? ''} {r.lastName ?? ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
               <div className="field" style={{ minWidth: 220, flex: 1 }}>
                 <label htmlFor="vac-create-title">Название</label>
                 <input
@@ -470,6 +462,16 @@ export function Vacancies() {
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
                 <input
                   type="checkbox"
+                  checked={createForm.useOnboarding}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, useOnboarding: e.target.checked }))
+                  }
+                />
+                Первая вакансия (onboarding API)
+              </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="checkbox"
                   checked={createForm.visibleToAnonymous}
                   onChange={(e) =>
                     setCreateForm((p) => ({ ...p, visibleToAnonymous: e.target.checked }))
@@ -500,7 +502,7 @@ export function Vacancies() {
                     setCreateForm((p) => ({ ...p, approveImmediately: e.target.checked }))
                   }
                 />
-                Опубликовать сразу (admin approve)
+                Опубликовать сразу (только admin, шаг 4)
               </label>
             </div>
             <div className="form-row" style={{ marginTop: '1rem' }}>

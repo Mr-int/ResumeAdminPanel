@@ -1,11 +1,18 @@
 import { apiFetch, pageableQuery } from './client.js';
 
-export function createVacancy(body) {
-  return apiFetch('/admin/vacancies', { method: 'POST', json: body });
+/** Создание черновика — только в сессии рекрутёра (POST /vacancies). */
+export function createRecruiterVacancy(body) {
+  return apiFetch('/vacancies', { method: 'POST', json: body });
 }
 
-export function submitVacancyForReview(id) {
-  return apiFetch(`/admin/vacancies/${id}/submit-for-review`, { method: 'POST' });
+/** Первая вакансия после регистрации рекрутёра. */
+export function createOnboardingVacancy(body) {
+  return apiFetch('/recruiter/onboarding/vacancy', { method: 'POST', json: body });
+}
+
+/** Отправка на модерацию — только в сессии рекрутёра. */
+export function submitRecruiterVacancyForReview(id) {
+  return apiFetch(`/vacancies/${id}/submit-for-review`, { method: 'POST' });
 }
 
 export function filterVacancies(filter, page, size) {
