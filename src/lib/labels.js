@@ -86,6 +86,12 @@ export const FUNNEL_EVENT_ORDER = [
   'CHAT_SUCCESS',
 ];
 
+export const HOME_VITRINA_LABELS = {
+  publicProfileConsent: 'На главной',
+  visibleToAnonymous: 'На главной',
+  vacancyCatalog: 'В каталоге после входа',
+};
+
 export function labelOf(map, key, fallback = '—') {
   if (key == null || key === '') return fallback;
   return map[key] ?? key;

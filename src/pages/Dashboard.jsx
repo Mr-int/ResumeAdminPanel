@@ -12,12 +12,12 @@ import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 
 const QUICK_LINKS = [
   { to: '/account-approvals', title: 'Одобрение аккаунтов', desc: 'Очередь студентов и рекрутеров' },
-  { to: '/students', title: 'Студенты', desc: 'Карточки резюме и порядок витрины' },
+  { to: '/students', title: 'Студенты', desc: 'Карточки резюме и порядок на главной' },
   { to: '/recruiter-registrations', title: 'Заявки рекрутеров', desc: 'Одобрение регистрации работодателей' },
-  { to: '/vacancies', title: 'Вакансии', desc: 'Модерация и витрина' },
+  { to: '/vacancies', title: 'Вакансии', desc: 'Модерация и каталог после входа' },
   { to: '/chats', title: 'Чаты', desc: 'Переписка и модерация сообщений' },
   { to: '/requests', title: 'Заявки на контакт', desc: 'Связь рекрутер ↔ студент' },
-  { to: '/projects', title: 'Проекты', desc: 'Лента кейсов на сайте' },
+  { to: '/projects', title: 'Проекты', desc: 'Кейсы на главной странице' },
   { to: '/analytics', title: 'Аналитика', desc: 'Воронка и просмотры' },
 ];
 

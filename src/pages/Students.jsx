@@ -89,7 +89,7 @@ export function Students() {
   const loadOrderRows = useCallback(async (isActive = () => true) => {
     if (isActive()) setOrderLoading(true);
     try {
-      const { data: res } = await studentsApi.filterStudentCards(
+      const { data: res } = await studentsApi.filterStudents(
         { useDefaultRanking: false, sortBy: 'MANUAL_SORT_ORDER', sortDirection: 'ASC' },
         0,
         100
@@ -538,9 +538,9 @@ export function Students() {
       {error ? <div className="alert alert--error">{error}</div> : null}
 
       <div className="panel">
-        <h2 className="panel__title">Порядок на витрине {orderReordering ? '(сохранение…)' : ''}</h2>
+        <h2 className="panel__title">Порядок на главной {orderReordering ? '(сохранение…)' : ''}</h2>
         <p className="page__lead" style={{ marginTop: 0 }}>
-          Перетащите строки — порядок сохраняется через POST /admin/students/reorder.
+          Перетащите строки — порядок влияет на слайдер резюме на главной странице.
         </p>
         {orderMsg?.type === 'ok' ? <div className="alert alert--success">{orderMsg.text}</div> : null}
         {orderMsg?.type === 'err' ? <div className="alert alert--error">{orderMsg.text}</div> : null}
@@ -556,6 +556,7 @@ export function Students() {
                 <th>ФИО</th>
                 <th>Специальность</th>
                 <th>Курс</th>
+                <th>На главной</th>
               </>
             }
             renderCells={(s) => (
@@ -563,8 +564,9 @@ export function Students() {
                 <td>
                   {s.firstName} {s.lastName}
                 </td>
-                <td>{s.speciality ?? '—'}</td>
+                <td>{s.speciality ?? s.specialityName ?? '—'}</td>
                 <td>{s.course}</td>
+                <td>{s.publicProfileConsent ? 'да' : 'нет'}</td>
               </>
             )}
           />

@@ -476,6 +476,135 @@ table.data tbody tr:hover td {
   font-size: 0.8rem;
 }
 
+/* ---- Projects admin page ---- */
+.projects-admin__panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.projects-admin__panel-head .panel__title {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.projects-admin__create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.projects-admin__form-actions {
+  margin-top: 0.75rem;
+}
+
+.projects-admin__checkbox-field {
+  margin-top: 0.25rem;
+}
+
+.projects-admin__checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.projects-admin__search {
+  flex: 1;
+  min-width: min(100%, 280px);
+  max-width: 420px;
+  margin: 0;
+}
+
+.projects-admin__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+}
+
+.projects-admin__reorder-hint {
+  margin-left: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--text-muted);
+  text-transform: none;
+}
+
+.projects-admin__empty {
+  margin: 0;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.projects-admin__title-cell {
+  font-weight: 500;
+  max-width: 220px;
+}
+
+.projects-admin__dates-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 7.5rem;
+  line-height: 1.35;
+}
+
+.projects-admin__dates-sep {
+  display: none;
+}
+
+@media (min-width: 1100px) {
+  .projects-admin__dates-cell {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .projects-admin__dates-sep {
+    display: inline;
+  }
+}
+
+.projects-admin__visibility {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.projects-admin__visibility-input {
+  width: 0.95rem;
+  height: 0.95rem;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.projects-admin__list-panel .project-table-skills {
+  max-width: 240px;
+}
+
 /* ---- Student picker (projects) ---- */
 .student-picker {
   display: flex;

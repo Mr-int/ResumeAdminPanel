@@ -488,7 +488,7 @@ export function StudentDetail() {
       </div>
 
       <div className="panel panel--accent">
-        <h2 className="panel__title">Публичная витрина</h2>
+        <h2 className="panel__title">Главная страница</h2>
         <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
           <input
             type="checkbox"
@@ -497,7 +497,7 @@ export function StudentDetail() {
             onChange={(e) => handleConsentToggle(e.target.checked)}
           />
           <span>
-            Согласие на показ профиля анонимам (<code>publicProfileConsent</code>, PATCH)
+            Показывать карточку на главной (<code>publicProfileConsent</code>)
           </span>
         </label>
       </div>
