@@ -227,21 +227,32 @@ export function StudentDetail() {
   const experiences = extExisting.experiences;
   const institutions = extExisting.institutions;
 
-  async function handleConsentToggle(checked) {
+  async function handleVisibilityPatch(patch, okText) {
     setConsentSaving(true);
     setMsg(null);
     try {
-      await studentsApi.patchStudent(id, { publicProfileConsent: checked });
-      setStudent((s) => (s ? { ...s, publicProfileConsent: checked } : s));
-      setMsg({
-        type: 'ok',
-        text: checked ? 'Согласие на публичный профиль включено' : 'Согласие отключено',
-      });
+      await studentsApi.patchStudent(id, patch);
+      setStudent((s) => (s ? { ...s, ...patch } : s));
+      setMsg({ type: 'ok', text: okText });
     } catch (e) {
       setMsg({ type: 'err', text: e.message });
     } finally {
       setConsentSaving(false);
     }
+  }
+
+  async function handleConsentToggle(checked) {
+    await handleVisibilityPatch(
+      { publicProfileConsent: checked },
+      checked ? 'Согласие на публичный профиль включено' : 'Согласие отключено'
+    );
+  }
+
+  async function handleCatalogVisibleToggle(checked) {
+    await handleVisibilityPatch(
+      { catalogVisible: checked },
+      checked ? 'Карточка видна в каталоге рекрутёров' : 'Карточка скрыта из каталога'
+    );
   }
 
   async function handleUpdate(e) {
@@ -252,7 +263,6 @@ export function StudentDetail() {
       const skillsIds = form.skillsIds
         .map((x) => Number(x))
         .filter((x) => Number.isInteger(x) && x >= 0);
-      if (!skillsIds.length) throw new Error('Укажите хотя бы один навык');
       if (form.specialityId === '') throw new Error('Выберите специальность');
 
       await studentsApi.updateStudent(id, {
@@ -488,8 +498,19 @@ export function StudentDetail() {
       </div>
 
       <div className="panel panel--accent">
-        <h2 className="panel__title">Главная страница</h2>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+        <h2 className="panel__title">Видимость</h2>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          <input
+            type="checkbox"
+            checked={!!student.catalogVisible}
+            disabled={consentSaving}
+            onChange={(e) => handleCatalogVisibleToggle(e.target.checked)}
+          />
+          <span>
+            Показывать в каталоге рекрутёров (<code>catalogVisible</code>)
+          </span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <input
             type="checkbox"
             checked={!!student.publicProfileConsent}
@@ -497,7 +518,7 @@ export function StudentDetail() {
             onChange={(e) => handleConsentToggle(e.target.checked)}
           />
           <span>
-            Показывать карточку на главной (<code>publicProfileConsent</code>)
+            Показывать на главной (<code>publicProfileConsent</code>)
           </span>
         </label>
       </div>

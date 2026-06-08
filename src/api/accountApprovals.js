@@ -21,3 +21,4 @@ export function rejectAccount(userId, body) {
     json: body ?? {},
   });
 }
+

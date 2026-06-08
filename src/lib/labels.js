@@ -38,6 +38,12 @@ export const VACANCY_STATUS_LABELS = {
   ARCHIVED: 'В архиве',
 };
 
+export const ACCOUNT_STATUS_LABELS = {
+  PENDING_APPROVAL: 'На модерации',
+  APPROVED: 'Одобрен',
+  REJECTED: 'Отклонён',
+};
+
 export const REGISTRATION_STATUS_LABELS = {
   PENDING: 'На рассмотрении',
   APPROVED: 'Одобрена',

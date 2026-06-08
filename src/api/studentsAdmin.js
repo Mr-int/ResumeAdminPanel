@@ -6,3 +6,10 @@ export function reorderStudents(orderedIds) {
     json: { orderedIds },
   });
 }
+
+export function bulkStudentVisibility(body) {
+  return apiFetch('/admin/students/bulk-visibility', {
+    method: 'POST',
+    json: body,
+  });
+}
