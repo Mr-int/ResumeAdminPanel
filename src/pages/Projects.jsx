@@ -8,6 +8,7 @@ import { SkillPicker } from '../components/SkillPicker.jsx';
 import * as skillsApi from '../api/skills.js';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { FlashMessages } from '../components/ui/FlashMessages.jsx';
+import { StatusBadge } from '../components/ui/StatusBadge.jsx';
 import { SortableTable } from '../components/SortableTable.jsx';
 
 const emptyCreate = () => ({
@@ -111,6 +112,19 @@ export function Projects() {
     }
   }
 
+  async function handleVisibleToggle(project, checked) {
+    setMsg(null);
+    try {
+      await projectsApi.updateProject(project.id, { visibleToAnonymous: checked });
+      setRows((prev) =>
+        prev.map((p) => (p.id === project.id ? { ...p, visibleToAnonymous: checked } : p)),
+      );
+      setMsg({ type: 'ok', text: 'Видимость на главной обновлена' });
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
   async function handleReorder(orderedIds) {
     const byId = new Map(rows.map((p) => [String(p.id), p]));
     const next = orderedIds.map((id) => byId.get(String(id))).filter(Boolean);
@@ -128,25 +142,28 @@ export function Projects() {
     }
   }
 
+  const flashError = msg?.type === 'err' ? msg.text : error;
+
   return (
-    <div className="page">
+    <div className="page projects-admin">
       <PageHeader
         title="Проекты ленты"
         lead="Кейсы и работы студентов на главной странице сайта. Порядок, публикация и привязка участников."
       />
 
-      <div className="panel">
-        <h2 className="panel__title">Создание</h2>
-        <button
-          type="button"
-          className="btn btn--ghost"
-          onClick={() => setCreating((v) => !v)}
-          style={{ marginBottom: creating ? '1rem' : 0 }}
-        >
-          {creating ? 'Скрыть форму' : 'Новый проект'}
-        </button>
+      <div className="panel panel--accent projects-admin__create-panel">
+        <div className="projects-admin__panel-head">
+          <h2 className="panel__title">Создание</h2>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => setCreating((v) => !v)}
+          >
+            {creating ? 'Скрыть форму' : 'Новый проект'}
+          </button>
+        </div>
         {creating ? (
-          <form onSubmit={handleCreate}>
+          <form className="projects-admin__create-form" onSubmit={handleCreate}>
             <div className="form-row">
               <div className="field">
                 <label>Заголовок</label>
@@ -204,8 +221,8 @@ export function Projects() {
               />
             </div>
             <div className="form-row">
-              <div className="field">
-                <label>
+              <div className="field projects-admin__checkbox-field">
+                <label className="projects-admin__checkbox-label">
                   <input
                     type="checkbox"
                     checked={createForm.visibleToAnonymous}
@@ -215,9 +232,8 @@ export function Projects() {
                         visibleToAnonymous: e.target.checked,
                       }))
                     }
-                    style={{ marginRight: '0.35rem' }}
                   />
-                  Виден анонимам
+                  Показывать на главной
                 </label>
               </div>
             </div>
@@ -243,30 +259,46 @@ export function Projects() {
                 />
               </div>
             </div>
-            <button type="submit" className="btn btn--primary" style={{ marginTop: '0.75rem' }}>
-              Создать
-            </button>
+            <div className="projects-admin__form-actions">
+              <button type="submit" className="btn btn--primary">
+                Создать
+              </button>
+            </div>
           </form>
         ) : null}
       </div>
 
-      {msg?.type === 'ok' ? <div className="alert alert--success">{msg.text}</div> : null}
-      {msg?.type === 'err' ? <div className="alert alert--error">{msg.text}</div> : null}
-      {error ? <div className="alert alert--error">{error}</div> : null}
+      <FlashMessages
+        success={msg?.type === 'ok' ? msg.text : null}
+        error={flashError}
+      />
 
-      <div className="panel">
-        <h2 className="panel__title">Список {reordering ? '(сохранение…)' : ''}</h2>
-        <div className="field" style={{ marginBottom: '1rem', maxWidth: '420px' }}>
-          <label>Поиск</label>
-          <input
-            type="search"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Название, описание или раздел…"
-          />
+      <div className="panel projects-admin__list-panel">
+        <div className="projects-admin__panel-head">
+          <h2 className="panel__title">
+            Список
+            {reordering ? <span className="projects-admin__reorder-hint">сохранение…</span> : null}
+            {!loading && rows.length > 0 ? (
+              <span className="projects-admin__count">{rows.length}</span>
+            ) : null}
+          </h2>
+          <div className="field projects-admin__search">
+            <label htmlFor="projects-search">Поиск</label>
+            <input
+              id="projects-search"
+              type="search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Название, описание или раздел…"
+            />
+          </div>
         </div>
         {loading ? (
-          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Загрузка…</p>
+          <LoadingBlock />
+        ) : rows.length === 0 ? (
+          <p className="projects-admin__empty">
+            {searchQuery ? 'По запросу ничего не найдено.' : 'Проектов пока нет — создайте первый.'}
+          </p>
         ) : (
           <SortableTable
             items={rows}
@@ -278,16 +310,16 @@ export function Projects() {
                 <th>Заголовок</th>
                 <th>Раздел</th>
                 <th>Навыки</th>
-                <th>Анонимы</th>
+                <th>На главной</th>
                 <th>Публикация</th>
               </>
             }
             extraHeaderCells={<th />}
             renderCells={(p) => (
               <>
-                <td>{p.sortOrder}</td>
-                <td>{p.title}</td>
-                <td>{p.section || '—'}</td>
+                <td className="cell-mono">{p.sortOrder}</td>
+                <td className="projects-admin__title-cell">{p.title}</td>
+                <td className="cell-muted">{p.section || '—'}</td>
                 <td>
                   <div className="project-table-skills">
                     {(p.skills ?? []).length ? (
@@ -301,26 +333,37 @@ export function Projects() {
                     )}
                   </div>
                 </td>
-                <td>{p.visibleToAnonymous ? 'да' : 'нет'}</td>
-                <td style={{ fontSize: '0.8rem' }}>
-                  {fromApiDateTime(p.publishedFrom) || '—'} — {fromApiDateTime(p.publishedTo) || '—'}
+                <td>
+                  <label className="projects-admin__visibility">
+                    <input
+                      type="checkbox"
+                      className="projects-admin__visibility-input"
+                      checked={!!p.visibleToAnonymous}
+                      onChange={(e) => handleVisibleToggle(p, e.target.checked)}
+                    />
+                    <StatusBadge variant={p.visibleToAnonymous ? 'success' : 'default'}>
+                      {p.visibleToAnonymous ? 'на главной' : 'скрыт'}
+                    </StatusBadge>
+                  </label>
                 </td>
-                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <Link
-                    className="btn btn--ghost"
-                    to={`/projects/${p.id}`}
-                    style={{ textDecoration: 'none', display: 'inline-flex' }}
-                  >
-                    Открыть
-                  </Link>
-                  <button
-                    type="button"
-                    className="btn btn--danger"
-                    style={{ marginLeft: '0.5rem' }}
-                    onClick={() => handleDelete(p.id)}
-                  >
-                    Удалить
-                  </button>
+                <td className="cell-muted projects-admin__dates-cell">
+                  <span>{fromApiDateTime(p.publishedFrom) || '—'}</span>
+                  <span className="projects-admin__dates-sep">—</span>
+                  <span>{fromApiDateTime(p.publishedTo) || '—'}</span>
+                </td>
+                <td>
+                  <div className="table-actions">
+                    <Link className="btn btn--ghost" to={`/projects/${p.id}`}>
+                      Открыть
+                    </Link>
+                    <button
+                      type="button"
+                      className="btn btn--danger"
+                      onClick={() => handleDelete(p.id)}
+                    >
+                      Удалить
+                    </button>
+                  </div>
                 </td>
               </>
             )}

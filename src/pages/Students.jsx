@@ -41,6 +41,8 @@ export function Students() {
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderReordering, setOrderReordering] = useState(false);
   const [orderMsg, setOrderMsg] = useState(null);
+  const [bulkMsg, setBulkMsg] = useState(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
   // Доп. блоки (портфолио/опыт/образование) добавляются после создания студента на его странице.
   const [createForm, setCreateForm] = useState({
     city: '',
@@ -72,7 +74,7 @@ export function Students() {
     try {
       const filter = {};
       if (findString.trim()) filter.findString = findString.trim();
-      const { data: res } = await studentsApi.filterStudentCards(filter, page, PAGE_SIZE);
+      const { data: res } = await studentsApi.filterStudents(filter, page, PAGE_SIZE);
       if (isActive()) setData(res);
     } catch (e) {
       if (isActive()) {
@@ -89,8 +91,14 @@ export function Students() {
   const loadOrderRows = useCallback(async (isActive = () => true) => {
     if (isActive()) setOrderLoading(true);
     try {
-      const { data: res } = await studentsApi.filterStudentCards(
-        { useDefaultRanking: false, sortBy: 'MANUAL_SORT_ORDER', sortDirection: 'ASC' },
+      const { data: res } = await studentsApi.filterStudents(
+        {
+          catalogVisible: true,
+          publicProfileConsent: true,
+          useDefaultRanking: false,
+          sortBy: 'MANUAL_SORT_ORDER',
+          sortDirection: 'ASC',
+        },
         0,
         100
       );
@@ -103,6 +111,24 @@ export function Students() {
   }, []);
 
   useEffectWithAbort((_signal, isActive) => loadOrderRows(isActive), [loadOrderRows]);
+
+  async function handleBulkVisibility(payload, confirmText) {
+    if (!window.confirm(confirmText)) return;
+    setBulkLoading(true);
+    setBulkMsg(null);
+    try {
+      const { data } = await studentsAdminApi.bulkStudentVisibility(payload);
+      const updated = data?.updatedCount ?? data?.updated ?? 0;
+      const matched = data?.matchedCount ?? data?.matched ?? 0;
+      setBulkMsg({ type: 'ok', text: `Обновлено ${updated} из ${matched} карточек` });
+      await loadOrderRows();
+      await load();
+    } catch (e) {
+      setBulkMsg({ type: 'err', text: e.message });
+    } finally {
+      setBulkLoading(false);
+    }
+  }
 
   async function handleStudentsReorder(orderedIds) {
     const byId = new Map(orderRows.map((s) => [String(s.id), s]));
@@ -537,10 +563,66 @@ export function Students() {
 
       {error ? <div className="alert alert--error">{error}</div> : null}
 
-      <div className="panel">
-        <h2 className="panel__title">Порядок на витрине {orderReordering ? '(сохранение…)' : ''}</h2>
+      <div className="panel panel--accent">
+        <h2 className="panel__title">Видимость резюме {bulkLoading ? '(обработка…)' : ''}</h2>
         <p className="page__lead" style={{ marginTop: 0 }}>
-          Перетащите строки — порядок сохраняется через POST /admin/students/reorder.
+          Каталог рекрутёров зависит от <code>catalogVisible</code>; главная витрина — от{' '}
+          <code>publicProfileConsent</code> и видимости в каталоге.
+        </p>
+        {bulkMsg?.type === 'ok' ? <div className="alert alert--success">{bulkMsg.text}</div> : null}
+        {bulkMsg?.type === 'err' ? <div className="alert alert--error">{bulkMsg.text}</div> : null}
+        <div className="form-row" style={{ marginTop: '0.75rem' }}>
+          <button
+            type="button"
+            className="btn btn--primary"
+            disabled={bulkLoading}
+            onClick={() =>
+              handleBulkVisibility(
+                { all: true, catalogVisible: true, onlyApprovedAccounts: true },
+                'Включить показ в каталоге для всех одобренных студентов?'
+              )
+            }
+          >
+            Показать в каталоге (одобренные)
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            disabled={bulkLoading}
+            onClick={() =>
+              handleBulkVisibility(
+                { all: true, publicProfileConsent: true, onlyApprovedAccounts: true },
+                'Включить показ на главной для всех одобренных студентов?'
+              )
+            }
+          >
+            Показать на главной (одобренные)
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            disabled={bulkLoading}
+            onClick={() =>
+              handleBulkVisibility(
+                {
+                  all: true,
+                  catalogVisible: true,
+                  publicProfileConsent: true,
+                  onlyApprovedAccounts: true,
+                },
+                'Опубликовать всех одобренных: каталог и главная?'
+              )
+            }
+          >
+            Опубликовать всё
+          </button>
+        </div>
+      </div>
+
+      <div className="panel">
+        <h2 className="panel__title">Порядок на главной {orderReordering ? '(сохранение…)' : ''}</h2>
+        <p className="page__lead" style={{ marginTop: 0 }}>
+          Только студенты с включённым показом в каталоге и на главной. Перетащите строки — порядок влияет на слайдер.
         </p>
         {orderMsg?.type === 'ok' ? <div className="alert alert--success">{orderMsg.text}</div> : null}
         {orderMsg?.type === 'err' ? <div className="alert alert--error">{orderMsg.text}</div> : null}
@@ -556,6 +638,8 @@ export function Students() {
                 <th>ФИО</th>
                 <th>Специальность</th>
                 <th>Курс</th>
+                <th>Каталог</th>
+                <th>Главная</th>
               </>
             }
             renderCells={(s) => (
@@ -563,8 +647,10 @@ export function Students() {
                 <td>
                   {s.firstName} {s.lastName}
                 </td>
-                <td>{s.speciality ?? '—'}</td>
+                <td>{s.speciality ?? s.specialityName ?? '—'}</td>
                 <td>{s.course}</td>
+                <td>{s.catalogVisible ? 'да' : 'нет'}</td>
+                <td>{s.publicProfileConsent ? 'да' : 'нет'}</td>
               </>
             )}
           />
@@ -587,6 +673,8 @@ export function Students() {
                     <th>ФИО</th>
                     <th>Специальность</th>
                     <th>Курс</th>
+                    <th>Каталог</th>
+                    <th>Главная</th>
                     <th>Навыки</th>
                     <th />
                   </tr>
@@ -610,6 +698,8 @@ export function Students() {
                         </td>
                         <td>{s.speciality}</td>
                         <td>{s.course}</td>
+                        <td>{s.catalogVisible ? 'да' : 'нет'}</td>
+                        <td>{s.publicProfileConsent ? 'да' : 'нет'}</td>
                         <td>
                           {(s.skills ?? [])
                             .map((k) => k.name)

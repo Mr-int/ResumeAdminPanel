@@ -38,6 +38,12 @@ export const VACANCY_STATUS_LABELS = {
   ARCHIVED: 'В архиве',
 };
 
+export const ACCOUNT_STATUS_LABELS = {
+  PENDING_APPROVAL: 'На модерации',
+  APPROVED: 'Одобрен',
+  REJECTED: 'Отклонён',
+};
+
 export const REGISTRATION_STATUS_LABELS = {
   PENDING: 'На рассмотрении',
   APPROVED: 'Одобрена',
@@ -85,6 +91,12 @@ export const FUNNEL_EVENT_ORDER = [
   'CHAT_TU_REJECTED',
   'CHAT_SUCCESS',
 ];
+
+export const HOME_VITRINA_LABELS = {
+  publicProfileConsent: 'На главной',
+  visibleToAnonymous: 'На главной',
+  vacancyCatalog: 'В каталоге после входа',
+};
 
 export function labelOf(map, key, fallback = '—') {
   if (key == null || key === '') return fallback;
