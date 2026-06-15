@@ -31,29 +31,39 @@ function RequireAuth() {
   return <Outlet />;
 }
 
+function RequireAdmin() {
+  const { isRecruiter } = useAuth();
+  if (isRecruiter) {
+    return <Navigate to="/vacancies" replace />;
+  }
+  return <Outlet />;
+}
+
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route element={<RequireAuth />}>
         <Route element={<Layout />}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/users" element={<Users />} />
-          <Route path="/account-approvals" element={<AccountApprovals />} />
-          <Route path="/students" element={<Students />} />
-          <Route path="/students/:id" element={<StudentDetail />} />
-          <Route path="/skills" element={<Skills />} />
-          <Route path="/specialities" element={<Specialities />} />
-          <Route path="/companies" element={<Companies />} />
-          <Route path="/recruiters" element={<Recruiters />} />
-          <Route path="/requests" element={<Requests />} />
-          <Route path="/chats" element={<Chats />} />
-          <Route path="/recruiter-registrations" element={<RecruiterRegistrations />} />
           <Route path="/vacancies" element={<Vacancies />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/projects/:id" element={<ProjectDetail />} />
-          <Route path="/storage" element={<Storage />} />
-          <Route path="/analytics" element={<Analytics />} />
+          <Route element={<RequireAdmin />}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/users" element={<Users />} />
+            <Route path="/account-approvals" element={<AccountApprovals />} />
+            <Route path="/students" element={<Students />} />
+            <Route path="/students/:id" element={<StudentDetail />} />
+            <Route path="/skills" element={<Skills />} />
+            <Route path="/specialities" element={<Specialities />} />
+            <Route path="/companies" element={<Companies />} />
+            <Route path="/recruiters" element={<Recruiters />} />
+            <Route path="/requests" element={<Requests />} />
+            <Route path="/chats" element={<Chats />} />
+            <Route path="/recruiter-registrations" element={<RecruiterRegistrations />} />
+            <Route path="/projects" element={<Projects />} />
+            <Route path="/projects/:id" element={<ProjectDetail />} />
+            <Route path="/storage" element={<Storage />} />
+            <Route path="/analytics" element={<Analytics />} />
+          </Route>
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import * as vacanciesApi from '../api/vacancies.js';
-import * as skillsApi from '../api/skills.js';
-import * as specialitiesApi from '../api/specialities.js';
+import { useSkillsOptions, useSpecialityOptions } from '../hooks/useSkillsOptions.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { FlashMessages } from '../components/ui/FlashMessages.jsx';
@@ -61,25 +60,9 @@ export function Vacancies() {
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(emptyCreateForm);
   const [createPending, setCreatePending] = useState(false);
-  const [skillsOptions, setSkillsOptions] = useState([]);
-  const [specialityOptions, setSpecialityOptions] = useState([]);
-  const [optionsError, setOptionsError] = useState(null);
-
-  useEffect(() => {
-    (async () => {
-      setOptionsError(null);
-      try {
-        const [{ data: skillsRes }, { data: specRes }] = await Promise.all([
-          skillsApi.filterSkills({}, 0, 500, ['id,asc']),
-          specialitiesApi.filterSpecialities({}, 0, 500, ['id,asc']),
-        ]);
-        setSkillsOptions(skillsRes?.data ?? []);
-        setSpecialityOptions(specRes?.data ?? []);
-      } catch (e) {
-        setOptionsError(e.message);
-      }
-    })();
-  }, []);
+  const { skillsOptions, error: skillsOptionsError } = useSkillsOptions(creating);
+  const { specialityOptions, error: specialityOptionsError } = useSpecialityOptions(creating);
+  const optionsError = skillsOptionsError || specialityOptionsError;
 
   const load = useCallback(async () => {
     setError(null);

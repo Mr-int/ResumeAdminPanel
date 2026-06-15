@@ -7,7 +7,7 @@ import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { FlashMessages } from '../components/ui/FlashMessages.jsx';
 import { SkillPicker } from '../components/SkillPicker.jsx';
-import * as skillsApi from '../api/skills.js';
+import { useSkillsOptions } from '../hooks/useSkillsOptions.js';
 import { fromApiDateTime, toApiDateTime } from '../utils/dateTimeApi.js';
 import { pageItems } from '../lib/pageable.js';
 
@@ -44,7 +44,7 @@ export function ProjectDetail() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
-  const [skillsOptions, setSkillsOptions] = useState([]);
+  const { skillsOptions } = useSkillsOptions();
 
   const load = useCallback(async () => {
     setError(null);
@@ -81,17 +81,6 @@ export function ProjectDetail() {
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data: skillsRes } = await skillsApi.filterSkills({}, 0, 500, ['id,asc']);
-        setSkillsOptions(skillsRes?.data ?? []);
-      } catch {
-        setSkillsOptions([]);
-      }
-    })();
-  }, []);
 
   const boundIds = useMemo(
     () => participants.map((p) => String(p.id)),

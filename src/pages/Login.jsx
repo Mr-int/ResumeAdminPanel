@@ -36,7 +36,7 @@ export function Login() {
     <div className="login-page">
       <div className="login-card">
         <h1>Вход</h1>
-        <p>Singularity Resume — вход для администратора или рекрутёра</p>
+        <p>Singularity Resume — вход для администратора или работодателя</p>
         {error ? <div className="alert alert--error">{error}</div> : null}
         <form onSubmit={handleSubmit}>
           <div className="field">

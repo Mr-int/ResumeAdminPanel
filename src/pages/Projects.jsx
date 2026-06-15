@@ -5,7 +5,7 @@ import { fromApiDateTime, toApiDateTime } from '../utils/dateTimeApi.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { ProjectImagesEditor } from '../components/ProjectImagesEditor.jsx';
 import { SkillPicker } from '../components/SkillPicker.jsx';
-import * as skillsApi from '../api/skills.js';
+import { useSkillsOptions } from '../hooks/useSkillsOptions.js';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { FlashMessages } from '../components/ui/FlashMessages.jsx';
 import { StatusBadge } from '../components/ui/StatusBadge.jsx';
@@ -33,18 +33,7 @@ export function Projects() {
   const [reordering, setReordering] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [skillsOptions, setSkillsOptions] = useState([]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data: skillsRes } = await skillsApi.filterSkills({}, 0, 500, ['id,asc']);
-        setSkillsOptions(skillsRes?.data ?? []);
-      } catch {
-        setSkillsOptions([]);
-      }
-    })();
-  }, []);
+  const { skillsOptions } = useSkillsOptions();
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearchQuery(searchInput.trim()), 300);

@@ -19,20 +19,9 @@
 }
 
 .sidebar__brand {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
   margin-bottom: 1.25rem;
   padding: 0 0.35rem 1rem;
   border-bottom: 1px solid var(--border);
-}
-
-.sidebar__logo {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--accent) 0%, #818cf8 50%, var(--accent-dim) 100%);
-  box-shadow: 0 0 28px rgba(99, 102, 241, 0.35);
 }
 
 .sidebar__title {

@@ -56,8 +56,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = useCallback(async (username, password) => {
-    await authApi.login(username, password);
-    const sessionRole = await authApi.detectSessionRole();
+    const sessionRole = await authApi.loginAndEstablishSession(username, password);
     resetUnauthorizedRedirect();
     setRole(sessionRole);
     setAuthenticated(true);

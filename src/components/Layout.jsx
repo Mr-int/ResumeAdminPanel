@@ -85,7 +85,7 @@ const ADMIN_NAV_GROUPS = [
 
 const RECRUITER_NAV_GROUPS = [
   {
-    title: 'Рекрутёр',
+    title: 'Работодатель',
     items: [{ to: '/vacancies', label: 'Мои вакансии' }],
   },
 ];
@@ -120,19 +120,12 @@ export function Layout() {
       <aside className="sidebar">
 
         <div className="sidebar__brand">
-
-          <span className="sidebar__logo" aria-hidden />
-
           <div>
-
             <div className="sidebar__title">Singularity Resume</div>
-
             <div className="sidebar__subtitle">
-              {isRecruiter ? 'Панель рекрутёра' : 'Панель администратора'}
+              {isRecruiter ? 'Панель работодателя' : 'Панель администратора'}
             </div>
-
           </div>
-
         </div>
 
         <nav className="sidebar__nav" aria-label="Основное меню">
