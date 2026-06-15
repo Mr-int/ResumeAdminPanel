@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as authApi from '../api/auth.js';
+import { resetRecruiterDirectory } from '../lib/recruiterDirectory.js';
 import {
   clearUnauthorizedHandler,
   resetUnauthorizedRedirect,
@@ -67,6 +68,7 @@ export function AuthProvider({ children }) {
     try {
       await authApi.logout();
     } finally {
+      resetRecruiterDirectory();
       resetUnauthorizedRedirect();
       setRole(null);
       setAuthenticated(false);

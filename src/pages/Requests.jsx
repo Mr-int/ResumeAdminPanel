@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as requestsApi from '../api/requests.js';
 import * as studentsApi from '../api/students.js';
-import * as recruitersApi from '../api/recruiters.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { EmptyState } from '../components/ui/EmptyState.jsx';
@@ -11,6 +10,7 @@ import { DetailGrid } from '../components/ui/DetailGrid.jsx';
 import { StatusBadge, requestStatusVariant } from '../components/ui/StatusBadge.jsx';
 import { REQUEST_STATUS_LABELS, labelOf } from '../lib/labels.js';
 import { fmtDate, shortUuid } from '../lib/format.js';
+import { getRecruiterDirectory } from '../lib/recruiterDirectory.js';
 
 const PAGE_SIZE = 10;
 const STATUSES = Object.keys(REQUEST_STATUS_LABELS);
@@ -54,9 +54,15 @@ export function Requests() {
     const rows = data?.data ?? [];
     if (!rows.length) return;
     let cancelled = false;
+
     (async () => {
       const studentIds = [...new Set(rows.map((r) => r.studentId).filter(Boolean))];
-      const recruiterIds = [...new Set(rows.map((r) => r.recruiterId).filter(Boolean))];
+      let recruiterMap = {};
+      try {
+        recruiterMap = await getRecruiterDirectory();
+      } catch {
+        recruiterMap = {};
+      }
 
       const studentPairs = await Promise.all(
         studentIds.map(async (id) => {
@@ -69,16 +75,15 @@ export function Requests() {
         })
       );
 
-      const recruiterPairs = await Promise.all(
-        recruiterIds.map(async (id) => {
-          try {
-            const { data: r } = await recruitersApi.getRecruiter(id);
-            const full = `${r.firstName ?? ''} ${r.lastName ?? ''}`.trim();
-            return [id, full || r.companyName || shortUuid(id)];
-          } catch {
-            return [id, shortUuid(id)];
-          }
-        })
+      const recruiterPairs = [...new Set(rows.map((r) => r.recruiterId).filter(Boolean))].map(
+        (id) => {
+          const r = recruiterMap[id];
+          const full = r ? `${r.firstName ?? ''} ${r.lastName ?? ''}`.trim() : '';
+          const login = r?.username ? `@${r.username.replace(/^@/, '')}` : '';
+          let label = full && login ? `${full} · ${login}` : full || login;
+          if (!label) label = r?.companyName || shortUuid(id);
+          return [id, label];
+        }
       );
 
       if (!cancelled) {

@@ -40,7 +40,7 @@ body {
 }
 
 /* Тонкие скроллбары (Firefox + Chromium/WebKit) */
-* {
+html {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }

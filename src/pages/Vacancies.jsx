@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import * as vacanciesApi from '../api/vacancies.js';
-import * as recruitersApi from '../api/recruiters.js';
 import { useSkillsOptions, useSpecialityOptions } from '../hooks/useSkillsOptions.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
@@ -18,6 +17,7 @@ import {
   labelOf,
 } from '../lib/labels.js';
 import { fmtDate } from '../lib/format.js';
+import { getRecruiterDirectory } from '../lib/recruiterDirectory.js';
 import { toApiDateTime } from '../utils/dateTimeApi.js';
 import { formatRecruiterLabel } from '../utils/recruiterDisplay.js';
 
@@ -120,65 +120,18 @@ export function Vacancies() {
 
   useEffect(() => {
     if (isRecruiter) return;
-    const rows = data?.data ?? [];
-    const recruiterIds = [...new Set(rows.map((v) => v.recruiterId).filter(Boolean))];
-    if (!recruiterIds.length) return;
-
     let cancelled = false;
-    (async () => {
-      let toFetch = recruiterIds;
-      setRecruitersById((prev) => {
-        toFetch = recruiterIds.filter((id) => !(id in prev));
-        return prev;
+    getRecruiterDirectory()
+      .then((map) => {
+        if (!cancelled) setRecruitersById(map);
+      })
+      .catch(() => {
+        if (!cancelled) setRecruitersById({});
       });
-      if (!toFetch.length) return;
-
-      const pairs = await Promise.all(
-        toFetch.map(async (id) => {
-          try {
-            const { data: recruiter } = await recruitersApi.getRecruiter(id);
-            return [id, recruiter];
-          } catch {
-            return [id, null];
-          }
-        })
-      );
-
-      if (!cancelled) {
-        setRecruitersById((prev) => ({
-          ...prev,
-          ...Object.fromEntries(pairs),
-        }));
-      }
-    })();
-
     return () => {
       cancelled = true;
     };
-  }, [data, isRecruiter]);
-
-  useEffect(() => {
-    const rid = details?.recruiterId;
-    if (!rid || rid in recruitersById) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data: recruiter } = await recruitersApi.getRecruiter(rid);
-        if (!cancelled) {
-          setRecruitersById((prev) => ({ ...prev, [rid]: recruiter }));
-        }
-      } catch {
-        if (!cancelled) {
-          setRecruitersById((prev) => ({ ...prev, [rid]: null }));
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [details?.recruiterId, recruitersById]);
+  }, [isRecruiter]);
 
   function recruiterCell(recruiterId) {
     if (!recruiterId) return '—';
@@ -311,7 +264,6 @@ export function Vacancies() {
       setStatus(createForm.approveImmediately ? 'PUBLISHED' : createForm.submitForReview ? 'PENDING_REVIEW' : 'DRAFT');
       setPage(0);
       await load();
-      await loadVitrina();
       await openDetails(vacancyId);
     } catch (e) {
       setMsg({ type: 'err', text: e.message });

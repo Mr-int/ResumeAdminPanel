@@ -6,11 +6,7 @@ export function mainPhotoUrl(imagePath) {
   const path = String(imagePath).trim();
   if (!path) return null;
   if (/^https?:\/\//i.test(path)) return path;
-  const encoded = path
-    .split('/')
-    .filter(Boolean)
-    .map(encodeURIComponent)
-    .join('/');
+  const encoded = encodeURIComponent(path);
   return `${API_BASE}/main/photo/${encoded}`;
 }
 

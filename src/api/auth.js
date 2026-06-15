@@ -15,6 +15,10 @@ export function logout() {
   return apiFetch('/auth/logout', { method: 'POST' });
 }
 
+export function getMe() {
+  return apiFetch('/auth/me', { method: 'GET' });
+}
+
 export function getRecruiterMe() {
   return apiFetch('/recruiter/me', { method: 'GET' });
 }
@@ -46,17 +50,29 @@ async function probeRecruiterAccess() {
     return true;
   } catch (e) {
     if (e.status === 401) throw e;
-    // Профиль работодателя ещё не оформлен — роль всё равно RECRUITER.
     if (e.status === 404) return true;
   }
   return false;
 }
 
 /**
- * ADMIN — доступ к /admin/* или /user/filter.
- * RECRUITER — профиль работодателя или /vacancies/mine.
+ * Роль из GET /auth/me; при недоступности — запасной probe (старые сборки API).
  */
 export async function detectSessionRole() {
+  try {
+    const { data } = await getMe();
+    if (data?.role === 'ADMIN') return 'ADMIN';
+    if (data?.role === 'RECRUITER') return 'RECRUITER';
+    if (data?.role) {
+      throw new Error(
+        `Роль «${data.role}» не поддерживается в этой панели. Нужен ADMIN или RECRUITER.`
+      );
+    }
+  } catch (e) {
+    if (e.status === 401) throw e;
+    if (e.message?.includes('не поддерживается')) throw e;
+  }
+
   const [adminOk, recruiterOk] = await Promise.all([
     probeAdminAccess(),
     probeRecruiterAccess(),
@@ -66,7 +82,7 @@ export async function detectSessionRole() {
   if (recruiterOk) return 'RECRUITER';
 
   throw new Error(
-    'Нет доступа к панели. Учётная запись должна быть администратором или работодателем с оформленным профилем.'
+    'Нет доступа к панели. Учётная запись должна быть администратором или работодателем.'
   );
 }
 
