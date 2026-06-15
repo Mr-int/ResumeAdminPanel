@@ -4,10 +4,13 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-https://api.singularity-resume.ru}
+        VITE_API_URL: ${VITE_API_URL:-/api}
     image: resume-admin-panel:latest
     container_name: resume-admin-panel
     restart: unless-stopped
+    environment:
+      API_UPSTREAM: ${API_UPSTREAM:-https://test-api.singularity-resume.ru}
+      API_HOST: ${API_HOST:-test-api.singularity-resume.ru}
     ports:
       - "${APP_PORT:-3847}:80"
     read_only: false

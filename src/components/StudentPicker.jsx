@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as studentsApi from '../api/students.js';
 import { API_BASE } from '../config.js';
+import { pageItems, pageTotalPages } from '../lib/pageable.js';
 
 const PAGE_SIZE = 10;
 
@@ -57,7 +58,8 @@ export function StudentPicker({ excludeIds = [], onBind, disabled = false }) {
     setPage(0);
   }, [query]);
 
-  const rows = (data?.content ?? []).filter((s) => !exclude.has(String(s.id)));
+  const rows = pageItems(data).filter((s) => !exclude.has(String(s.id)));
+  const totalPages = pageTotalPages(data);
 
   function toggle(id) {
     const sid = String(id);
@@ -131,11 +133,15 @@ export function StudentPicker({ excludeIds = [], onBind, disabled = false }) {
 
       {!loading && rows.length === 0 ? (
         <p style={{ color: 'var(--text-muted)', margin: '0.5rem 0 0' }}>
-          {query.trim() ? 'Никого не найдено' : 'Введите запрос или пролистайте список'}
+          {query.trim()
+            ? 'Никого не найдено'
+            : pageItems(data).length > 0
+              ? 'Все студенты на странице уже привязаны'
+              : 'Студенты не найдены — проверьте фильтр или создайте карточки студентов'}
         </p>
       ) : null}
 
-      {data && data.totalPages > 1 ? (
+      {totalPages > 1 ? (
         <div className="student-picker__pager">
           <button
             type="button"
@@ -146,12 +152,12 @@ export function StudentPicker({ excludeIds = [], onBind, disabled = false }) {
             ← Назад
           </button>
           <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            {page + 1} / {data.totalPages}
+            {page + 1} / {totalPages}
           </span>
           <button
             type="button"
             className="btn btn--ghost"
-            disabled={page >= data.totalPages - 1 || loading}
+            disabled={page >= totalPages - 1 || loading}
             onClick={() => setPage((p) => p + 1)}
           >
             Вперёд →

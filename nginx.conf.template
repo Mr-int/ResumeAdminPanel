@@ -17,6 +17,19 @@ server {
         return 200 "ok";
     }
 
+    # Прокси API на том же origin — обход CORS в браузере.
+    location /api/ {
+        proxy_pass ${API_UPSTREAM}/;
+        proxy_http_version 1.1;
+        proxy_ssl_server_name on;
+        proxy_set_header Host ${API_HOST};
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_cookie_domain ${API_HOST} $host;
+    }
+
     location ~* \.(?:js|css|woff2?|ttf|eot|svg|ico|png|jpg|jpeg|gif|webp)$ {
         expires 7d;
         add_header Cache-Control "public, max-age=604800, immutable";

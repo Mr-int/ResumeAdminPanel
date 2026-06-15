@@ -9,6 +9,7 @@ import { FlashMessages } from '../components/ui/FlashMessages.jsx';
 import { SkillPicker } from '../components/SkillPicker.jsx';
 import * as skillsApi from '../api/skills.js';
 import { fromApiDateTime, toApiDateTime } from '../utils/dateTimeApi.js';
+import { pageItems } from '../lib/pageable.js';
 
 function participantName(p) {
   return `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || 'Студент';
@@ -49,7 +50,10 @@ export function ProjectDetail() {
     setError(null);
     setLoading(true);
     try {
-      const { data: project } = await projectsApi.getProject(id);
+      const [{ data: project }, { data: studentsPayload }] = await Promise.all([
+        projectsApi.getProject(id),
+        projectsApi.listProjectStudents(id),
+      ]);
       if (!project) throw new Error('Проект не найден');
       setForm({
         title: project.title ?? '',
@@ -62,7 +66,9 @@ export function ProjectDetail() {
         publishedTo: fromApiDateTime(project.publishedTo),
         skillIds: (project.skills ?? []).map((s) => Number(s.id)).filter((id) => !Number.isNaN(id)),
       });
-      setParticipants(Array.isArray(project.students) ? project.students : []);
+      const listed = pageItems(studentsPayload);
+      const embedded = pageItems(project.students);
+      setParticipants(listed.length ? listed : embedded);
     } catch (e) {
       setError(e.message);
       setForm(null);
