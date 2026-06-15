@@ -21,6 +21,7 @@ import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
 import { StudentCreateExtendedBlocks } from '../components/StudentCreateExtendedBlocks.jsx';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
+import { DateField } from '../components/ui/DateTimeField.jsx';
 
 const EXTENDED_PAGE_SIZE = 50;
 
@@ -562,7 +563,14 @@ export function StudentDetail() {
               <div className="form-row">
                 <div className="field"><label>Имя</label><input required value={form.firstName} onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))} /></div>
                 <div className="field"><label>Фамилия</label><input required value={form.lastName} onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))} /></div>
-                <div className="field"><label>Дата рождения</label><input type="date" required value={form.birthDate} onChange={(e) => setForm((p) => ({ ...p, birthDate: e.target.value }))} /></div>
+                <DateField
+                  id="student-detail-birth"
+                  label="Дата рождения"
+                  value={form.birthDate}
+                  required
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(v) => setForm((p) => ({ ...p, birthDate: v }))}
+                />
               </div>
               <div className="form-row">
                 <div className="field"><label>Курс</label><select value={form.course} onChange={(e) => setForm((p) => ({ ...p, course: e.target.value }))}><option value="NEW">NEW</option><option value="FIRST">FIRST</option><option value="SECOND">SECOND</option><option value="THIRD">THIRD</option><option value="FOURTH">FOURTH</option></select></div>

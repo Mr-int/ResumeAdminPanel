@@ -1,10 +1,5 @@
 import { useMemo, useState } from 'react';
-import { API_BASE } from '../config.js';
-
-function mainPhotoUrl(imagePath) {
-  if (!imagePath) return null;
-  return `${API_BASE}/main/photo/${encodeURIComponent(imagePath)}`;
-}
+import { mainPhotoUrl } from '../utils/mediaUrl.js';
 
 /**
  * @param {{ id: number, name: string }[]} options

@@ -5,6 +5,7 @@ import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { FlashMessages } from '../components/ui/FlashMessages.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { BarChart } from '../components/BarChart.jsx';
+import { DateTimeField } from '../components/ui/DateTimeField.jsx';
 import {
   ANALYTICS_EVENT_LABELS,
   FUNNEL_EVENT_ORDER,
@@ -110,26 +111,18 @@ export function Analytics() {
       <div className="panel">
         <h2 className="panel__title">Период отчётов</h2>
         <form className="form-row" onSubmit={loadSummary}>
-          <div className="field">
-            <label htmlFor="sum-from">С</label>
-            <input
-              id="sum-from"
-              type="datetime-local"
-              required
-              value={summaryFrom}
-              onChange={(e) => setSummaryFrom(e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="sum-to">По (не включая)</label>
-            <input
-              id="sum-to"
-              type="datetime-local"
-              required
-              value={summaryTo}
-              onChange={(e) => setSummaryTo(e.target.value)}
-            />
-          </div>
+          <DateTimeField
+            id="sum-from"
+            label="С"
+            value={summaryFrom}
+            onChange={setSummaryFrom}
+          />
+          <DateTimeField
+            id="sum-to"
+            label="По (не включая)"
+            value={summaryTo}
+            onChange={setSummaryTo}
+          />
           <button type="submit" className="btn btn--primary" disabled={loadingSummary}>
             {loadingSummary ? 'Загрузка…' : 'Загрузить сводку и воронку'}
           </button>
@@ -162,24 +155,18 @@ export function Analytics() {
       <div className="panel">
         <h2 className="panel__title">Население сущностей</h2>
         <form className="form-row" onSubmit={loadPopulation}>
-          <div className="field">
-            <label htmlFor="pop-from">Окно: с (необяз.)</label>
-            <input
-              id="pop-from"
-              type="datetime-local"
-              value={popFrom}
-              onChange={(e) => setPopFrom(e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="pop-to">Окно: по (необяз.)</label>
-            <input
-              id="pop-to"
-              type="datetime-local"
-              value={popTo}
-              onChange={(e) => setPopTo(e.target.value)}
-            />
-          </div>
+          <DateTimeField
+            id="pop-from"
+            label="Окно: с (необяз.)"
+            value={popFrom}
+            onChange={setPopFrom}
+          />
+          <DateTimeField
+            id="pop-to"
+            label="Окно: по (необяз.)"
+            value={popTo}
+            onChange={setPopTo}
+          />
           <button type="submit" className="btn btn--primary" disabled={loadingPop}>
             {loadingPop ? 'Загрузка…' : 'Загрузить'}
           </button>

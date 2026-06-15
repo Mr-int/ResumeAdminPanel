@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import * as vacanciesApi from '../api/vacancies.js';
+import * as recruitersApi from '../api/recruiters.js';
 import { useSkillsOptions, useSpecialityOptions } from '../hooks/useSkillsOptions.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { FlashMessages } from '../components/ui/FlashMessages.jsx';
+import { DateTimeField } from '../components/ui/DateTimeField.jsx';
 import { DetailGrid } from '../components/ui/DetailGrid.jsx';
 import { StatusBadge, vacancyStatusVariant } from '../components/ui/StatusBadge.jsx';
 import { SkillPicker } from '../components/SkillPicker.jsx';
@@ -17,6 +19,7 @@ import {
 } from '../lib/labels.js';
 import { fmtDate } from '../lib/format.js';
 import { toApiDateTime } from '../utils/dateTimeApi.js';
+import { formatRecruiterLabel } from '../utils/recruiterDisplay.js';
 
 const PAGE_SIZE = 10;
 const STATUSES = Object.keys(VACANCY_STATUS_LABELS);
@@ -60,6 +63,7 @@ export function Vacancies() {
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(emptyCreateForm);
   const [createPending, setCreatePending] = useState(false);
+  const [recruitersById, setRecruitersById] = useState({});
   const { skillsOptions, error: skillsOptionsError } = useSkillsOptions(creating);
   const { specialityOptions, error: specialityOptionsError } = useSpecialityOptions(creating);
   const optionsError = skillsOptionsError || specialityOptionsError;
@@ -97,7 +101,13 @@ export function Vacancies() {
         setData(res);
       }
     } catch (e) {
-      setError(e.message);
+      if (isRecruiter && e.status === 403) {
+        setError(
+          'Нет доступа к списку вакансий. Оформите профиль работодателя (GET /recruiter/me не должен возвращать 404).'
+        );
+      } else {
+        setError(e.message);
+      }
       setData(null);
     } finally {
       setLoading(false);
@@ -107,6 +117,87 @@ export function Vacancies() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (isRecruiter) return;
+    const rows = data?.data ?? [];
+    const recruiterIds = [...new Set(rows.map((v) => v.recruiterId).filter(Boolean))];
+    if (!recruiterIds.length) return;
+
+    let cancelled = false;
+    (async () => {
+      let toFetch = recruiterIds;
+      setRecruitersById((prev) => {
+        toFetch = recruiterIds.filter((id) => !(id in prev));
+        return prev;
+      });
+      if (!toFetch.length) return;
+
+      const pairs = await Promise.all(
+        toFetch.map(async (id) => {
+          try {
+            const { data: recruiter } = await recruitersApi.getRecruiter(id);
+            return [id, recruiter];
+          } catch {
+            return [id, null];
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setRecruitersById((prev) => ({
+          ...prev,
+          ...Object.fromEntries(pairs),
+        }));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data, isRecruiter]);
+
+  useEffect(() => {
+    const rid = details?.recruiterId;
+    if (!rid || rid in recruitersById) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: recruiter } = await recruitersApi.getRecruiter(rid);
+        if (!cancelled) {
+          setRecruitersById((prev) => ({ ...prev, [rid]: recruiter }));
+        }
+      } catch {
+        if (!cancelled) {
+          setRecruitersById((prev) => ({ ...prev, [rid]: null }));
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [details?.recruiterId, recruitersById]);
+
+  function recruiterCell(recruiterId) {
+    if (!recruiterId) return '—';
+    const recruiter = recruitersById[recruiterId];
+    return formatRecruiterLabel(recruiter, recruiterId);
+  }
+
+  function recruiterDetailValue(recruiterId) {
+    if (!recruiterId) return '—';
+    const recruiter = recruitersById[recruiterId];
+    return (
+      <span>
+        <span>{formatRecruiterLabel(recruiter, recruiterId)}</span>
+        <span className="cell-muted cell-mono" style={{ display: 'block', marginTop: '0.2rem', fontSize: '0.8rem' }}>
+          {recruiterId}
+        </span>
+      </span>
+    );
+  }
 
   async function openDetails(id) {
     setSelectedId(id);
@@ -416,28 +507,19 @@ export function Vacancies() {
               />
             </div>
             <div className="form-row">
-              <div className="field">
-                <label htmlFor="vac-create-from">Публикация с</label>
-                <input
-                  id="vac-create-from"
-                  type="datetime-local"
-                  value={createForm.publishedFrom}
-                  onChange={(e) =>
-                    setCreateForm((p) => ({ ...p, publishedFrom: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="vac-create-to">Публикация до</label>
-                <input
-                  id="vac-create-to"
-                  type="datetime-local"
-                  value={createForm.publishedTo}
-                  onChange={(e) =>
-                    setCreateForm((p) => ({ ...p, publishedTo: e.target.value }))
-                  }
-                />
-              </div>
+              <DateTimeField
+                id="vac-create-from"
+                label="Публикация с"
+                value={createForm.publishedFrom}
+                onChange={(v) => setCreateForm((p) => ({ ...p, publishedFrom: v }))}
+                hint="Сначала дата в календаре, затем время"
+              />
+              <DateTimeField
+                id="vac-create-to"
+                label="Публикация до"
+                value={createForm.publishedTo}
+                onChange={(v) => setCreateForm((p) => ({ ...p, publishedTo: v }))}
+              />
             </div>
             <div className="form-row" style={{ marginTop: '0.5rem' }}>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -576,6 +658,7 @@ export function Vacancies() {
                 <thead>
                   <tr>
                     <th>Название</th>
+                    {!isRecruiter ? <th>Рекрутер</th> : null}
                     <th>Компания</th>
                     <th>Город</th>
                     <th>Статус</th>
@@ -587,6 +670,7 @@ export function Vacancies() {
                   {rows.map((v) => (
                     <tr key={v.id}>
                       <td>{v.title}</td>
+                      {!isRecruiter ? <td>{recruiterCell(v.recruiterId)}</td> : null}
                       <td>{v.companyName ?? '—'}</td>
                       <td>{v.city ?? '—'}</td>
                       <td>
@@ -680,8 +764,8 @@ export function Vacancies() {
           ) : details ? (
             <DetailGrid
               items={[
-                { label: 'ID', value: details.id },
-                { label: 'Рекрутер', value: details.recruiterId },
+                { label: 'ID', value: <span className="cell-mono">{details.id}</span> },
+                { label: 'Рекрутер', value: recruiterDetailValue(details.recruiterId) },
                 {
                   label: 'Статус',
                   value: (

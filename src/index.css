@@ -14,6 +14,10 @@
   --success: #22c55e;
   --danger: #ef4444;
   --radius: 10px;
+  --scrollbar-size: 6px;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.14);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.26);
+  --scrollbar-track: transparent;
   font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   font-weight: 400;
@@ -33,6 +37,36 @@
 body {
   margin: 0;
   min-height: 100vh;
+}
+
+/* Тонкие скроллбары (Firefox + Chromium/WebKit) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 #root {
@@ -142,6 +176,47 @@ a {
   outline: none;
   border-color: rgba(99, 102, 241, 0.5);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.field input[type='date'],
+.field input[type='time'],
+.field input[type='datetime-local'] {
+  color-scheme: dark;
+  min-width: 10.5rem;
+}
+
+.field input[type='date']::-webkit-calendar-picker-indicator,
+.field input[type='time']::-webkit-calendar-picker-indicator,
+.field input[type='datetime-local']::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.field-hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.datetime-field__inputs,
+.date-field__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.datetime-field__date {
+  min-width: 11rem;
+}
+
+.datetime-field__time {
+  min-width: 7.5rem;
+}
+
+.datetime-field__clear {
+  flex-shrink: 0;
 }
 
 .btn {
@@ -776,6 +851,19 @@ table.data tbody tr:hover td {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.storage-browser__broken {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 4.5rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 0.5rem;
 }
 
 .storage-browser__meta {

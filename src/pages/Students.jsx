@@ -9,20 +9,16 @@ import * as institutionApi from '../api/institutions.js';
 import * as educationApi from '../api/education.js';
 import * as skillsApi from '../api/skills.js';
 import * as specialitiesApi from '../api/specialities.js';
-import { API_BASE } from '../config.js';
 import { SkillPicker } from '../components/SkillPicker.jsx';
-import { contactFieldsToApiPayload } from '../utils/studentContact.js';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
+import { contactFieldsToApiPayload } from '../utils/studentContact.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
+import { DateField } from '../components/ui/DateTimeField.jsx';
 import { SortableTable } from '../components/SortableTable.jsx';
 import * as studentsAdminApi from '../api/studentsAdmin.js';
+import { mainPhotoUrl } from '../utils/mediaUrl.js';
 
 const PAGE_SIZE = 12;
-
-function avatarUrl(imagePath) {
-  if (!imagePath) return null;
-  return `${API_BASE}/main/photo/${encodeURIComponent(imagePath)}`;
-}
 
 export function Students() {
   const navigate = useNavigate();
@@ -417,17 +413,14 @@ export function Students() {
                   }
                 />
               </div>
-              <div className="field">
-                <label>Дата рождения</label>
-                <input
-                  type="date"
-                  required
-                  value={createForm.birthDate}
-                  onChange={(e) =>
-                    setCreateForm((p) => ({ ...p, birthDate: e.target.value }))
-                  }
-                />
-              </div>
+              <DateField
+                id="student-birth-date"
+                label="Дата рождения"
+                value={createForm.birthDate}
+                required
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(v) => setCreateForm((p) => ({ ...p, birthDate: v }))}
+              />
             </div>
             <div className="form-row">
               <div className="field">
@@ -681,7 +674,7 @@ export function Students() {
                 </thead>
                 <tbody>
                   {rows.map((s) => {
-                    const src = avatarUrl(s.imagePath);
+                    const src = mainPhotoUrl(s.imagePath);
                     return (
                       <tr key={s.id}>
                         <td style={{ width: 48 }}>

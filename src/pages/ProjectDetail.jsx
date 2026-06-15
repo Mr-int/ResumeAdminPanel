@@ -6,14 +6,15 @@ import { StudentPicker } from '../components/StudentPicker.jsx';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { FlashMessages } from '../components/ui/FlashMessages.jsx';
+import { DateTimeField } from '../components/ui/DateTimeField.jsx';
 import { SkillPicker } from '../components/SkillPicker.jsx';
 import { useSkillsOptions } from '../hooks/useSkillsOptions.js';
 import { fromApiDateTime, toApiDateTime } from '../utils/dateTimeApi.js';
-import { pageItems } from '../lib/pageable.js';
-
-function participantName(p) {
-  return `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || 'Студент';
-}
+import { filterValidUuids, isValidUuid, resolveStudentId } from '../utils/studentId.js';
+import {
+  mergeProjectParticipants,
+  participantDisplayName,
+} from '../utils/projectParticipants.js';
 
 function mapImagesFromApi(images) {
   if (!Array.isArray(images)) return [];
@@ -47,10 +48,17 @@ export function ProjectDetail() {
   const { skillsOptions } = useSkillsOptions();
 
   const load = useCallback(async () => {
+    if (!isValidUuid(id)) {
+      setError('Некорректный ID проекта в адресе страницы');
+      setForm(null);
+      setParticipants([]);
+      setLoading(false);
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
-      const [{ data: project }, { data: studentsPayload }] = await Promise.all([
+      const [{ data: project }, { data: studentIdsPayload }] = await Promise.all([
         projectsApi.getProject(id),
         projectsApi.listProjectStudents(id),
       ]);
@@ -66,9 +74,7 @@ export function ProjectDetail() {
         publishedTo: fromApiDateTime(project.publishedTo),
         skillIds: (project.skills ?? []).map((s) => Number(s.id)).filter((id) => !Number.isNaN(id)),
       });
-      const listed = pageItems(studentsPayload);
-      const embedded = pageItems(project.students);
-      setParticipants(listed.length ? listed : embedded);
+      setParticipants(mergeProjectParticipants(project, studentIdsPayload));
     } catch (e) {
       setError(e.message);
       setForm(null);
@@ -83,7 +89,10 @@ export function ProjectDetail() {
   }, [load]);
 
   const boundIds = useMemo(
-    () => participants.map((p) => String(p.id)),
+    () =>
+      participants
+        .map((p) => resolveStudentId(p))
+        .filter((sid) => isValidUuid(sid)),
     [participants]
   );
 
@@ -115,10 +124,14 @@ export function ProjectDetail() {
   }
 
   async function handleBind(studentIds) {
-    if (!studentIds.length) return;
+    const ids = filterValidUuids(studentIds);
+    if (!ids.length) {
+      setMsg({ type: 'err', text: 'Не выбраны студенты с корректным UUID' });
+      return;
+    }
     setMsg(null);
     try {
-      await projectsApi.bindProjectStudents(id, studentIds);
+      await projectsApi.bindProjectStudents(id, ids);
       setMsg({ type: 'ok', text: 'Студенты привязаны' });
       await load();
     } catch (e) {
@@ -127,6 +140,7 @@ export function ProjectDetail() {
   }
 
   async function handleUnbind(sid) {
+    if (!isValidUuid(sid) || !isValidUuid(id)) return;
     if (!window.confirm('Отвязать студента от проекта?')) return;
     setMsg(null);
     try {
@@ -247,26 +261,18 @@ export function ProjectDetail() {
             </div>
           </div>
           <div className="form-row">
-            <div className="field">
-              <label>Публикация с</label>
-              <input
-                type="datetime-local"
-                value={form.publishedFrom}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, publishedFrom: e.target.value }))
-                }
-              />
-            </div>
-            <div className="field">
-              <label>Публикация до</label>
-              <input
-                type="datetime-local"
-                value={form.publishedTo}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, publishedTo: e.target.value }))
-                }
-              />
-            </div>
+            <DateTimeField
+              id="proj-edit-from"
+              label="Публикация с"
+              value={form.publishedFrom}
+              onChange={(v) => setForm((p) => ({ ...p, publishedFrom: v }))}
+            />
+            <DateTimeField
+              id="proj-edit-to"
+              label="Публикация до"
+              value={form.publishedTo}
+              onChange={(v) => setForm((p) => ({ ...p, publishedTo: v }))}
+            />
           </div>
           <button
             type="submit"
@@ -292,29 +298,35 @@ export function ProjectDetail() {
             </thead>
             <tbody>
               {participants.length ? (
-                participants.map((p) => (
-                  <tr key={p.id}>
-                    <td>{participantName(p)}</td>
+                participants.map((p) => {
+                  const sid = resolveStudentId(p);
+                  return (
+                  <tr key={sid ?? participantDisplayName(p)}>
+                    <td>{participantDisplayName(p)}</td>
                     <td>{p.speciality ?? '—'}</td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <Link
-                        className="btn btn--ghost"
-                        to={`/students/${p.id}`}
-                        style={{ textDecoration: 'none', display: 'inline-flex' }}
-                      >
-                        Карточка
-                      </Link>
+                      {sid ? (
+                        <Link
+                          className="btn btn--ghost"
+                          to={`/students/${sid}`}
+                          style={{ textDecoration: 'none', display: 'inline-flex' }}
+                        >
+                          Карточка
+                        </Link>
+                      ) : null}
                       <button
                         type="button"
                         className="btn btn--danger"
                         style={{ marginLeft: '0.5rem' }}
-                        onClick={() => handleUnbind(String(p.id))}
+                        disabled={!sid}
+                        onClick={() => handleUnbind(sid)}
                       >
                         Отвязать
                       </button>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan={3} style={{ color: 'var(--text-muted)' }}>

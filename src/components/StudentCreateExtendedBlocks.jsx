@@ -6,6 +6,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { TextAreaWithToolbar } from './TextAreaWithToolbar.jsx';
+import { DateField, YearSelect } from './ui/DateTimeField.jsx';
 
 function normalizeId(v) {
   if (v == null) return null;
@@ -473,40 +474,30 @@ export function StudentCreateExtendedBlocks({
                     }
                   />
                 </div>
-                <div className="field">
-                  <label>С даты</label>
-                  <input
-                    type="date"
-                    value={row.startDate}
-                    onChange={(e) =>
-                      setForm((p) => {
-                        const next = [...p.experienceRows];
-                        next[idx] = {
-                          ...next[idx],
-                          startDate: e.target.value,
-                        };
-                        return { ...p, experienceRows: next };
-                      })
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <label>По дату</label>
-                  <input
-                    type="date"
-                    value={row.endDate}
-                    onChange={(e) =>
-                      setForm((p) => {
-                        const next = [...p.experienceRows];
-                        next[idx] = {
-                          ...next[idx],
-                          endDate: e.target.value,
-                        };
-                        return { ...p, experienceRows: next };
-                      })
-                    }
-                  />
-                </div>
+                <DateField
+                  id={`experience-start-${idx}`}
+                  label="С даты"
+                  value={row.startDate}
+                  onChange={(v) =>
+                    setForm((p) => {
+                      const next = [...p.experienceRows];
+                      next[idx] = { ...next[idx], startDate: v };
+                      return { ...p, experienceRows: next };
+                    })
+                  }
+                />
+                <DateField
+                  id={`experience-end-${idx}`}
+                  label="По дату"
+                  value={row.endDate}
+                  onChange={(v) =>
+                    setForm((p) => {
+                      const next = [...p.experienceRows];
+                      next[idx] = { ...next[idx], endDate: v };
+                      return { ...p, experienceRows: next };
+                    })
+                  }
+                />
               </div>
               <div className="form-row">
                 <div className="field" style={{ flex: 1, minWidth: 200 }}>
@@ -606,44 +597,38 @@ export function StudentCreateExtendedBlocks({
                         }}
                       />
                     </div>
-                    <div className="field">
-                      <label>С даты</label>
-                      <input
-                        type="date"
-                        readOnly={!canEdit}
-                        value={current.startDate}
-                        onChange={(e) => {
-                          if (!canEdit) return;
-                          const v = e.target.value;
-                          setSavedEdit((p) => ({
-                            ...p,
-                            experiences: {
-                              ...p.experiences,
-                              [row.id]: { ...current, startDate: v },
-                            },
-                          }));
-                        }}
-                      />
-                    </div>
-                    <div className="field">
-                      <label>По дату</label>
-                      <input
-                        type="date"
-                        readOnly={!canEdit}
-                        value={current.endDate}
-                        onChange={(e) => {
-                          if (!canEdit) return;
-                          const v = e.target.value;
-                          setSavedEdit((p) => ({
-                            ...p,
-                            experiences: {
-                              ...p.experiences,
-                              [row.id]: { ...current, endDate: v },
-                            },
-                          }));
-                        }}
-                      />
-                    </div>
+                    <DateField
+                      id={`experience-saved-start-${row.id}`}
+                      label="С даты"
+                      value={current.startDate}
+                      disabled={!canEdit}
+                      onChange={(v) => {
+                        if (!canEdit) return;
+                        setSavedEdit((p) => ({
+                          ...p,
+                          experiences: {
+                            ...p.experiences,
+                            [row.id]: { ...current, startDate: v },
+                          },
+                        }));
+                      }}
+                    />
+                    <DateField
+                      id={`experience-saved-end-${row.id}`}
+                      label="По дату"
+                      value={current.endDate}
+                      disabled={!canEdit}
+                      onChange={(v) => {
+                        if (!canEdit) return;
+                        setSavedEdit((p) => ({
+                          ...p,
+                          experiences: {
+                            ...p.experiences,
+                            [row.id]: { ...current, endDate: v },
+                          },
+                        }));
+                      }}
+                    />
                   </div>
                   <div className="form-row">
                     <div className="field" style={{ flex: 1, minWidth: 200 }}>
@@ -754,42 +739,30 @@ export function StudentCreateExtendedBlocks({
                     ))}
                   </select>
                 </div>
-                <div className="field">
-                  <label>Год начала</label>
-                  <input
-                    type="number"
-                    min="1900"
-                    value={row.startYear}
-                    onChange={(e) =>
-                      setForm((p) => {
-                        const next = [...p.institutionRows];
-                        next[idx] = {
-                          ...next[idx],
-                          startYear: e.target.value,
-                        };
-                        return { ...p, institutionRows: next };
-                      })
-                    }
-                  />
-                </div>
-                <div className="field">
-                  <label>Год окончания</label>
-                  <input
-                    type="number"
-                    min="1900"
-                    value={row.endYear}
-                    onChange={(e) =>
-                      setForm((p) => {
-                        const next = [...p.institutionRows];
-                        next[idx] = {
-                          ...next[idx],
-                          endYear: e.target.value,
-                        };
-                        return { ...p, institutionRows: next };
-                      })
-                    }
-                  />
-                </div>
+                <YearSelect
+                  id={`institution-start-${idx}`}
+                  label="Год начала"
+                  value={String(row.startYear ?? '')}
+                  onChange={(v) =>
+                    setForm((p) => {
+                      const next = [...p.institutionRows];
+                      next[idx] = { ...next[idx], startYear: v };
+                      return { ...p, institutionRows: next };
+                    })
+                  }
+                />
+                <YearSelect
+                  id={`institution-end-${idx}`}
+                  label="Год окончания"
+                  value={String(row.endYear ?? '')}
+                  onChange={(v) =>
+                    setForm((p) => {
+                      const next = [...p.institutionRows];
+                      next[idx] = { ...next[idx], endYear: v };
+                      return { ...p, institutionRows: next };
+                    })
+                  }
+                />
                 <button
                   type="button"
                   className="btn btn--ghost"
@@ -856,42 +829,38 @@ export function StudentCreateExtendedBlocks({
                         ))}
                       </select>
                     </div>
-                    <div className="field">
-                      <label>Год начала</label>
-                      <input
-                        readOnly={!canEdit}
-                        value={current.startYear}
-                        onChange={(e) => {
-                          if (!canEdit) return;
-                          const v = e.target.value;
-                          setSavedEdit((p) => ({
-                            ...p,
-                            institutions: {
-                              ...p.institutions,
-                              [row.id]: { ...current, startYear: v },
-                            },
-                          }));
-                        }}
-                      />
-                    </div>
-                    <div className="field">
-                      <label>Год окончания</label>
-                      <input
-                        readOnly={!canEdit}
-                        value={current.endYear}
-                        onChange={(e) => {
-                          if (!canEdit) return;
-                          const v = e.target.value;
-                          setSavedEdit((p) => ({
-                            ...p,
-                            institutions: {
-                              ...p.institutions,
-                              [row.id]: { ...current, endYear: v },
-                            },
-                          }));
-                        }}
-                      />
-                    </div>
+                    <YearSelect
+                      id={`institution-saved-start-${row.id}`}
+                      label="Год начала"
+                      value={String(current.startYear ?? '')}
+                      disabled={!canEdit}
+                      onChange={(v) => {
+                        if (!canEdit) return;
+                        setSavedEdit((p) => ({
+                          ...p,
+                          institutions: {
+                            ...p.institutions,
+                            [row.id]: { ...current, startYear: v },
+                          },
+                        }));
+                      }}
+                    />
+                    <YearSelect
+                      id={`institution-saved-end-${row.id}`}
+                      label="Год окончания"
+                      value={String(current.endYear ?? '')}
+                      disabled={!canEdit}
+                      onChange={(v) => {
+                        if (!canEdit) return;
+                        setSavedEdit((p) => ({
+                          ...p,
+                          institutions: {
+                            ...p.institutions,
+                            [row.id]: { ...current, endYear: v },
+                          },
+                        }));
+                      }}
+                    />
                     {canEdit ? (
                       <>
                         <button

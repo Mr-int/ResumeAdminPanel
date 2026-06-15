@@ -1,14 +1,6 @@
 import { useState } from 'react';
-import { API_BASE } from '../config.js';
+import { projectImagePreview } from '../utils/mediaUrl.js';
 import { StorageBrowserModal } from './StorageBrowser.jsx';
-
-function previewUrl(item) {
-  if (item.imageUrl?.trim()) return item.imageUrl.trim();
-  if (!item.imagePath?.trim()) return null;
-  const path = item.imagePath.trim();
-  if (path.startsWith('http://') || path.startsWith('https://')) return path;
-  return `${API_BASE}/main/photo/${encodeURIComponent(path)}`;
-}
 
 function emptyImage() {
   return { imagePath: '', imageUrl: '' };
@@ -90,7 +82,7 @@ export function ProjectImagesEditor({ images, onChange }) {
 
       <ul className="project-images-editor__list">
         {list.map((item, index) => {
-          const preview = previewUrl(item);
+          const preview = projectImagePreview(item);
           return (
             <li key={`${index}-${item.imagePath}-${item.imageUrl}`} className="project-images-editor__item">
               <div className="project-images-editor__preview">

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { API_BASE } from '../config.js';
 import * as storageApi from '../api/storage.js';
+import { mainPhotoUrl } from '../utils/mediaUrl.js';
 
 function fileUrl(fileName) {
-  return `${API_BASE}/main/photo/${encodeURIComponent(fileName)}`;
+  return mainPhotoUrl(fileName);
 }
 
 function formatSize(bytes) {
@@ -11,6 +11,25 @@ function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function StoragePreview({ fileName }) {
+  const [broken, setBroken] = useState(false);
+  if (broken) {
+    return (
+      <span className="storage-browser__broken" title="Файл в списке, но не отдаётся с сервера">
+        нет превью
+      </span>
+    );
+  }
+  return (
+    <img
+      src={fileUrl(fileName)}
+      alt=""
+      loading="lazy"
+      onError={() => setBroken(true)}
+    />
+  );
 }
 
 /**
@@ -94,7 +113,7 @@ export function StorageBrowser({ onSelect, selectLabel = 'Выбрать' }) {
         {files.map((f) => (
           <article key={f.fileName} className="storage-browser__item">
             <div className="storage-browser__preview">
-              <img src={fileUrl(f.fileName)} alt="" loading="lazy" />
+              <StoragePreview fileName={f.fileName} />
             </div>
             <div className="storage-browser__meta">
               <span className="storage-browser__name" title={f.fileName}>

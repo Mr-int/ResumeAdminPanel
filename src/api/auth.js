@@ -1,4 +1,4 @@
-import { apiFetch, pageableQuery } from './client.js';
+import { apiFetch } from './client.js';
 
 export function login(username, password) {
   return apiFetch('/auth/login', {
@@ -46,16 +46,9 @@ async function probeRecruiterAccess() {
     return true;
   } catch (e) {
     if (e.status === 401) throw e;
+    // Профиль работодателя ещё не оформлен — роль всё равно RECRUITER.
+    if (e.status === 404) return true;
   }
-
-  try {
-    const q = pageableQuery(0, 1);
-    await apiFetch(`/vacancies/mine${q}`, { method: 'GET' });
-    return true;
-  } catch (e) {
-    if (e.status === 401) throw e;
-  }
-
   return false;
 }
 

@@ -8,6 +8,7 @@ import { SkillPicker } from '../components/SkillPicker.jsx';
 import { useSkillsOptions } from '../hooks/useSkillsOptions.js';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { FlashMessages } from '../components/ui/FlashMessages.jsx';
+import { DateTimeField } from '../components/ui/DateTimeField.jsx';
 import { StatusBadge } from '../components/ui/StatusBadge.jsx';
 import { SortableTable } from '../components/SortableTable.jsx';
 
@@ -227,26 +228,18 @@ export function Projects() {
               </div>
             </div>
             <div className="form-row">
-              <div className="field">
-                <label>Публикация с</label>
-                <input
-                  type="datetime-local"
-                  value={createForm.publishedFrom}
-                  onChange={(e) =>
-                    setCreateForm((p) => ({ ...p, publishedFrom: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="field">
-                <label>Публикация до</label>
-                <input
-                  type="datetime-local"
-                  value={createForm.publishedTo}
-                  onChange={(e) =>
-                    setCreateForm((p) => ({ ...p, publishedTo: e.target.value }))
-                  }
-                />
-              </div>
+              <DateTimeField
+                id="proj-create-from"
+                label="Публикация с"
+                value={createForm.publishedFrom}
+                onChange={(v) => setCreateForm((p) => ({ ...p, publishedFrom: v }))}
+              />
+              <DateTimeField
+                id="proj-create-to"
+                label="Публикация до"
+                value={createForm.publishedTo}
+                onChange={(v) => setCreateForm((p) => ({ ...p, publishedTo: v }))}
+              />
             </div>
             <div className="projects-admin__form-actions">
               <button type="submit" className="btn btn--primary">

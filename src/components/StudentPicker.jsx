@@ -1,22 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as studentsApi from '../api/students.js';
-import { API_BASE } from '../config.js';
 import { pageItems, pageTotalPages } from '../lib/pageable.js';
+import { filterValidUuids, isValidUuid, resolveStudentId } from '../utils/studentId.js';
+import { mainPhotoUrl } from '../utils/mediaUrl.js';
 
 const PAGE_SIZE = 10;
 
-function avatarUrl(imagePath) {
-  if (!imagePath) return null;
-  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-    return imagePath;
-  }
-  return `${API_BASE}/main/photo/${encodeURIComponent(imagePath)}`;
-}
-
 function studentLabel(student) {
   const name = `${student.firstName ?? ''} ${student.lastName ?? ''}`.trim();
-  return name || student.id;
+  return name || resolveStudentId(student) || 'Студент';
 }
 
 /**
@@ -58,22 +51,26 @@ export function StudentPicker({ excludeIds = [], onBind, disabled = false }) {
     setPage(0);
   }, [query]);
 
-  const rows = pageItems(data).filter((s) => !exclude.has(String(s.id)));
+  const rows = pageItems(data)
+    .map((s) => ({ ...s, _studentId: resolveStudentId(s) }))
+    .filter((s) => s._studentId && !exclude.has(s._studentId));
   const totalPages = pageTotalPages(data);
 
-  function toggle(id) {
-    const sid = String(id);
+  function toggle(studentUuid) {
+    if (!isValidUuid(studentUuid)) return;
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(sid)) next.delete(sid);
-      else next.add(sid);
+      if (next.has(studentUuid)) next.delete(studentUuid);
+      else next.add(studentUuid);
       return next;
     });
   }
 
   function handleBind() {
-    if (!selected.size || disabled) return;
-    onBind([...selected]);
+    if (disabled) return;
+    const ids = filterValidUuids([...selected]);
+    if (!ids.length) return;
+    onBind(ids);
     setSelected(new Set());
   }
 
@@ -103,9 +100,9 @@ export function StudentPicker({ excludeIds = [], onBind, disabled = false }) {
 
       <ul className="student-picker__list">
         {rows.map((s) => {
-          const sid = String(s.id);
+          const sid = s._studentId;
           const checked = selected.has(sid);
-          const photo = avatarUrl(s.imagePath);
+          const photo = mainPhotoUrl(s.imagePath);
           return (
             <li key={sid}>
               <label className={`student-picker__row${checked ? ' student-picker__row--selected' : ''}`}>
