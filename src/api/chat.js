@@ -24,3 +24,11 @@ export function adminDeleteChatMessage(chatId, messageId) {
 export function getChatSummary(chatId) {
   return apiFetch(`/chat/${chatId}/summary`, { method: 'GET' });
 }
+
+export function getChatContext(chatId) {
+  return apiFetch(`/chat/${chatId}/context`, { method: 'GET' });
+}
+
+export function deleteChat(chatId) {
+  return apiFetch(`/chat/${chatId}`, { method: 'DELETE' });
+}

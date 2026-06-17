@@ -16,6 +16,24 @@ export const REQUEST_STATUS_LABELS = {
   REFUSAL: 'Отклонено',
 };
 
+export const TU_PHASE_LABELS = {
+  NOT_APPLICABLE: 'Не применимо',
+  WAITING_STUDENT: 'Ожидание студента',
+  WAITING_RECRUITER: 'Ожидание рекрутёра',
+  COMPLETED: 'ТУ завершено',
+  REJECTED: 'ТУ отклонено',
+};
+
+export const CHAT_SYSTEM_EVENT_LABELS = {
+  TU_STUDENT_CONFIRMED: 'Студент подтвердил ТУ',
+  TU_RECRUITER_CONFIRMED: 'Рекрутер подтвердил ТУ',
+  TU_CONFIRMED: 'ТУ подтверждено',
+  TU_REJECTED: 'ТУ отклонено',
+  REQUEST_SENT: 'Заявка отправлена',
+  REQUEST_ACCEPTED: 'Заявка принята',
+  REQUEST_REJECTED: 'Заявка отклонена',
+};
+
 export const WORK_FORMAT_LABELS = {
   REMOTE: 'Удалённо',
   OFFICE: 'В офисе',

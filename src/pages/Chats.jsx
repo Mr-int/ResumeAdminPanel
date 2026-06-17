@@ -1,21 +1,51 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as chatApi from '../api/chat.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { FlashMessages } from '../components/ui/FlashMessages.jsx';
 import { fmtDate, shortUuid } from '../lib/format.js';
+import {
+  CHAT_SYSTEM_EVENT_LABELS,
+  REQUEST_STATUS_LABELS,
+  TU_PHASE_LABELS,
+  labelOf,
+} from '../lib/labels.js';
 
 const CHAT_PAGE_SIZE = 30;
 const MSG_PAGE_SIZE = 100;
 
+function chatParticipantsLabel(chat) {
+  if (!chat) return '—';
+  const recruiter =
+    chat.recruiterDisplayName?.trim() ||
+    (chat.recruiterId ? shortUuid(chat.recruiterId) : '—');
+  const student =
+    chat.studentDisplayName?.trim() ||
+    (chat.studentId ? shortUuid(chat.studentId) : '—');
+  return `${recruiter} ↔ ${student}`;
+}
+
+function messageBody(m) {
+  if (m.deletedAt || m.deletedByAdmin) return '(удалено)';
+  if (m.messageKind === 'SYSTEM' && m.systemEvent) {
+    return labelOf(CHAT_SYSTEM_EVENT_LABELS, m.systemEvent, m.systemEvent);
+  }
+  return m.body || m.systemEvent || '—';
+}
+
 export function Chats() {
+  const { isAdmin } = useAuth();
   const [chats, setChats] = useState([]);
   const [chatsLoading, setChatsLoading] = useState(false);
   const [selectedChatId, setSelectedChatId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
+  const [context, setContext] = useState(null);
+  const [contextLoading, setContextLoading] = useState(false);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [deletingChat, setDeletingChat] = useState(false);
   const [error, setError] = useState(null);
   const [msg, setMsg] = useState(null);
 
@@ -50,14 +80,36 @@ export function Chats() {
     }
   }, []);
 
+  const loadContext = useCallback(async (chatId) => {
+    if (!chatId || !isAdmin) {
+      setContext(null);
+      return;
+    }
+    setContextLoading(true);
+    try {
+      const { data } = await chatApi.getChatContext(chatId);
+      setContext(data ?? null);
+    } catch (e) {
+      setContext(null);
+      setError(e.message);
+    } finally {
+      setContextLoading(false);
+    }
+  }, [isAdmin]);
+
   useEffect(() => {
     loadChats();
   }, [loadChats]);
 
   useEffect(() => {
-    if (selectedChatId) loadMessages(selectedChatId);
-    else setMessages([]);
-  }, [selectedChatId, loadMessages]);
+    if (selectedChatId) {
+      loadMessages(selectedChatId);
+      loadContext(selectedChatId);
+    } else {
+      setMessages([]);
+      setContext(null);
+    }
+  }, [selectedChatId, loadMessages, loadContext]);
 
   async function handleSend(e) {
     e.preventDefault();
@@ -90,13 +142,39 @@ export function Chats() {
     }
   }
 
-  const selected = chats.find((c) => c.id === selectedChatId);
+  async function handleDeleteChat() {
+    if (!selectedChatId || !isAdmin) return;
+    if (
+      !window.confirm(
+        'Удалить чат целиком? Будут удалены заявки, отклики и все сообщения.'
+      )
+    ) {
+      return;
+    }
+    setDeletingChat(true);
+    setMsg(null);
+    try {
+      await chatApi.deleteChat(selectedChatId);
+      setMsg({ type: 'ok', text: 'Чат удалён' });
+      setSelectedChatId(null);
+      await loadChats();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setDeletingChat(false);
+    }
+  }
+
+  const selected =
+    chats.find((c) => c.id === selectedChatId) ?? context?.summary ?? null;
+  const contextRequests = context?.requests ?? [];
+  const contextApplications = context?.vacancyApplications ?? [];
 
   return (
     <div className="page">
       <PageHeader
         title="Чаты"
-        lead="Переписка рекрутеров и студентов: просмотр, ответ от администратора, мягкое удаление сообщений."
+        lead="Переписка рекрутеров и студентов: просмотр, контекст заявок и ТУ, ответ администратора."
       />
 
       <FlashMessages error={error} success={msg?.type === 'ok' ? msg.text : null} />
@@ -115,14 +193,15 @@ export function Chats() {
                     className={`chats-list__item${selectedChatId === c.id ? ' chats-list__item--active' : ''}`}
                     onClick={() => setSelectedChatId(c.id)}
                   >
-                    <span className="chats-list__title">
-                      {shortUuid(c.recruiterId)} ↔ {shortUuid(c.studentId)}
-                    </span>
+                    <span className="chats-list__title">{chatParticipantsLabel(c)}</span>
                     <span className="chats-list__preview">
                       {c.lastMessagePreview || '—'}
                     </span>
                     <span className="chats-list__meta">
                       {fmtDate(c.lastActivityAt)}
+                      {c.tuPhase && c.tuPhase !== 'NOT_APPLICABLE'
+                        ? ` · ${labelOf(TU_PHASE_LABELS, c.tuPhase)}`
+                        : ''}
                       {c.unreadCount > 0 ? ` · непрочитано: ${c.unreadCount}` : ''}
                     </span>
                   </button>
@@ -134,65 +213,160 @@ export function Chats() {
           )}
         </div>
 
-        <div className="panel chats-layout__thread">
-          <h2 className="panel__title">Переписка</h2>
-          {!selectedChatId ? (
-            <p style={{ color: 'var(--text-muted)', margin: 0 }}>Выберите чат слева</p>
-          ) : (
-            <>
-              <p className="page__lead" style={{ marginTop: 0 }}>
-                Чат {shortUuid(selectedChatId)}
-                {selected ? ` · рекрутер ${shortUuid(selected.recruiterId)} · студент ${shortUuid(selected.studentId)}` : ''}
-              </p>
-              {messagesLoading ? (
+        <div className="chats-layout__main">
+          <div className="panel chats-layout__thread">
+            <h2 className="panel__title">Переписка</h2>
+            {!selectedChatId ? (
+              <p style={{ color: 'var(--text-muted)', margin: 0 }}>Выберите чат слева</p>
+            ) : (
+              <>
+                <div className="chats-thread-head">
+                  <p className="page__lead" style={{ margin: 0 }}>
+                    {chatParticipantsLabel(selected)}
+                    {selected?.tuPhase && selected.tuPhase !== 'NOT_APPLICABLE' ? (
+                      <span className="badge badge--muted" style={{ marginLeft: '0.5rem' }}>
+                        {labelOf(TU_PHASE_LABELS, selected.tuPhase)}
+                      </span>
+                    ) : null}
+                  </p>
+                  {isAdmin ? (
+                    <button
+                      type="button"
+                      className="btn btn--danger btn--small"
+                      disabled={deletingChat}
+                      onClick={handleDeleteChat}
+                    >
+                      {deletingChat ? 'Удаление…' : 'Удалить чат'}
+                    </button>
+                  ) : null}
+                </div>
+                {messagesLoading ? (
+                  <LoadingBlock />
+                ) : (
+                  <div className="chat-thread">
+                    {messages.map((m) => (
+                      <div
+                        key={m.id}
+                        className={`chat-message${m.deletedAt || m.deletedByAdmin ? ' chat-message--deleted' : ''}${m.messageKind === 'SYSTEM' ? ' chat-message--system' : ''}`}
+                      >
+                        <div className="chat-message__head">
+                          <strong>
+                            {m.messageKind === 'SYSTEM'
+                              ? 'Система'
+                              : m.authorUsername ?? '—'}
+                          </strong>
+                          <span>{fmtDate(m.createdAt)}</span>
+                          {m.messageKind ? (
+                            <span className="chat-message__kind">{m.messageKind}</span>
+                          ) : null}
+                        </div>
+                        <p className="chat-message__body">{messageBody(m)}</p>
+                        {isAdmin && !m.deletedAt && !m.deletedByAdmin ? (
+                          <button
+                            type="button"
+                            className="btn btn--danger btn--small"
+                            onClick={() => handleDeleteMessage(m.id)}
+                          >
+                            Удалить
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <form className="chat-compose" onSubmit={handleSend}>
+                  <div className="field">
+                    <label htmlFor="chat-draft">Ответ администратора</label>
+                    <textarea
+                      id="chat-draft"
+                      rows={3}
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      placeholder="Текст сообщения…"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="btn btn--primary"
+                    disabled={sending || !draft.trim()}
+                  >
+                    {sending ? 'Отправка…' : 'Отправить'}
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+
+          {isAdmin && selectedChatId ? (
+            <div className="panel chats-layout__context">
+              <h2 className="panel__title">Контекст чата</h2>
+              {contextLoading ? (
                 <LoadingBlock />
               ) : (
-                <div className="chat-thread">
-                  {messages.map((m) => (
-                    <div
-                      key={m.id}
-                      className={`chat-message${m.deletedAt || m.deletedByAdmin ? ' chat-message--deleted' : ''}`}
-                    >
-                      <div className="chat-message__head">
-                        <strong>{m.authorUsername ?? '—'}</strong>
-                        <span>{fmtDate(m.createdAt)}</span>
-                        {m.messageKind ? <span className="chat-message__kind">{m.messageKind}</span> : null}
-                      </div>
-                      <p className="chat-message__body">
-                        {m.deletedAt || m.deletedByAdmin
-                          ? '(удалено)'
-                          : m.body || m.systemEvent || '—'}
-                      </p>
-                      {!m.deletedAt && !m.deletedByAdmin ? (
-                        <button
-                          type="button"
-                          className="btn btn--danger btn--small"
-                          onClick={() => handleDeleteMessage(m.id)}
-                        >
-                          Удалить
-                        </button>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
+                <>
+                  <section className="chat-context-section">
+                    <h3 className="chat-context-section__title">Заявки</h3>
+                    {contextRequests.length ? (
+                      <ul className="chat-context-list">
+                        {contextRequests.map((r) => (
+                          <li key={r.id} className="chat-context-list__item">
+                            <div>
+                              <strong>#{r.id}</strong>
+                              {' · '}
+                              {labelOf(REQUEST_STATUS_LABELS, r.result)}
+                            </div>
+                            {r.tuPhase && r.tuPhase !== 'NOT_APPLICABLE' ? (
+                              <div className="chat-context-list__meta">
+                                ТУ: {labelOf(TU_PHASE_LABELS, r.tuPhase)}
+                              </div>
+                            ) : null}
+                            {(r.studentTuConfirmedAt || r.recruiterTuConfirmedAt) && (
+                              <div className="chat-context-list__meta">
+                                {r.studentTuConfirmedAt
+                                  ? `Студент: ${fmtDate(r.studentTuConfirmedAt)}`
+                                  : null}
+                                {r.studentTuConfirmedAt && r.recruiterTuConfirmedAt
+                                  ? ' · '
+                                  : null}
+                                {r.recruiterTuConfirmedAt
+                                  ? `Рекрутер: ${fmtDate(r.recruiterTuConfirmedAt)}`
+                                  : null}
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="chat-context-empty">Нет заявок</p>
+                    )}
+                  </section>
+                  <section className="chat-context-section">
+                    <h3 className="chat-context-section__title">Отклики на вакансии</h3>
+                    {contextApplications.length ? (
+                      <ul className="chat-context-list">
+                        {contextApplications.map((a) => (
+                          <li key={a.id} className="chat-context-list__item">
+                            <div>
+                              <strong>{a.vacancyTitle || shortUuid(a.vacancyId)}</strong>
+                              {' · '}
+                              {a.status}
+                            </div>
+                            {a.tuPhase && a.tuPhase !== 'NOT_APPLICABLE' ? (
+                              <div className="chat-context-list__meta">
+                                ТУ: {labelOf(TU_PHASE_LABELS, a.tuPhase)}
+                              </div>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="chat-context-empty">Нет откликов</p>
+                    )}
+                  </section>
+                </>
               )}
-              <form className="chat-compose" onSubmit={handleSend}>
-                <div className="field">
-                  <label htmlFor="chat-draft">Ответ администратора</label>
-                  <textarea
-                    id="chat-draft"
-                    rows={3}
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    placeholder="Текст сообщения…"
-                  />
-                </div>
-                <button type="submit" className="btn btn--primary" disabled={sending || !draft.trim()}>
-                  {sending ? 'Отправка…' : 'Отправить'}
-                </button>
-              </form>
-            </>
-          )}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
