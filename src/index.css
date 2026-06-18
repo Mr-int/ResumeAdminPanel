@@ -1681,12 +1681,6 @@ table.data .cell-mono {
   line-height: 1.4;
 }
 
-.alert--warning {
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.35);
-  color: #fde68a;
-}
-
 .checkbox-grid {
   display: flex;
   flex-wrap: wrap;

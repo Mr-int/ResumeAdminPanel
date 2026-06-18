@@ -400,14 +400,6 @@ export function Vacancies() {
 
       <div className="panel">
         <h2 className="panel__title">Создание вакансии</h2>
-        {!isRecruiter ? (
-          <div className="alert alert--warning" style={{ marginBottom: '1rem' }}>
-            Шаги 1–3 работают только при входе как <strong>рекрутёр</strong> (не admin):{' '}
-            <code>POST /vacancies</code> → <code>submit-for-review</code>. Шаг 4 (публикация) — под
-            admin: <code>POST /admin/vacancies/&#123;id&#125;/approve</code>. Без approve вакансия не
-            видна студентам.
-          </div>
-        ) : null}
         {optionsError ? <div className="alert alert--error">{optionsError}</div> : null}
         <button
           type="button"
