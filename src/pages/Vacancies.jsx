@@ -119,10 +119,6 @@ export function Vacancies() {
   }, [load]);
 
   useEffect(() => {
-    setPage(0);
-  }, [status, findString, recruiterId, companyName]);
-
-  useEffect(() => {
     if (isRecruiter) return;
     let cancelled = false;
     getRecruiterDirectory()
@@ -581,7 +577,10 @@ export function Vacancies() {
               <select
                 id="vac-status"
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                onChange={(e) => {
+                  setStatus(e.target.value);
+                  setPage(0);
+                }}
               >
                 <option value="">Все</option>
                 {STATUSES.map((s) => (
@@ -765,6 +764,7 @@ export function Vacancies() {
           {detailsLoading ? (
             <LoadingBlock />
           ) : details ? (
+            <>
             <DetailGrid
               items={[
                 { label: 'ID', value: <span className="cell-mono">{details.id}</span> },
@@ -814,6 +814,7 @@ export function Vacancies() {
                 </button>
               </div>
             ) : null}
+            </>
           ) : (
             <p style={{ color: 'var(--text-muted)', margin: 0 }}>Нет данных</p>
           )}
