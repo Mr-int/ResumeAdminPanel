@@ -45,7 +45,7 @@ const emptyCreateForm = () => ({
 
 export function Vacancies() {
   const { isRecruiter } = useAuth();
-  const [status, setStatus] = useState(isRecruiter ? '' : 'PENDING_REVIEW');
+  const [status, setStatus] = useState('');
   const [findString, setFindString] = useState('');
   const [recruiterId, setRecruiterId] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -97,7 +97,7 @@ export function Vacancies() {
         if (findString.trim()) filter.findString = findString.trim();
         if (recruiterId.trim()) filter.recruiterId = recruiterId.trim();
         if (companyName.trim()) filter.companyName = companyName.trim();
-        const { data: res } = await vacanciesApi.filterVacancies(filter, page, PAGE_SIZE);
+        const { data: res } = await vacanciesApi.filterVacanciesModeration(filter, page, PAGE_SIZE);
         setData(res);
       }
     } catch (e) {
@@ -117,6 +117,10 @@ export function Vacancies() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [status, findString, recruiterId, companyName]);
 
   useEffect(() => {
     if (isRecruiter) return;
@@ -301,6 +305,37 @@ export function Vacancies() {
     } catch (e) {
       setError(e.message);
     }
+  }
+
+  async function handleDeleteVacancy(v) {
+    const title = v.title?.trim() || v.id;
+    const isDraft = v.status === 'DRAFT';
+    const message = isDraft
+      ? `Удалить черновик «${title}»?`
+      : `Архивировать вакансию «${title}»? Она исчезнет с витрины.`;
+    if (!window.confirm(message)) return;
+    setMsg(null);
+    setError(null);
+    try {
+      await vacanciesApi.deleteVacancy(v.id);
+      setMsg({
+        type: 'ok',
+        text: isDraft ? 'Черновик удалён' : 'Вакансия архивирована',
+      });
+      if (selectedId === v.id) {
+        setSelectedId(null);
+        setDetails(null);
+      }
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  function canDeleteVacancy(v) {
+    if (!v?.id) return false;
+    if (v.status === 'ARCHIVED') return false;
+    return true;
   }
 
   async function handleVisibleToggle(v, checked) {
@@ -600,7 +635,13 @@ export function Vacancies() {
       />
 
       <div className="panel">
-        <h2 className="panel__title">{isRecruiter ? 'Список' : 'Очередь'}</h2>
+        <h2 className="panel__title">{isRecruiter ? 'Список' : 'Список вакансий'}</h2>
+        {!isRecruiter && !status ? (
+          <p className="page__lead" style={{ marginTop: 0 }}>
+            По умолчанию показаны все статусы, включая опубликованные на сайте. Для очереди модерации
+            выберите «На модерации».
+          </p>
+        ) : null}
         {loading ? (
           <LoadingBlock />
         ) : (
@@ -673,6 +714,16 @@ export function Vacancies() {
                               Отклонить
                             </button>
                           </>
+                        ) : null}
+                        {canDeleteVacancy(v) ? (
+                          <button
+                            type="button"
+                            className="btn btn--danger"
+                            style={{ marginLeft: '0.5rem' }}
+                            onClick={() => handleDeleteVacancy(v)}
+                          >
+                            {v.status === 'DRAFT' ? 'Удалить' : 'Архивировать'}
+                          </button>
                         ) : null}
                       </td>
                     </tr>
@@ -752,6 +803,17 @@ export function Vacancies() {
                   : []),
               ]}
             />
+            {canDeleteVacancy(details) ? (
+              <div className="form-row" style={{ marginTop: '1rem' }}>
+                <button
+                  type="button"
+                  className="btn btn--danger"
+                  onClick={() => handleDeleteVacancy(details)}
+                >
+                  {details.status === 'DRAFT' ? 'Удалить черновик' : 'Архивировать вакансию'}
+                </button>
+              </div>
+            ) : null}
           ) : (
             <p style={{ color: 'var(--text-muted)', margin: 0 }}>Нет данных</p>
           )}
