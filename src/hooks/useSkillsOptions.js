@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
-import * as skillsApi from '../api/skills.js';
-import * as specialitiesApi from '../api/specialities.js';
-import { pageItems } from '../lib/pageable.js';
+import { getSkillsOptions, getSpecialityOptions } from '../lib/referenceCache.js';
 
 /** Справочник навыков — только после успешной авторизации. */
 export function useSkillsOptions(enabled = true) {
@@ -19,8 +17,8 @@ export function useSkillsOptions(enabled = true) {
       setLoading(true);
       setError(null);
       try {
-        const { data: skillsRes } = await skillsApi.filterSkills({}, 0, 500, ['id,asc']);
-        if (!cancelled) setSkillsOptions(pageItems(skillsRes));
+        const list = await getSkillsOptions();
+        if (!cancelled) setSkillsOptions(list);
       } catch (e) {
         if (!cancelled) {
           setSkillsOptions([]);
@@ -54,8 +52,8 @@ export function useSpecialityOptions(enabled = true) {
       setLoading(true);
       setError(null);
       try {
-        const { data: specRes } = await specialitiesApi.filterSpecialities({}, 0, 500, ['id,asc']);
-        if (!cancelled) setSpecialityOptions(pageItems(specRes));
+        const list = await getSpecialityOptions();
+        if (!cancelled) setSpecialityOptions(list);
       } catch (e) {
         if (!cancelled) {
           setSpecialityOptions([]);

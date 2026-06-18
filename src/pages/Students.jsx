@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useEffectWithAbort } from '../hooks/useEffectWithAbort.js';
+import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { Link, useNavigate } from 'react-router-dom';
 import * as studentsApi from '../api/students.js';
 import * as requestsApi from '../api/requests.js';
@@ -7,8 +8,7 @@ import * as portfolioApi from '../api/portfolio.js';
 import * as experienceApi from '../api/experience.js';
 import * as institutionApi from '../api/institutions.js';
 import * as educationApi from '../api/education.js';
-import * as skillsApi from '../api/skills.js';
-import * as specialitiesApi from '../api/specialities.js';
+import { getSkillsOptions, getSpecialityOptions } from '../lib/referenceCache.js';
 import { SkillPicker } from '../components/SkillPicker.jsx';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
 import { contactFieldsToApiPayload } from '../utils/studentContact.js';
@@ -23,6 +23,7 @@ const PAGE_SIZE = 12;
 export function Students() {
   const navigate = useNavigate();
   const [findString, setFindString] = useState('');
+  const debouncedFindString = useDebouncedValue(findString);
   const [page, setPage] = useState(0);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -34,6 +35,7 @@ export function Students() {
   const [optionsError, setOptionsError] = useState(null);
   const [createdStudent, setCreatedStudent] = useState(null);
   const [orderRows, setOrderRows] = useState([]);
+  const [orderPanelOpen, setOrderPanelOpen] = useState(false);
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderReordering, setOrderReordering] = useState(false);
   const [orderMsg, setOrderMsg] = useState(null);
@@ -69,7 +71,7 @@ export function Students() {
     }
     try {
       const filter = {};
-      if (findString.trim()) filter.findString = findString.trim();
+      if (debouncedFindString.trim()) filter.findString = debouncedFindString.trim();
       const { data: res } = await studentsApi.filterStudents(filter, page, PAGE_SIZE);
       if (isActive()) setData(res);
     } catch (e) {
@@ -80,7 +82,7 @@ export function Students() {
     } finally {
       if (isActive()) setLoading(false);
     }
-  }, [findString, page]);
+  }, [debouncedFindString, page]);
 
   useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
 
@@ -106,7 +108,12 @@ export function Students() {
     }
   }, []);
 
-  useEffectWithAbort((_signal, isActive) => loadOrderRows(isActive), [loadOrderRows]);
+  function openOrderPanel() {
+    setOrderPanelOpen(true);
+    if (!orderRows.length && !orderLoading) {
+      loadOrderRows();
+    }
+  }
 
   async function handleBulkVisibility(payload, confirmText) {
     if (!window.confirm(confirmText)) return;
@@ -206,22 +213,30 @@ export function Students() {
   }
 
   useEffect(() => {
+    if (!creating) return;
+
+    let cancelled = false;
     async function loadOptions() {
       setOptionsError(null);
       try {
-        const [{ data: skillsRes }, { data: specialitiesRes }] = await Promise.all([
-          skillsApi.filterSkills({}, 0, 500, ['id,asc']),
-          specialitiesApi.filterSpecialities({}, 0, 500, ['id,asc']),
+        const [skillsList, specList] = await Promise.all([
+          getSkillsOptions(),
+          getSpecialityOptions(),
         ]);
-        setSkillsOptions(skillsRes?.data ?? []);
-        setSpecialityOptions(specialitiesRes?.data ?? []);
+        if (!cancelled) {
+          setSkillsOptions(skillsList);
+          setSpecialityOptions(specList);
+        }
       } catch (e) {
-        setOptionsError(e.message);
+        if (!cancelled) setOptionsError(e.message);
       }
     }
 
     loadOptions();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [creating]);
 
   function extractCreatedStudentId(data) {
     if (data == null) return null;
@@ -613,8 +628,19 @@ export function Students() {
       </div>
 
       <div className="panel">
-        <h2 className="panel__title">Порядок на главной {orderReordering ? '(сохранение…)' : ''}</h2>
-        <p className="page__lead" style={{ marginTop: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+          <h2 className="panel__title" style={{ margin: 0 }}>
+            Порядок на главной {orderReordering ? '(сохранение…)' : ''}
+          </h2>
+          {!orderPanelOpen ? (
+            <button type="button" className="btn btn--ghost" onClick={openOrderPanel}>
+              Показать панель сортировки
+            </button>
+          ) : null}
+        </div>
+        {orderPanelOpen ? (
+          <>
+        <p className="page__lead" style={{ marginTop: '0.75rem' }}>
           Только студенты с включённым показом в каталоге и на главной. Перетащите строки — порядок влияет на слайдер.
         </p>
         {orderMsg?.type === 'ok' ? <div className="alert alert--success">{orderMsg.text}</div> : null}
@@ -650,6 +676,8 @@ export function Students() {
         ) : (
           <p style={{ color: 'var(--text-muted)', margin: 0 }}>Нет студентов для сортировки</p>
         )}
+          </>
+        ) : null}
       </div>
 
       <div className="panel">

@@ -175,7 +175,7 @@ export function Layout() {
       </aside>
 
       <main ref={mainRef} className="main">
-        <Outlet key={location.pathname} />
+        <Outlet />
       </main>
 
     </div>

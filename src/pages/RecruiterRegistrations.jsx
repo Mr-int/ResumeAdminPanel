@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as regApi from '../api/recruiterRegistrations.js';
+import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { Pagination } from '../components/ui/Pagination.jsx';
@@ -14,6 +15,7 @@ const STATUSES = Object.keys(REGISTRATION_STATUS_LABELS);
 export function RecruiterRegistrations() {
   const [status, setStatus] = useState('PENDING');
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [page, setPage] = useState(0);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -28,7 +30,7 @@ export function RecruiterRegistrations() {
     try {
       const filter = {};
       if (status) filter.status = status;
-      if (search.trim()) filter.search = search.trim();
+      if (debouncedSearch.trim()) filter.search = debouncedSearch.trim();
       const { data: res } = await regApi.filterRecruiterRegistrations(filter, page, PAGE_SIZE);
       setData(res);
     } catch (e) {
@@ -37,7 +39,7 @@ export function RecruiterRegistrations() {
     } finally {
       setLoading(false);
     }
-  }, [status, search, page]);
+  }, [status, debouncedSearch, page]);
 
   useEffect(() => {
     load();

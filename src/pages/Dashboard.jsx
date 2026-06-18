@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import * as mainApi from '../api/main.js';
 import * as analyticsApi from '../api/analytics.js';
 import * as accountApi from '../api/accountApprovals.js';
 import * as vacanciesApi from '../api/vacancies.js';
@@ -27,32 +26,12 @@ export function Dashboard() {
   const [err, setErr] = useState(null);
   const [stats, setStats] = useState(null);
   const [statsErr, setStatsErr] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isRecruiter) return;
     let cancelled = false;
-    (async () => {
-      try {
-        await mainApi.getStatus();
-        if (!cancelled) {
-          setOk(true);
-          setErr(null);
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setOk(false);
-          setErr(e.message);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isRecruiter]);
-
-  useEffect(() => {
-    if (isRecruiter) return;
-    let cancelled = false;
+    setLoading(true);
     (async () => {
       try {
         const [popRes, accRes, vacRes, regRes] = await Promise.all([
@@ -62,6 +41,8 @@ export function Dashboard() {
           regApi.filterRecruiterRegistrations({ status: 'PENDING' }, 0, 1),
         ]);
         if (!cancelled) {
+          setOk(true);
+          setErr(null);
           setStats({
             population: popRes.data,
             pendingAccounts: accRes.data?.totalElements ?? 0,
@@ -72,9 +53,13 @@ export function Dashboard() {
         }
       } catch (e) {
         if (!cancelled) {
+          setOk(false);
+          setErr(e.message);
           setStats(null);
           setStatsErr(e.message);
         }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -102,7 +87,7 @@ export function Dashboard() {
             {ok === null ? '…' : ok ? 'Доступен' : 'Недоступен'}
           </p>
           <p className="stat-card__hint">
-            {ok === null ? 'Проверка соединения' : ok ? 'GET /main/status — OK' : err}
+            {ok === null ? 'Загрузка сводки' : ok ? 'Админ-эндпоинты отвечают' : err}
           </p>
         </div>
         <div className="stat-card">
@@ -170,7 +155,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      {ok === null ? <LoadingBlock text="Проверяем доступность API…" /> : null}
+      {loading ? <LoadingBlock text="Загрузка сводки…" /> : null}
     </div>
   );
 }

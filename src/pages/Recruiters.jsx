@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as recruitersApi from '../api/recruiters.js';
 import { useEffectWithAbort } from '../hooks/useEffectWithAbort.js';
+import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { EmptyState } from '../components/ui/EmptyState.jsx';
@@ -22,6 +23,7 @@ function emptyForm() {
 
 export function Recruiters() {
   const [name, setName] = useState('');
+  const debouncedName = useDebouncedValue(name);
   const [page, setPage] = useState(0);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -38,7 +40,7 @@ export function Recruiters() {
     }
     try {
       const filter = {};
-      if (name.trim()) filter.name = name.trim();
+      if (debouncedName.trim()) filter.name = debouncedName.trim();
       const { data: res } = await recruitersApi.filterRecruiters(filter, page, PAGE_SIZE);
       if (isActive()) setData(res);
     } catch (e) {
@@ -49,7 +51,7 @@ export function Recruiters() {
     } finally {
       if (isActive()) setLoading(false);
     }
-  }, [name, page]);
+  }, [debouncedName, page]);
 
   useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
 

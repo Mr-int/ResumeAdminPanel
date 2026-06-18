@@ -9,6 +9,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import * as authApi from '../api/auth.js';
 import { resetRecruiterDirectory } from '../lib/recruiterDirectory.js';
+import { resetReferenceCache } from '../lib/referenceCache.js';
 import {
   clearUnauthorizedHandler,
   resetUnauthorizedRedirect,
@@ -27,6 +28,8 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      resetRecruiterDirectory();
+      resetReferenceCache();
       setAuthenticated(false);
       setRole(null);
       setRealm(null);
@@ -82,6 +85,7 @@ export function AuthProvider({ children }) {
       }
     } finally {
       resetRecruiterDirectory();
+      resetReferenceCache();
       resetUnauthorizedRedirect();
       setRole(null);
       setRealm(null);

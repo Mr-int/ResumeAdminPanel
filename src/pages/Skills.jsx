@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as skillsApi from '../api/skills.js';
+import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { Pagination } from '../components/ui/Pagination.jsx';
@@ -10,6 +11,7 @@ const PAGE_SIZE = 15;
 
 export function Skills() {
   const [nameFilter, setNameFilter] = useState('');
+  const debouncedNameFilter = useDebouncedValue(nameFilter);
   const [page, setPage] = useState(0);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -24,7 +26,7 @@ export function Skills() {
     setLoading(true);
     try {
       const { data: res } = await skillsApi.filterSkills(
-        { name: nameFilter.trim() || undefined },
+        { name: debouncedNameFilter.trim() || undefined },
         page,
         PAGE_SIZE,
         ['id,asc']
@@ -36,7 +38,7 @@ export function Skills() {
     } finally {
       setLoading(false);
     }
-  }, [nameFilter, page]);
+  }, [debouncedNameFilter, page]);
 
   useEffect(() => {
     load();

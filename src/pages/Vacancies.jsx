@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import * as vacanciesApi from '../api/vacancies.js';
 import { useSkillsOptions, useSpecialityOptions } from '../hooks/useSkillsOptions.js';
+import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { FlashMessages } from '../components/ui/FlashMessages.jsx';
@@ -45,10 +46,13 @@ const emptyCreateForm = () => ({
 
 export function Vacancies() {
   const { isRecruiter } = useAuth();
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState('PENDING_REVIEW');
   const [findString, setFindString] = useState('');
   const [recruiterId, setRecruiterId] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const debouncedFindString = useDebouncedValue(findString);
+  const debouncedRecruiterId = useDebouncedValue(recruiterId);
+  const debouncedCompanyName = useDebouncedValue(companyName);
   const [page, setPage] = useState(0);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -76,7 +80,7 @@ export function Vacancies() {
         const { data: res } = await vacanciesApi.listMyVacancies(page, PAGE_SIZE);
         let rows = res?.data ?? (Array.isArray(res) ? res : []);
         if (status) rows = rows.filter((v) => v.status === status);
-        const q = findString.trim().toLowerCase();
+        const q = debouncedFindString.trim().toLowerCase();
         if (q) {
           rows = rows.filter(
             (v) =>
@@ -94,9 +98,9 @@ export function Vacancies() {
       } else {
         const filter = {};
         if (status) filter.status = status;
-        if (findString.trim()) filter.findString = findString.trim();
-        if (recruiterId.trim()) filter.recruiterId = recruiterId.trim();
-        if (companyName.trim()) filter.companyName = companyName.trim();
+        if (debouncedFindString.trim()) filter.findString = debouncedFindString.trim();
+        if (debouncedRecruiterId.trim()) filter.recruiterId = debouncedRecruiterId.trim();
+        if (debouncedCompanyName.trim()) filter.companyName = debouncedCompanyName.trim();
         const { data: res } = await vacanciesApi.filterVacanciesModeration(filter, page, PAGE_SIZE);
         setData(res);
       }
@@ -112,7 +116,7 @@ export function Vacancies() {
     } finally {
       setLoading(false);
     }
-  }, [isRecruiter, status, findString, recruiterId, companyName, page]);
+  }, [isRecruiter, status, debouncedFindString, debouncedRecruiterId, debouncedCompanyName, page]);
 
   useEffect(() => {
     load();

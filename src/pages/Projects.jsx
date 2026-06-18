@@ -6,6 +6,7 @@ import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { ProjectImagesEditor } from '../components/ProjectImagesEditor.jsx';
 import { SkillPicker } from '../components/SkillPicker.jsx';
 import { useSkillsOptions } from '../hooks/useSkillsOptions.js';
+import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { FlashMessages } from '../components/ui/FlashMessages.jsx';
 import { DateTimeField } from '../components/ui/DateTimeField.jsx';
@@ -33,13 +34,8 @@ export function Projects() {
   const [createForm, setCreateForm] = useState(emptyCreate);
   const [reordering, setReordering] = useState(false);
   const [searchInput, setSearchInput] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const { skillsOptions } = useSkillsOptions();
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setSearchQuery(searchInput.trim()), 300);
-    return () => window.clearTimeout(timer);
-  }, [searchInput]);
+  const searchQuery = useDebouncedValue(searchInput.trim(), 300);
+  const { skillsOptions } = useSkillsOptions(creating);
 
   const load = useCallback(async () => {
     setError(null);

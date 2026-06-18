@@ -80,48 +80,84 @@ export function Chats() {
     }
   }, []);
 
-  const loadContext = useCallback(async (chatId) => {
-    if (!chatId || !isAdmin) {
-      setContext(null);
-      return;
-    }
-    setContextLoading(true);
-    try {
-      const { data } = await chatApi.getChatContext(chatId);
-      setContext(data ?? null);
-    } catch (e) {
-      setContext(null);
-      setError(e.message);
-    } finally {
-      setContextLoading(false);
-    }
-  }, [isAdmin]);
-
   useEffect(() => {
     loadChats();
   }, [loadChats]);
 
   useEffect(() => {
-    if (selectedChatId) {
-      loadMessages(selectedChatId);
-      loadContext(selectedChatId);
-    } else {
+    if (!selectedChatId) {
       setMessages([]);
       setContext(null);
+      return;
     }
-  }, [selectedChatId, loadMessages, loadContext]);
+
+    let cancelled = false;
+    const chatId = selectedChatId;
+
+    (async () => {
+      setMessagesLoading(true);
+      setError(null);
+      try {
+        const { data } = await chatApi.getChatMessages(chatId, 0, MSG_PAGE_SIZE);
+        if (cancelled) return;
+        const rows = data?.data ?? data?.content ?? (Array.isArray(data) ? data : []);
+        setMessages(Array.isArray(rows) ? rows : []);
+      } catch (e) {
+        if (!cancelled) {
+          setError(e.message);
+          setMessages([]);
+        }
+      } finally {
+        if (!cancelled) setMessagesLoading(false);
+      }
+    })();
+
+    if (isAdmin) {
+      (async () => {
+        setContextLoading(true);
+        try {
+          const { data } = await chatApi.getChatContext(chatId);
+          if (!cancelled) setContext(data ?? null);
+        } catch (e) {
+          if (!cancelled) {
+            setContext(null);
+            setError(e.message);
+          }
+        } finally {
+          if (!cancelled) setContextLoading(false);
+        }
+      })();
+    } else {
+      setContext(null);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedChatId, isAdmin]);
 
   async function handleSend(e) {
     e.preventDefault();
     if (!selectedChatId || !draft.trim()) return;
+    const text = draft.trim();
     setSending(true);
     setMsg(null);
     try {
-      await chatApi.sendChatMessage(selectedChatId, draft.trim());
+      await chatApi.sendChatMessage(selectedChatId, text);
       setDraft('');
       setMsg({ type: 'ok', text: 'Сообщение отправлено' });
       await loadMessages(selectedChatId);
-      await loadChats();
+      setChats((prev) =>
+        prev.map((c) =>
+          c.id === selectedChatId
+            ? {
+                ...c,
+                lastMessagePreview: text,
+                lastActivityAt: new Date().toISOString(),
+              }
+            : c
+        )
+      );
     } catch (e) {
       setError(e.message);
     } finally {

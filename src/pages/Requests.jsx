@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as requestsApi from '../api/requests.js';
 import * as studentsApi from '../api/students.js';
+import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { EmptyState } from '../components/ui/EmptyState.jsx';
@@ -18,6 +19,8 @@ const STATUSES = Object.keys(REQUEST_STATUS_LABELS);
 export function Requests() {
   const [recruiterId, setRecruiterId] = useState('');
   const [studentId, setStudentId] = useState('');
+  const debouncedRecruiterId = useDebouncedValue(recruiterId);
+  const debouncedStudentId = useDebouncedValue(studentId);
   const [statusFilter, setStatusFilter] = useState([]);
   const [page, setPage] = useState(0);
   const [data, setData] = useState(null);
@@ -33,8 +36,8 @@ export function Requests() {
     setLoading(true);
     try {
       const filter = {};
-      if (recruiterId.trim()) filter.recruiterId = recruiterId.trim();
-      if (studentId.trim()) filter.studentId = studentId.trim();
+      if (debouncedRecruiterId.trim()) filter.recruiterId = debouncedRecruiterId.trim();
+      if (debouncedStudentId.trim()) filter.studentId = debouncedStudentId.trim();
       if (statusFilter.length) filter.results = statusFilter;
       const { data: res } = await requestsApi.filterRequests(filter, page, PAGE_SIZE);
       setData(res);
@@ -44,7 +47,7 @@ export function Requests() {
     } finally {
       setLoading(false);
     }
-  }, [recruiterId, studentId, statusFilter, page]);
+  }, [debouncedRecruiterId, debouncedStudentId, statusFilter, page]);
 
   useEffect(() => {
     load();
@@ -56,7 +59,31 @@ export function Requests() {
     let cancelled = false;
 
     (async () => {
-      const studentIds = [...new Set(rows.map((r) => r.studentId).filter(Boolean))];
+      const studentMap = {};
+      for (const row of rows) {
+        if (!row.studentId) continue;
+        const label = row.studentDisplayName?.trim();
+        if (label) studentMap[row.studentId] = label;
+      }
+
+      const missingStudentIds = [
+        ...new Set(rows.map((r) => r.studentId).filter((id) => id && !studentMap[id])),
+      ];
+
+      if (missingStudentIds.length) {
+        const pairs = await Promise.all(
+          missingStudentIds.map(async (id) => {
+            try {
+              const { data: s } = await studentsApi.getStudent(id);
+              return [id, `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim() || shortUuid(id)];
+            } catch {
+              return [id, shortUuid(id)];
+            }
+          })
+        );
+        for (const [id, label] of pairs) studentMap[id] = label;
+      }
+
       let recruiterMap = {};
       try {
         recruiterMap = await getRecruiterDirectory();
@@ -64,19 +91,12 @@ export function Requests() {
         recruiterMap = {};
       }
 
-      const studentPairs = await Promise.all(
-        studentIds.map(async (id) => {
-          try {
-            const { data: s } = await studentsApi.getStudent(id);
-            return [id, `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim() || shortUuid(id)];
-          } catch {
-            return [id, shortUuid(id)];
-          }
-        })
-      );
-
       const recruiterPairs = [...new Set(rows.map((r) => r.recruiterId).filter(Boolean))].map(
         (id) => {
+          const row = rows.find((r) => r.recruiterId === id);
+          const fromDto = row?.recruiterDisplayName?.trim();
+          if (fromDto) return [id, fromDto];
+
           const r = recruiterMap[id];
           const full = r ? `${r.firstName ?? ''} ${r.lastName ?? ''}`.trim() : '';
           const login = r?.username ? `@${r.username.replace(/^@/, '')}` : '';
@@ -88,7 +108,7 @@ export function Requests() {
 
       if (!cancelled) {
         setNames({
-          students: Object.fromEntries(studentPairs),
+          students: studentMap,
           recruiters: Object.fromEntries(recruiterPairs),
         });
       }

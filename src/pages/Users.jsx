@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import * as usersApi from '../api/users.js';
 import { useEffectWithAbort } from '../hooks/useEffectWithAbort.js';
+import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { Pagination } from '../components/ui/Pagination.jsx';
@@ -24,6 +25,7 @@ function roleBadge(role) {
 
 export function Users() {
   const [username, setUsername] = useState('');
+  const debouncedUsername = useDebouncedValue(username);
   const [page, setPage] = useState(0);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -42,7 +44,7 @@ export function Users() {
     }
     try {
       const { data: res } = await usersApi.filterUsers(
-        { username: username.trim() || undefined },
+        { username: debouncedUsername.trim() || undefined },
         page,
         PAGE_SIZE
       );
@@ -55,7 +57,7 @@ export function Users() {
     } finally {
       if (isActive()) setLoading(false);
     }
-  }, [username, page]);
+  }, [debouncedUsername, page]);
 
   useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
 

@@ -5,9 +5,7 @@ import * as studentsApi from '../api/students.js';
 import * as portfolioApi from '../api/portfolio.js';
 import * as experienceApi from '../api/experience.js';
 import * as institutionApi from '../api/institutions.js';
-import * as companiesApi from '../api/companies.js';
-import * as skillsApi from '../api/skills.js';
-import * as specialitiesApi from '../api/specialities.js';
+import { getCompaniesOptions, getSkillsOptions, getSpecialityOptions } from '../lib/referenceCache.js';
 import { compressImageForUpload } from '../utils/compressImage.js';
 import {
   contactFieldsFromStudentDto,
@@ -181,16 +179,13 @@ export function StudentDetail() {
     }
     if (isActive()) setExtendedLoading(true);
     try {
-      const [{ data }, { data: specRes }, { data: skillsRes }, { data: companiesRes }] = await Promise.all([
+      const [{ data }, specList, skillsList, companiesList] = await Promise.all([
         studentsApi.getStudent(id, fetchOpts(signal)),
-        specialitiesApi.filterSpecialities({}, 0, 500, ['id,asc'], fetchOpts(signal)),
-        skillsApi.filterSkills({}, 0, 500, ['id,asc'], fetchOpts(signal)),
-        companiesApi.filterCompanies({}, 0, 500, ['id,asc'], fetchOpts(signal)),
+        getSpecialityOptions(),
+        getSkillsOptions(),
+        getCompaniesOptions(),
       ]);
       if (!isActive()) return;
-      const specList = specRes?.data ?? [];
-      const skillsList = skillsRes?.data ?? [];
-      const companiesList = companiesRes?.data ?? [];
       setStudent(data);
       setSpecialityOptions(specList);
       setSkillsOptions(skillsList);
