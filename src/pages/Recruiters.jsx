@@ -1,14 +1,22 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as recruitersApi from '../api/recruiters.js';
 import { useEffectWithAbort } from '../hooks/useEffectWithAbort.js';
 import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
+import { resetRecruiterDirectory } from '../lib/recruiterDirectory.js';
+import { recruiterHasEmail } from '../utils/recruiterDisplay.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { EmptyState } from '../components/ui/EmptyState.jsx';
 import { Pagination } from '../components/ui/Pagination.jsx';
 import { FlashMessages } from '../components/ui/FlashMessages.jsx';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
+
+const EMAIL_FILTERS = [
+  { value: '', label: 'Все' },
+  { value: 'with', label: 'С email' },
+  { value: 'without', label: 'Без email' },
+];
 
 function emptyForm() {
   return {
@@ -24,14 +32,23 @@ function emptyForm() {
 export function Recruiters() {
   const [name, setName] = useState('');
   const debouncedName = useDebouncedValue(name);
+  const [emailFilter, setEmailFilter] = useState('');
   const [page, setPage] = useState(0);
   const [data, setData] = useState(null);
+  const [counts, setCounts] = useState({ total: 0, withEmail: 0, withoutEmail: 0 });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [selectedRecruiter, setSelectedRecruiter] = useState(null);
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedName, emailFilter]);
 
   const load = useCallback(async (isActive = () => true) => {
     if (isActive()) {
@@ -41,35 +58,72 @@ export function Recruiters() {
     try {
       const filter = {};
       if (debouncedName.trim()) filter.name = debouncedName.trim();
-      const { data: res } = await recruitersApi.filterRecruiters(filter, page, PAGE_SIZE);
-      if (isActive()) setData(res);
+
+      const allRows = await recruitersApi.fetchAllRecruiters(filter);
+      const withEmail = allRows.filter(recruiterHasEmail);
+      const withoutEmail = allRows.filter((r) => !recruiterHasEmail(r));
+      const filtered =
+        emailFilter === 'with'
+          ? withEmail
+          : emailFilter === 'without'
+            ? withoutEmail
+            : allRows;
+
+      const totalElements = filtered.length;
+      const totalPages = Math.max(1, Math.ceil(totalElements / PAGE_SIZE) || 1);
+      const safePage = totalElements === 0 ? 0 : Math.min(page, totalPages - 1);
+      if (safePage !== page) {
+        if (isActive()) setPage(safePage);
+        return;
+      }
+      const start = safePage * PAGE_SIZE;
+      const pageRows = filtered.slice(start, start + PAGE_SIZE);
+
+      if (isActive()) {
+        setCounts({
+          total: allRows.length,
+          withEmail: withEmail.length,
+          withoutEmail: withoutEmail.length,
+        });
+        setData({
+          data: pageRows,
+          totalElements,
+          totalPages,
+          page: safePage,
+        });
+        const currentId = selectedIdRef.current;
+        if (currentId) {
+          const updated = allRows.find((r) => r.id === currentId);
+          if (updated) setSelectedRecruiter(updated);
+        }
+      }
     } catch (e) {
       if (isActive()) {
         setError(e.message);
         setData(null);
+        setCounts({ total: 0, withEmail: 0, withoutEmail: 0 });
       }
     } finally {
       if (isActive()) setLoading(false);
     }
-  }, [debouncedName, page]);
+  }, [debouncedName, emailFilter, page]);
 
   useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
 
   const totalPages = data?.totalPages ?? 0;
   const rows = data?.data ?? [];
-  const selected = useMemo(() => rows.find((r) => r.id === selectedId) ?? null, [rows, selectedId]);
 
   useEffect(() => {
-    if (!selected) return;
+    if (!selectedRecruiter) return;
     setForm({
-      companyName: selected.companyName ?? '',
-      firstName: selected.firstName ?? '',
-      lastName: selected.lastName ?? '',
-      email: selected.email ?? '',
-      phoneNumber: selected.phoneNumber ?? '',
-      telegramUsername: selected.telegramUsername ?? '',
+      companyName: selectedRecruiter.companyName ?? '',
+      firstName: selectedRecruiter.firstName ?? '',
+      lastName: selectedRecruiter.lastName ?? '',
+      email: selectedRecruiter.email ?? '',
+      phoneNumber: selectedRecruiter.phoneNumber ?? '',
+      telegramUsername: selectedRecruiter.telegramUsername ?? '',
     });
-  }, [selected]);
+  }, [selectedRecruiter]);
 
   async function handleDelete(id) {
     const ok = window.confirm(
@@ -83,8 +137,10 @@ export function Recruiters() {
       await recruitersApi.deleteRecruiter(id);
       if (selectedId === id) {
         setSelectedId(null);
+        setSelectedRecruiter(null);
         setForm(emptyForm());
       }
+      resetRecruiterDirectory();
       await load();
       setMsg({ type: 'ok', text: 'Рекрутер удалён' });
     } catch (e) {
@@ -106,6 +162,7 @@ export function Recruiters() {
         phoneNumber: form.phoneNumber || undefined,
         telegramUsername: form.telegramUsername || undefined,
       });
+      resetRecruiterDirectory();
       await load();
       setMsg({ type: 'ok', text: 'Профиль полностью обновлён' });
     } catch (e) {
@@ -129,6 +186,7 @@ export function Recruiters() {
       if (form.telegramUsername.trim()) payload.telegramUsername = form.telegramUsername.trim();
 
       await recruitersApi.patchRecruiter(selectedId, payload);
+      resetRecruiterDirectory();
       await load();
       setMsg({ type: 'ok', text: 'Изменения сохранены (частичное обновление)' });
     } catch (e) {
@@ -146,26 +204,45 @@ export function Recruiters() {
       />
 
       <div className="panel">
-        <h2 className="panel__title">Поиск</h2>
+        <h2 className="panel__title">Фильтр</h2>
         <form
           className="form-row"
           onSubmit={(e) => {
             e.preventDefault();
             setPage(0);
-            load();
           }}
         >
           <div className="field">
-            <label>Имя или компания</label>
+            <label htmlFor="rec-name">Имя или компания</label>
             <input
+              id="rec-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Пусто — показать всех"
             />
           </div>
-          <button type="submit" className="btn btn--primary">
-            Найти
-          </button>
+          <div className="field">
+            <label htmlFor="rec-email-filter">Email</label>
+            <select
+              id="rec-email-filter"
+              value={emailFilter}
+              onChange={(e) => setEmailFilter(e.target.value)}
+            >
+              {EMAIL_FILTERS.map((f) => {
+                const count =
+                  f.value === 'with'
+                    ? counts.withEmail
+                    : f.value === 'without'
+                      ? counts.withoutEmail
+                      : counts.total;
+                return (
+                  <option key={f.value || 'all'} value={f.value}>
+                    {f.label} ({count})
+                  </option>
+                );
+              })}
+            </select>
+          </div>
         </form>
       </div>
 
@@ -176,6 +253,11 @@ export function Recruiters() {
 
       <div className="panel">
         <h2 className="panel__title">Список</h2>
+        {!loading && counts.total > 0 ? (
+          <p className="page__lead" style={{ marginTop: 0 }}>
+            Всего {counts.total}: с email — {counts.withEmail}, без email — {counts.withoutEmail}
+          </p>
+        ) : null}
         {loading ? (
           <LoadingBlock />
         ) : rows.length === 0 ? (
@@ -204,7 +286,14 @@ export function Recruiters() {
                       <td>{r.telegramUsername ? `@${r.telegramUsername.replace(/^@/, '')}` : '—'}</td>
                       <td>
                         <div className="table-actions">
-                          <button type="button" className="btn btn--ghost btn--small" onClick={() => setSelectedId(r.id)}>
+                          <button
+                            type="button"
+                            className="btn btn--ghost btn--small"
+                            onClick={() => {
+                              setSelectedId(r.id);
+                              setSelectedRecruiter(r);
+                            }}
+                          >
                             Редактировать
                           </button>
                           <button type="button" className="btn btn--danger btn--small" onClick={() => handleDelete(r.id)}>
@@ -293,6 +382,7 @@ export function Recruiters() {
                 className="btn btn--ghost"
                 onClick={() => {
                   setSelectedId(null);
+                  setSelectedRecruiter(null);
                   setForm(emptyForm());
                 }}
               >

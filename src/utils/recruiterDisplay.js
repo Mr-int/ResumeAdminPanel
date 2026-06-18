@@ -1,5 +1,9 @@
 import { shortUuid } from '../lib/format.js';
 
+export function recruiterHasEmail(recruiter) {
+  return Boolean(recruiter?.email?.trim());
+}
+
 export function recruiterPersonName(recruiter) {
   if (!recruiter || typeof recruiter !== 'object') return '';
   const full = `${recruiter.firstName ?? ''} ${recruiter.lastName ?? ''}`.trim();

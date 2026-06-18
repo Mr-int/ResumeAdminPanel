@@ -1,16 +1,14 @@
-import * as recruitersApi from '../api/recruiters.js';
-import { pageItems } from '../lib/pageable.js';
+import { fetchAllRecruiters } from '../api/recruiters.js';
 
 let directoryPromise = null;
 
 /** Один запрос — справочник рекрутёров по id (кэш на сессию). */
 export function getRecruiterDirectory() {
   if (!directoryPromise) {
-    directoryPromise = recruitersApi
-      .filterRecruiters({}, 0, 500)
-      .then(({ data }) => {
+    directoryPromise = fetchAllRecruiters({})
+      .then((recruiters) => {
         const byId = {};
-        for (const recruiter of pageItems(data)) {
+        for (const recruiter of recruiters) {
           if (recruiter?.id) byId[recruiter.id] = recruiter;
         }
         return byId;
