@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { mainPhotoUrl } from '../utils/mediaUrl.js';
+import { ApiPhoto } from './ui/ApiPhoto.jsx';
 
 /**
  * @param {{ id: number, name: string }[]} options
@@ -90,14 +90,12 @@ export function StudentPhotoBlock({
   title = 'Фото',
   children,
 }) {
-  const src = mainPhotoUrl(imagePath);
-
   return (
     <div className="student-photo-block">
       <h3 className="student-photo-block__title">{title}</h3>
       <div className="student-photo-block__preview">
-        {src ? (
-          <img src={src} alt="" className="student-photo-block__img" />
+        {imagePath ? (
+          <ApiPhoto imagePath={imagePath} className="student-photo-block__img" />
         ) : (
           <div className="student-photo-block__placeholder" aria-hidden>
             <span className="student-photo-block__placeholder-text">Нет фото</span>

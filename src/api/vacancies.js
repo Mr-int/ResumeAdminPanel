@@ -131,7 +131,17 @@ export function patchVacancyVitrina(id, body) {
   });
 }
 
-/** Архивировать вакансию или удалить пустой черновик (DELETE /vacancies/{id}). */
-export function deleteVacancy(id) {
+/** Архивировать вакансию (DELETE /vacancies/{id}, для не-черновиков). */
+export function archiveVacancy(id) {
   return apiFetch(`/vacancies/${id}`, { method: 'DELETE' });
+}
+
+/** Удалить черновик рекрутёра или пустой черновик (DELETE /vacancies/{id}). */
+export function deleteRecruiterVacancy(id) {
+  return apiFetch(`/vacancies/${id}`, { method: 'DELETE' });
+}
+
+/** Полное удаление вакансии из БД (только ADMIN, DELETE /admin/vacancies/{id}). */
+export function adminDeleteVacancy(id) {
+  return apiFetch(`/admin/vacancies/${id}`, { method: 'DELETE' });
 }

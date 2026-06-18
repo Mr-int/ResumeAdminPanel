@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as storageApi from '../api/storage.js';
-import { mainPhotoUrl } from '../utils/mediaUrl.js';
-
-function fileUrl(fileName) {
-  return mainPhotoUrl(fileName);
-}
+import { ApiPhoto } from './ui/ApiPhoto.jsx';
 
 function formatSize(bytes) {
   if (!bytes) return '—';
@@ -14,20 +10,11 @@ function formatSize(bytes) {
 }
 
 function StoragePreview({ fileName }) {
-  const [broken, setBroken] = useState(false);
-  if (broken) {
-    return (
-      <span className="storage-browser__broken" title="Файл в списке, но не отдаётся с сервера">
-        нет превью
-      </span>
-    );
-  }
   return (
-    <img
-      src={fileUrl(fileName)}
-      alt=""
-      loading="lazy"
-      onError={() => setBroken(true)}
+    <ApiPhoto
+      imagePath={fileName}
+      brokenClassName="storage-browser__broken"
+      brokenText="нет превью"
     />
   );
 }

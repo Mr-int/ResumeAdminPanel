@@ -16,7 +16,7 @@ import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { DateField } from '../components/ui/DateTimeField.jsx';
 import { SortableTable } from '../components/SortableTable.jsx';
 import * as studentsAdminApi from '../api/studentsAdmin.js';
-import { mainPhotoUrl } from '../utils/mediaUrl.js';
+import { ApiPhoto } from '../components/ui/ApiPhoto.jsx';
 
 const PAGE_SIZE = 12;
 
@@ -673,13 +673,11 @@ export function Students() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((s) => {
-                    const src = mainPhotoUrl(s.imagePath);
-                    return (
+                  {rows.map((s) => (
                       <tr key={s.id}>
                         <td style={{ width: 48 }}>
-                          {src ? (
-                            <img className="avatar" src={src} alt="" />
+                          {s.imagePath ? (
+                            <ApiPhoto imagePath={s.imagePath} className="avatar" />
                           ) : (
                             <span className="avatar avatar--placeholder">
                               {(s.firstName?.[0] ?? '?').toUpperCase()}
@@ -718,8 +716,7 @@ export function Students() {
                           </button>
                         </td>
                       </tr>
-                    );
-                  })}
+                  ))}
                 </tbody>
               </table>
             </div>

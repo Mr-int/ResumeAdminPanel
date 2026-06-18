@@ -18,7 +18,8 @@ server {
     }
 
     # Прокси API на том же origin — обход CORS в браузере.
-    location /api/ {
+    # ^~ — иначе regex ниже перехватывает /api/main/photo/*.jpg как статику SPA.
+    location ^~ /api/ {
         proxy_pass ${API_UPSTREAM}/;
         proxy_http_version 1.1;
         proxy_ssl_server_name on;

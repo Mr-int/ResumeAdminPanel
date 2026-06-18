@@ -1,13 +1,30 @@
 import { API_BASE } from '../config.js';
 
-/** URL превью файла из хранилища (`GET /main/photo/{image_path}`). */
-export function mainPhotoUrl(imagePath) {
+/**
+ * Ключ файла из `imagePath` / `StorageFileDTO.fileName`.
+ * API: GET /main/photo/{image_path} — один path-параметр (имя или путь в хранилище).
+ */
+export function normalizeStorageImagePath(imagePath) {
   if (imagePath == null) return null;
-  const path = String(imagePath).trim();
+  let path = String(imagePath).trim();
   if (!path) return null;
   if (/^https?:\/\//i.test(path)) return path;
-  const encoded = encodeURIComponent(path);
-  return `${API_BASE}/main/photo/${encoded}`;
+
+  const withoutApi = path.replace(/^\/api\/main\/photo\//i, '');
+  const withoutMain = withoutApi.replace(/^\/main\/photo\//i, '');
+  path = withoutMain.replace(/^\/+/, '');
+  return path || null;
+}
+
+/**
+ * Публичный URL изображения для `<img src>` (same-origin `/api/...` через nginx/vite proxy).
+ * Авторизация не нужна — endpoint permitAll.
+ */
+export function mainPhotoUrl(imagePath) {
+  const path = normalizeStorageImagePath(imagePath);
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${API_BASE}/main/photo/${encodeURIComponent(path)}`;
 }
 
 /** Превью изображения проекта: внешний URL приоритетнее файла в хранилище. */

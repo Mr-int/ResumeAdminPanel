@@ -303,21 +303,20 @@ export function Vacancies() {
     }
   }
 
-  async function handleDeleteVacancy(v) {
+  async function handleArchiveVacancy(v) {
     const title = v.title?.trim() || v.id;
-    const isDraft = v.status === 'DRAFT';
-    const message = isDraft
-      ? `Удалить черновик «${title}»?`
-      : `Архивировать вакансию «${title}»? Она исчезнет с витрины.`;
-    if (!window.confirm(message)) return;
+    if (
+      !window.confirm(
+        `Архивировать вакансию «${title}»? Она исчезнет с витрины, запись останется в системе.`
+      )
+    ) {
+      return;
+    }
     setMsg(null);
     setError(null);
     try {
-      await vacanciesApi.deleteVacancy(v.id);
-      setMsg({
-        type: 'ok',
-        text: isDraft ? 'Черновик удалён' : 'Вакансия архивирована',
-      });
+      await vacanciesApi.archiveVacancy(v.id);
+      setMsg({ type: 'ok', text: 'Вакансия архивирована' });
       if (selectedId === v.id) {
         setSelectedId(null);
         setDetails(null);
@@ -328,9 +327,39 @@ export function Vacancies() {
     }
   }
 
+  async function handleDeleteVacancy(v) {
+    const title = v.title?.trim() || v.id;
+    const message = isRecruiter
+      ? `Удалить черновик «${title}» безвозвратно?`
+      : `Удалить вакансию «${title}» безвозвратно? Действие нельзя отменить.`;
+    if (!window.confirm(message)) return;
+    setMsg(null);
+    setError(null);
+    try {
+      if (isRecruiter) {
+        await vacanciesApi.deleteRecruiterVacancy(v.id);
+      } else {
+        await vacanciesApi.adminDeleteVacancy(v.id);
+      }
+      setMsg({ type: 'ok', text: 'Вакансия удалена' });
+      if (selectedId === v.id) {
+        setSelectedId(null);
+        setDetails(null);
+      }
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  function canArchiveVacancy(v) {
+    if (!v?.id) return false;
+    return ['PENDING_REVIEW', 'PUBLISHED', 'CLOSED', 'REJECTED'].includes(v.status);
+  }
+
   function canDeleteVacancy(v) {
     if (!v?.id) return false;
-    if (v.status === 'ARCHIVED') return false;
+    if (isRecruiter) return v.status === 'DRAFT';
     return true;
   }
 
@@ -714,6 +743,16 @@ export function Vacancies() {
                             </button>
                           </>
                         ) : null}
+                        {canArchiveVacancy(v) ? (
+                          <button
+                            type="button"
+                            className="btn btn--ghost"
+                            style={{ marginLeft: '0.5rem' }}
+                            onClick={() => handleArchiveVacancy(v)}
+                          >
+                            Архивировать
+                          </button>
+                        ) : null}
                         {canDeleteVacancy(v) ? (
                           <button
                             type="button"
@@ -721,7 +760,7 @@ export function Vacancies() {
                             style={{ marginLeft: '0.5rem' }}
                             onClick={() => handleDeleteVacancy(v)}
                           >
-                            {v.status === 'DRAFT' ? 'Удалить' : 'Архивировать'}
+                            Удалить
                           </button>
                         ) : null}
                       </td>
@@ -803,15 +842,26 @@ export function Vacancies() {
                   : []),
               ]}
             />
-            {canDeleteVacancy(details) ? (
-              <div className="form-row" style={{ marginTop: '1rem' }}>
-                <button
-                  type="button"
-                  className="btn btn--danger"
-                  onClick={() => handleDeleteVacancy(details)}
-                >
-                  {details.status === 'DRAFT' ? 'Удалить черновик' : 'Архивировать вакансию'}
-                </button>
+            {(canArchiveVacancy(details) || canDeleteVacancy(details)) ? (
+              <div className="form-row" style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {canArchiveVacancy(details) ? (
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    onClick={() => handleArchiveVacancy(details)}
+                  >
+                    Архивировать
+                  </button>
+                ) : null}
+                {canDeleteVacancy(details) ? (
+                  <button
+                    type="button"
+                    className="btn btn--danger"
+                    onClick={() => handleDeleteVacancy(details)}
+                  >
+                    Удалить безвозвратно
+                  </button>
+                ) : null}
               </div>
             ) : null}
             </>

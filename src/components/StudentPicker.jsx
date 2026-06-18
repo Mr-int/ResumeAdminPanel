@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import * as studentsApi from '../api/students.js';
 import { pageItems, pageTotalPages } from '../lib/pageable.js';
 import { filterValidUuids, isValidUuid, resolveStudentId } from '../utils/studentId.js';
-import { mainPhotoUrl } from '../utils/mediaUrl.js';
+import { ApiPhoto } from './ui/ApiPhoto.jsx';
 
 const PAGE_SIZE = 10;
 
@@ -102,7 +102,6 @@ export function StudentPicker({ excludeIds = [], onBind, disabled = false }) {
         {rows.map((s) => {
           const sid = s._studentId;
           const checked = selected.has(sid);
-          const photo = mainPhotoUrl(s.imagePath);
           return (
             <li key={sid}>
               <label className={`student-picker__row${checked ? ' student-picker__row--selected' : ''}`}>
@@ -113,7 +112,11 @@ export function StudentPicker({ excludeIds = [], onBind, disabled = false }) {
                   disabled={disabled}
                 />
                 <span className="student-picker__avatar">
-                  {photo ? <img src={photo} alt="" /> : <span>{studentLabel(s).charAt(0)}</span>}
+                  {s.imagePath ? (
+                    <ApiPhoto imagePath={s.imagePath} />
+                  ) : (
+                    <span>{studentLabel(s).charAt(0)}</span>
+                  )}
                 </span>
                 <span className="student-picker__info">
                   <strong>{studentLabel(s)}</strong>

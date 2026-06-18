@@ -16,17 +16,15 @@ function resolveApiBase() {
 
   const configured = String(raw).replace(/\/$/, '');
 
-  // Собранный бандл с чужим origin в проде — принудительно через /api
-  if (import.meta.env.PROD && typeof window !== 'undefined') {
-    if (/^https?:\/\//i.test(configured)) {
-      try {
-        const apiOrigin = new URL(configured).origin;
-        if (apiOrigin !== window.location.origin) {
-          return '/api';
-        }
-      } catch {
+  // Чужой origin (прод или dev без vite proxy) — только относительный /api
+  if (typeof window !== 'undefined' && /^https?:\/\//i.test(configured)) {
+    try {
+      const apiOrigin = new URL(configured).origin;
+      if (apiOrigin !== window.location.origin) {
         return '/api';
       }
+    } catch {
+      return '/api';
     }
   }
 
