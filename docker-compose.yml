@@ -9,6 +9,7 @@ services:
     container_name: resume-admin-panel
     restart: unless-stopped
     environment:
+      # Прод: API_UPSTREAM=https://api.singularity-resume.ru API_HOST=api.singularity-resume.ru
       API_UPSTREAM: ${API_UPSTREAM:-https://test-api.singularity-resume.ru}
       API_HOST: ${API_HOST:-test-api.singularity-resume.ru}
     ports:

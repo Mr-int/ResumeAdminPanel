@@ -14,12 +14,30 @@ export async function apiFetch(path, options = {}) {
   }
 
   const url = `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
-  const res = await fetch(url, {
-    ...rest,
-    credentials: 'include',
-    headers,
-    body: json !== undefined ? JSON.stringify(json) : rest.body,
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      ...rest,
+      credentials: 'include',
+      headers,
+      body: json !== undefined ? JSON.stringify(json) : rest.body,
+    });
+  } catch (e) {
+    const isCrossOriginApi =
+      typeof window !== 'undefined' &&
+      API_BASE.startsWith('http') &&
+      (() => {
+        try {
+          return new URL(API_BASE).origin !== window.location.origin;
+        } catch {
+          return false;
+        }
+      })();
+    const hint = isCrossOriginApi
+      ? ' Браузер блокирует прямой доступ к API с другого домена (CORS). Пересоберите админку с VITE_API_URL=/api и настройте nginx-прокси /api → бэкенд.'
+      : ' Проверьте сеть, что контейнер запущен и nginx проксирует /api на API-сервер.';
+    throw new Error(`${e.message || 'Failed to fetch'}.${hint}`);
+  }
 
   const contentType = res.headers.get('content-type') ?? '';
   let data = null;

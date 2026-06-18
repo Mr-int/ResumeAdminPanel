@@ -1,14 +1,36 @@
 /**
  * Базовый URL API (без завершающего слэша).
- * По умолчанию `/api` — same-origin прокси в nginx (без CORS).
- * Для прямого доступа: VITE_API_URL=https://test-api.singularity-resume.ru
+ *
+ * По умолчанию `/api` — запросы на тот же origin, nginx проксирует на бэкенд (без CORS).
+ *
+ * Важно для продакшена: не задавайте полный URL вида https://api.example.com
+ * при деплое на admin.example.com — браузер заблокирует запросы (CORS).
+ * Сборка: VITE_API_URL=/api (или не задавать). Прокси: API_UPSTREAM на сервере.
  */
 function resolveApiBase() {
   const raw = import.meta.env.VITE_API_URL;
+
   if (raw === undefined || raw === '' || raw === 'same-origin') {
     return '/api';
   }
-  return String(raw).replace(/\/$/, '');
+
+  const configured = String(raw).replace(/\/$/, '');
+
+  // Собранный бандл с чужим origin в проде — принудительно через /api
+  if (import.meta.env.PROD && typeof window !== 'undefined') {
+    if (/^https?:\/\//i.test(configured)) {
+      try {
+        const apiOrigin = new URL(configured).origin;
+        if (apiOrigin !== window.location.origin) {
+          return '/api';
+        }
+      } catch {
+        return '/api';
+      }
+    }
+  }
+
+  return configured;
 }
 
 export const API_BASE = resolveApiBase();
