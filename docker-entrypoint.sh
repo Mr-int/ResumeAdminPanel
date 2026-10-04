@@ -1,12 +1,12 @@
 #!/bin/sh
 set -e
 
-API_UPSTREAM="${API_UPSTREAM:-https://test-api.singularity-resume.ru}"
-API_HOST="${API_HOST:-test-api.singularity-resume.ru}"
+BASE_PATH="${BASE_PATH:-/admin/}"
+BASE_PATH_NOSLASH="${BASE_PATH%/}"
 
 sed \
-  -e "s|\${API_UPSTREAM}|${API_UPSTREAM}|g" \
-  -e "s|\${API_HOST}|${API_HOST}|g" \
+  -e "s|\${BASE_PATH_NOSLASH}|${BASE_PATH_NOSLASH}|g" \
+  -e "s|\${BASE_PATH}|${BASE_PATH}|g" \
   /etc/nginx/templates/default.conf.template \
   > /etc/nginx/conf.d/default.conf
 

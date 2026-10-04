@@ -1,17 +1,17 @@
 /**
  * Базовый URL API (без завершающего слэша).
  *
- * По умолчанию `/api` — запросы на тот же origin, nginx проксирует на бэкенд (без CORS).
+ * По умолчанию `/api/v1` — запросы на тот же origin, nginx проксирует на бэкенд (без CORS).
  *
  * Важно для продакшена: не задавайте полный URL вида https://api.example.com
  * при деплое на admin.example.com — браузер заблокирует запросы (CORS).
- * Сборка: VITE_API_URL=/api (или не задавать). Прокси: API_UPSTREAM на сервере.
+ * Сборка: VITE_API_URL=/api/v1 (или не задавать). Прокси: API_UPSTREAM на сервере.
  */
 function resolveApiBase() {
   const raw = import.meta.env.VITE_API_URL;
 
   if (raw === undefined || raw === '' || raw === 'same-origin') {
-    return '/api';
+    return '/api/v1';
   }
 
   const configured = String(raw).replace(/\/$/, '');
@@ -21,10 +21,10 @@ function resolveApiBase() {
     try {
       const apiOrigin = new URL(configured).origin;
       if (apiOrigin !== window.location.origin) {
-        return '/api';
+        return '/api/v1';
       }
     } catch {
-      return '/api';
+      return '/api/v1';
     }
   }
 

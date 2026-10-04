@@ -10,7 +10,7 @@ export function normalizeStorageImagePath(imagePath) {
   if (!path) return null;
   if (/^https?:\/\//i.test(path)) return path;
 
-  const withoutApi = path.replace(/^\/api\/main\/photo\//i, '');
+  const withoutApi = path.replace(/^(\/plt)?\/api(\/v1)?\/main\/photo\//i, '');
   const withoutMain = withoutApi.replace(/^\/main\/photo\//i, '');
   path = withoutMain.replace(/^\/+/, '');
   return path || null;

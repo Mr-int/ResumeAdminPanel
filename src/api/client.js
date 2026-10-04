@@ -34,8 +34,8 @@ export async function apiFetch(path, options = {}) {
         }
       })();
     const hint = isCrossOriginApi
-      ? ' Браузер блокирует прямой доступ к API с другого домена (CORS). Пересоберите админку с VITE_API_URL=/api и настройте nginx-прокси /api → бэкенд.'
-      : ' Проверьте сеть, что контейнер запущен и nginx проксирует /api на API-сервер.';
+      ? ' Браузер блокирует прямой доступ к API с другого домена (CORS). Пересоберите админку с VITE_API_URL=/api/v1 и настройте nginx-прокси /api/v1 → бэкенд.'
+      : ' Проверьте сеть, что контейнер запущен и nginx проксирует /api/v1 на API-сервер.';
     throw new Error(`${e.message || 'Failed to fetch'}.${hint}`);
   }
 

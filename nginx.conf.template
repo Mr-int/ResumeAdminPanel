@@ -17,31 +17,25 @@ server {
         return 200 "ok";
     }
 
-    # Прокси API на том же origin — обход CORS в браузере.
-    # ^~ — иначе regex ниже перехватывает /api/main/photo/*.jpg как статику SPA.
-    location ^~ /api/ {
-        proxy_pass ${API_UPSTREAM}/;
-        proxy_http_version 1.1;
-        proxy_ssl_server_name on;
-        proxy_set_header Host ${API_HOST};
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header Connection "";
-        proxy_pass_request_headers on;
-        proxy_cookie_domain ${API_HOST} $host;
-        proxy_cookie_domain .singularity-resume.ru $host;
-        proxy_cookie_path / /;
-        proxy_buffering off;
+    # API проксирует внешний nginx (/api/v1, /plt/api/v1).
+
+    location = ${BASE_PATH_NOSLASH} {
+        return 301 ${BASE_PATH};
     }
 
-    location ~* \.(?:js|css|woff2?|ttf|eot|svg|ico|png|jpg|jpeg|gif|webp)$ {
+    location ^~ ${BASE_PATH}assets/ {
+        rewrite ^${BASE_PATH}(.*)$ /$1 break;
         expires 7d;
         add_header Cache-Control "public, max-age=604800, immutable";
         try_files $uri =404;
     }
 
+    location ^~ ${BASE_PATH} {
+        rewrite ^${BASE_PATH}(.*)$ /$1 break;
+        try_files $uri /index.html;
+    }
+
     location / {
-        try_files $uri $uri/ /index.html;
+        return 404;
     }
 }

@@ -24,7 +24,8 @@ export function notifyUnauthorized() {
     handler();
     return;
   }
-  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-    window.location.replace('/login');
+  const loginPath = `${import.meta.env.BASE_URL}login`;
+  if (typeof window !== 'undefined' && window.location.pathname !== loginPath) {
+    window.location.replace(loginPath);
   }
 }
