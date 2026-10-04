@@ -16,10 +16,11 @@ export function deleteSkill(id) {
   return apiFetch(`/skill/${id}`, { method: 'DELETE' });
 }
 
-export function filterSkills(filter, page, size, sort) {
+export function filterSkills(filter, page, size, sort, fetchOptions = {}) {
   const q = pageableQuery(page, size, sort);
   return apiFetch(`/skill/filter${q}`, {
     method: 'POST',
     json: filter,
+    ...fetchOptions,
   });
 }

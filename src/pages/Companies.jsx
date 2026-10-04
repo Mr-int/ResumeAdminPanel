@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as companiesApi from '../api/companies.js';
+import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
+import { PageHeader } from '../components/ui/PageHeader.jsx';
+import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
+import { FlashMessages } from '../components/ui/FlashMessages.jsx';
 
 const PAGE_SIZE = 15;
 
 export function Companies() {
   const [nameFilter, setNameFilter] = useState('');
+  const debouncedNameFilter = useDebouncedValue(nameFilter);
   const [page, setPage] = useState(0);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -19,7 +24,7 @@ export function Companies() {
     setLoading(true);
     try {
       const { data: res } = await companiesApi.filterCompanies(
-        { name: nameFilter.trim() || undefined },
+        { name: debouncedNameFilter.trim() || undefined },
         page,
         PAGE_SIZE,
         ['id,asc']
@@ -31,7 +36,7 @@ export function Companies() {
     } finally {
       setLoading(false);
     }
-  }, [nameFilter, page]);
+  }, [debouncedNameFilter, page]);
 
   useEffect(() => {
     load();
@@ -81,8 +86,10 @@ export function Companies() {
 
   return (
     <div className="page">
-      <h1 className="page__title">Компании</h1>
-      <p className="page__lead">POST /company, PUT/DELETE /company/{'{id}'}, POST /company/filter</p>
+      <PageHeader
+        title="Компании"
+        lead="Справочник компаний для опыта работы студентов и профилей рекрутеров."
+      />
 
       <div className="panel">
         <h2 className="panel__title">Фильтр и создание</h2>

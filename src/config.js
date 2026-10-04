@@ -1,4 +1,34 @@
-/** Базовый URL API (без завершающего слэша). */
-export const API_BASE = (
-  import.meta.env.VITE_API_URL ?? 'https://api.singularity-resume.ru'
-).replace(/\/$/, '');
+/**
+ * Базовый URL API (без завершающего слэша).
+ *
+ * По умолчанию `/api/v1` — запросы на тот же origin, nginx проксирует на бэкенд (без CORS).
+ *
+ * Важно для продакшена: не задавайте полный URL вида https://api.example.com
+ * при деплое на admin.example.com — браузер заблокирует запросы (CORS).
+ * Сборка: VITE_API_URL=/api/v1 (или не задавать). Прокси: API_UPSTREAM на сервере.
+ */
+function resolveApiBase() {
+  const raw = import.meta.env.VITE_API_URL;
+
+  if (raw === undefined || raw === '' || raw === 'same-origin') {
+    return '/api/v1';
+  }
+
+  const configured = String(raw).replace(/\/$/, '');
+
+  // Чужой origin (прод или dev без vite proxy) — только относительный /api
+  if (typeof window !== 'undefined' && /^https?:\/\//i.test(configured)) {
+    try {
+      const apiOrigin = new URL(configured).origin;
+      if (apiOrigin !== window.location.origin) {
+        return '/api/v1';
+      }
+    } catch {
+      return '/api/v1';
+    }
+  }
+
+  return configured;
+}
+
+export const API_BASE = resolveApiBase();

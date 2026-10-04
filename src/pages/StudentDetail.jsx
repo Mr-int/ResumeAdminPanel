@@ -1,12 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useEffectWithAbort } from '../hooks/useEffectWithAbort.js';
 import * as studentsApi from '../api/students.js';
 import * as portfolioApi from '../api/portfolio.js';
 import * as experienceApi from '../api/experience.js';
 import * as institutionApi from '../api/institutions.js';
-import * as companiesApi from '../api/companies.js';
-import * as skillsApi from '../api/skills.js';
-import * as specialitiesApi from '../api/specialities.js';
+import { getCompaniesOptions, getSkillsOptions, getSpecialityOptions } from '../lib/referenceCache.js';
 import { compressImageForUpload } from '../utils/compressImage.js';
 import {
   contactFieldsFromStudentDto,
@@ -19,6 +18,10 @@ import {
 import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
 import { StudentCreateExtendedBlocks } from '../components/StudentCreateExtendedBlocks.jsx';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
+import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
+import { DateField } from '../components/ui/DateTimeField.jsx';
+
+const EXTENDED_PAGE_SIZE = 50;
 
 const emptyExtDraft = () => ({
   portfolioRows: [],
@@ -31,6 +34,7 @@ export function StudentDetail() {
   const [student, setStudent] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [extendedLoading, setExtendedLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
   const [mediaMsg, setMediaMsg] = useState(null);
@@ -57,8 +61,9 @@ export function StudentDetail() {
     firstName: '', lastName: '', email: '', phoneNumber: '', telegramUsername: '',
     specialityId: '', skillsIds: [],
   });
+  const [consentSaving, setConsentSaving] = useState(false);
 
-  function readSkillsIdsFromStudentDto(data) {
+  function readSkillsIdsFromStudentDto(data, skillsList) {
     if (!data || typeof data !== 'object') return [];
 
     const direct = data.skillsIds ?? data.skillIds ?? data.skills_ids ?? null;
@@ -84,14 +89,14 @@ export function StudentDetail() {
       })
       .filter(Boolean);
     if (!names.length) return [];
-    const byName = new Map((skillsOptions ?? []).map((s) => [String(s.name).toLowerCase(), s.id]));
+    const byName = new Map((skillsList ?? []).map((s) => [String(s.name).toLowerCase(), s.id]));
     return names
       .map((n) => byName.get(n.toLowerCase()))
       .map((x) => Number(x))
       .filter((x) => Number.isInteger(x) && x > 0);
   }
 
-  function applyStudentToForm(data, specList) {
+  function applyStudentToForm(data, specList, skillsList) {
     const contact = contactFieldsFromStudentDto(data);
     let specialityId = '';
     if (data.specialityId != null && data.specialityId !== '') {
@@ -110,11 +115,15 @@ export function StudentDetail() {
       phoneNumber: contact.phoneNumber,
       telegramUsername: contact.telegramUsername,
       specialityId,
-      skillsIds: readSkillsIdsFromStudentDto(data),
+      skillsIds: readSkillsIdsFromStudentDto(data, skillsList),
     });
   }
 
-  async function loadExtendedExisting(studentId) {
+  function fetchOpts(signal) {
+    return signal ? { signal } : {};
+  }
+
+  async function loadExtendedExisting(studentId, signal, isActive = () => true) {
     const sid = String(studentId);
     const safePageData = (res) => res?.data?.data ?? res?.data ?? [];
     const matchStudent = (raw) => {
@@ -131,11 +140,12 @@ export function StudentDetail() {
       let lastOk = [];
       for (const f of filters) {
         try {
-          const res = await call(f);
+          const res = await call(f, fetchOpts(signal));
           const arr = safePageData(res);
           lastOk = Array.isArray(arr) ? arr : [];
-          if (lastOk.length) return lastOk;
-        } catch {
+          if (lastOk.length) return lastOk.filter(matchStudent);
+        } catch (e) {
+          if (e.name === 'AbortError') throw e;
           // try next filter shape
         }
       }
@@ -144,62 +154,102 @@ export function StudentDetail() {
     try {
       const filters = [{ studentId: sid }, { studentUuid: sid }, { student_id: sid }];
       const [portfolios, experiences, institutions] = await Promise.all([
-        tryFilters((f) => portfolioApi.filterPortfolio(f, 0, 200, ['id,desc']), filters),
-        tryFilters((f) => experienceApi.filterExperience(f, 0, 200, ['id,desc']), filters),
-        tryFilters((f) => institutionApi.filterInstitutions(f, 0, 200, ['id,desc']), filters),
+        tryFilters((f, opts) => portfolioApi.filterPortfolio(f, 0, EXTENDED_PAGE_SIZE, ['id,desc'], opts), filters),
+        tryFilters((f, opts) => experienceApi.filterExperience(f, 0, EXTENDED_PAGE_SIZE, ['id,desc'], opts), filters),
+        tryFilters((f, opts) => institutionApi.filterInstitutions(f, 0, EXTENDED_PAGE_SIZE, ['id,desc'], opts), filters),
       ]);
 
+      if (!isActive()) return;
       setExtExisting({
         portfolios: (portfolios ?? []).filter(matchStudent),
         experiences: (experiences ?? []).filter(matchStudent),
         institutions: (institutions ?? []).filter(matchStudent),
       });
-    } catch {
-      setExtExisting({ portfolios: [], experiences: [], institutions: [] });
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      if (isActive()) setExtExisting({ portfolios: [], experiences: [], institutions: [] });
     }
   }
 
-  async function loadStudent() {
-    setLoading(true);
-    setError(null);
-    setOptionsError(null);
+  const loadStudent = useCallback(async (signal, isActive = () => true, { silent = false } = {}) => {
+    if (!silent && isActive()) {
+      setLoading(true);
+      setError(null);
+      setOptionsError(null);
+    }
+    if (isActive()) setExtendedLoading(true);
     try {
-      const [{ data }, { data: specRes }, { data: skillsRes }, { data: companiesRes }] = await Promise.all([
-        studentsApi.getStudent(id),
-        specialitiesApi.filterSpecialities({}, 0, 500, ['id,asc']),
-        skillsApi.filterSkills({}, 0, 500, ['id,asc']),
-        companiesApi.filterCompanies({}, 0, 500, ['id,asc']),
+      const [{ data }, specList, skillsList, companiesList] = await Promise.all([
+        studentsApi.getStudent(id, fetchOpts(signal)),
+        getSpecialityOptions(),
+        getSkillsOptions(),
+        getCompaniesOptions(),
       ]);
+      if (!isActive()) return;
       setStudent(data);
-      const specList = specRes?.data ?? [];
-      const skillsList = skillsRes?.data ?? [];
-      const companiesList = companiesRes?.data ?? [];
       setSpecialityOptions(specList);
       setSkillsOptions(skillsList);
       setCompanyOptions(companiesList);
-      applyStudentToForm(data, specList);
-      await loadExtendedExisting(id);
+      applyStudentToForm(data, specList, skillsList);
+      if (!silent && isActive()) setLoading(false);
+      await loadExtendedExisting(id, signal, isActive);
     } catch (e) {
+      if (e.name === 'AbortError') return;
+      if (!isActive()) return;
       setOptionsError(e.message);
       try {
-        const { data } = await studentsApi.getStudent(id);
+        const { data } = await studentsApi.getStudent(id, fetchOpts(signal));
+        if (!isActive()) return;
         setStudent(data);
-        applyStudentToForm(data, specialityOptions);
-        await loadExtendedExisting(id);
+        if (!silent) setLoading(false);
+        await loadExtendedExisting(id, signal, isActive);
       } catch (e2) {
+        if (e2.name === 'AbortError') return;
+        if (!isActive()) return;
         setError(e2.message);
         setStudent(null);
       }
     } finally {
-      setLoading(false);
+      if (isActive()) {
+        setExtendedLoading(false);
+        if (!silent) setLoading(false);
+      }
     }
-  }
+  }, [id]);
 
-  useEffect(() => { loadStudent(); }, [id]);
+  useEffectWithAbort((signal, isActive) => loadStudent(signal, isActive), [loadStudent]);
 
   const portfolios = extExisting.portfolios;
   const experiences = extExisting.experiences;
   const institutions = extExisting.institutions;
+
+  async function handleVisibilityPatch(patch, okText) {
+    setConsentSaving(true);
+    setMsg(null);
+    try {
+      await studentsApi.patchStudent(id, patch);
+      setStudent((s) => (s ? { ...s, ...patch } : s));
+      setMsg({ type: 'ok', text: okText });
+    } catch (e) {
+      setMsg({ type: 'err', text: e.message });
+    } finally {
+      setConsentSaving(false);
+    }
+  }
+
+  async function handleConsentToggle(checked) {
+    await handleVisibilityPatch(
+      { publicProfileConsent: checked },
+      checked ? 'Согласие на публичный профиль включено' : 'Согласие отключено'
+    );
+  }
+
+  async function handleCatalogVisibleToggle(checked) {
+    await handleVisibilityPatch(
+      { catalogVisible: checked },
+      checked ? 'Карточка видна в каталоге рекрутёров' : 'Карточка скрыта из каталога'
+    );
+  }
 
   async function handleUpdate(e) {
     e.preventDefault();
@@ -209,7 +259,6 @@ export function StudentDetail() {
       const skillsIds = form.skillsIds
         .map((x) => Number(x))
         .filter((x) => Number.isInteger(x) && x >= 0);
-      if (!skillsIds.length) throw new Error('Укажите хотя бы один навык');
       if (form.specialityId === '') throw new Error('Выберите специальность');
 
       await studentsApi.updateStudent(id, {
@@ -227,7 +276,7 @@ export function StudentDetail() {
       });
 
       setMsg({ type: 'ok', text: 'Профиль сохранён' });
-      await loadStudent();
+      await loadStudent(undefined, () => true, { silent: true });
     } catch (e) {
       setMsg({ type: 'err', text: e.message });
     } finally {
@@ -255,7 +304,7 @@ export function StudentDetail() {
       await studentsApi.uploadStudentPhoto(id, fileToSend);
       setPhotoFile(null);
       setMediaMsg({ type: 'ok', text: 'Фото обновлено' });
-      await loadStudent();
+      await loadStudent(undefined, () => true, { silent: true });
     } catch (e) {
       setMediaMsg({ type: 'err', text: e.message });
     } finally {
@@ -282,7 +331,7 @@ export function StudentDetail() {
       }
       setExtDraft((p) => ({ ...p, portfolioRows: [] }));
       setExtendedMsg({ type: 'ok', text: 'Портфолио добавлено' });
-      await loadStudent();
+      await loadStudent(undefined, () => true, { silent: true });
     } catch (e) {
       setExtendedMsg({ type: 'err', text: e.message });
     } finally {
@@ -296,7 +345,7 @@ export function StudentDetail() {
     try {
       await portfolioApi.deletePortfolio(portfolioId);
       setExtendedMsg({ type: 'ok', text: 'Портфолио удалено' });
-      await loadStudent();
+      await loadStudent(undefined, () => true, { silent: true });
     } catch (e) {
       setExtendedMsg({ type: 'err', text: e.message });
     }
@@ -313,7 +362,7 @@ export function StudentDetail() {
         studentId: String(id),
       });
       setExtendedMsg({ type: 'ok', text: 'Портфолио обновлено' });
-      await loadStudent();
+      await loadStudent(undefined, () => true, { silent: true });
     } catch (e) {
       setExtendedMsg({ type: 'err', text: e.message });
     }
@@ -335,7 +384,7 @@ export function StudentDetail() {
       }
       setExtDraft((p) => ({ ...p, experienceRows: [] }));
       setExtendedMsg({ type: 'ok', text: 'Опыт добавлен' });
-      await loadStudent();
+      await loadStudent(undefined, () => true, { silent: true });
     } catch (e) {
       setExtendedMsg({ type: 'err', text: e.message });
     } finally {
@@ -349,7 +398,7 @@ export function StudentDetail() {
     try {
       await experienceApi.deleteExperience(experienceId);
       setExtendedMsg({ type: 'ok', text: 'Опыт удалён' });
-      await loadStudent();
+      await loadStudent(undefined, () => true, { silent: true });
     } catch (e) {
       setExtendedMsg({ type: 'err', text: e.message });
     }
@@ -362,7 +411,7 @@ export function StudentDetail() {
       const body = buildExperienceCreateBody(id, row);
       await experienceApi.updateExperience(experienceId, body);
       setExtendedMsg({ type: 'ok', text: 'Опыт обновлён' });
-      await loadStudent();
+      await loadStudent(undefined, () => true, { silent: true });
     } catch (e) {
       setExtendedMsg({ type: 'err', text: e.message });
     }
@@ -392,7 +441,7 @@ export function StudentDetail() {
       }
       setExtDraft((p) => ({ ...p, institutionRows: [] }));
       setExtendedMsg({ type: 'ok', text: 'Institution добавлено' });
-      await loadStudent();
+      await loadStudent(undefined, () => true, { silent: true });
     } catch (e) {
       setExtendedMsg({ type: 'err', text: e.message });
     } finally {
@@ -406,7 +455,7 @@ export function StudentDetail() {
     try {
       await institutionApi.deleteInstitution(institutionId);
       setExtendedMsg({ type: 'ok', text: 'Обучение удалено' });
-      await loadStudent();
+      await loadStudent(undefined, () => true, { silent: true });
     } catch (e) {
       setExtendedMsg({ type: 'err', text: e.message });
     }
@@ -418,14 +467,20 @@ export function StudentDetail() {
       const body = buildInstitutionCreateBody(id, row);
       await institutionApi.updateInstitution(institutionId, body);
       setExtendedMsg({ type: 'ok', text: 'Обучение обновлено' });
-      await loadStudent();
+      await loadStudent(undefined, () => true, { silent: true });
     } catch (e) {
       setExtendedMsg({ type: 'err', text: e.message });
     }
   }
 
 
-  if (loading) return <div className="page"><p className="page__lead">Loading...</p></div>;
+  if (loading) {
+    return (
+      <div className="page">
+        <LoadingBlock text="Загрузка карточки студента…" />
+      </div>
+    );
+  }
   if (error || !student) {
     return <div className="page"><div className="alert alert--error">{error ?? 'Not found'}</div><Link to="/students" className="btn btn--ghost">Back to list</Link></div>;
   }
@@ -436,6 +491,32 @@ export function StudentDetail() {
       <div style={{ marginBottom: '1rem' }}>
         <h1 className="page__title" style={{ marginBottom: '0.25rem' }}>{student.firstName} {student.lastName}</h1>
         <p className="page__lead" style={{ margin: 0 }}>{student.course} · {student.busyness}{student.speciality ? ` · ${student.speciality}` : ''}</p>
+      </div>
+
+      <div className="panel panel--accent">
+        <h2 className="panel__title">Видимость</h2>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          <input
+            type="checkbox"
+            checked={!!student.catalogVisible}
+            disabled={consentSaving}
+            onChange={(e) => handleCatalogVisibleToggle(e.target.checked)}
+          />
+          <span>
+            Показывать в каталоге рекрутёров (<code>catalogVisible</code>)
+          </span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <input
+            type="checkbox"
+            checked={!!student.publicProfileConsent}
+            disabled={consentSaving}
+            onChange={(e) => handleConsentToggle(e.target.checked)}
+          />
+          <span>
+            Показывать на главной (<code>publicProfileConsent</code>)
+          </span>
+        </label>
       </div>
 
       <div className="panel">
@@ -477,7 +558,14 @@ export function StudentDetail() {
               <div className="form-row">
                 <div className="field"><label>Имя</label><input required value={form.firstName} onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))} /></div>
                 <div className="field"><label>Фамилия</label><input required value={form.lastName} onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))} /></div>
-                <div className="field"><label>Дата рождения</label><input type="date" required value={form.birthDate} onChange={(e) => setForm((p) => ({ ...p, birthDate: e.target.value }))} /></div>
+                <DateField
+                  id="student-detail-birth"
+                  label="Дата рождения"
+                  value={form.birthDate}
+                  required
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(v) => setForm((p) => ({ ...p, birthDate: v }))}
+                />
               </div>
               <div className="form-row">
                 <div className="field"><label>Курс</label><select value={form.course} onChange={(e) => setForm((p) => ({ ...p, course: e.target.value }))}><option value="NEW">NEW</option><option value="FIRST">FIRST</option><option value="SECOND">SECOND</option><option value="THIRD">THIRD</option><option value="FOURTH">FOURTH</option></select></div>
@@ -533,6 +621,10 @@ export function StudentDetail() {
         <h2 className="panel__title">Доп. блоки (портфолио / опыт / образование)</h2>
         {extendedMsg?.type === 'ok' ? <div className="alert alert--success">{extendedMsg.text}</div> : null}
         {extendedMsg?.type === 'err' ? <div className="alert alert--error">{extendedMsg.text}</div> : null}
+        {extendedLoading ? (
+          <LoadingBlock text="Загрузка портфолио, опыта и обучения…" />
+        ) : null}
+        {!extendedLoading ? (
         <StudentCreateExtendedBlocks
           form={extDraft}
           setForm={setExtDraft}
@@ -556,6 +648,7 @@ export function StudentDetail() {
           onCommitInstitutions={commitInstitutions}
           committingInstitution={committing.institution}
         />
+        ) : null}
       </div>
 
     </div>

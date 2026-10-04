@@ -8,8 +8,8 @@ export function createExtendedStudent(body) {
   return apiFetch('/student/extended', { method: 'POST', json: body });
 }
 
-export function getStudent(id) {
-  return apiFetch(`/student/${id}`, { method: 'GET' });
+export function getStudent(id, fetchOptions = {}) {
+  return apiFetch(`/student/${id}`, { method: 'GET', ...fetchOptions });
 }
 
 export function filterStudents(filter, page, size) {
@@ -20,11 +20,12 @@ export function filterStudents(filter, page, size) {
   });
 }
 
-export function filterStudentCards(filter, page, size) {
+export function filterStudentCards(filter, page, size, fetchOptions = {}) {
   const q = pageableQuery(page, size);
   return apiFetch(`/student/cardsFilter${q}`, {
     method: 'POST',
     json: filter,
+    ...fetchOptions,
   });
 }
 

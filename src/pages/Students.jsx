@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useEffectWithAbort } from '../hooks/useEffectWithAbort.js';
+import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { Link, useNavigate } from 'react-router-dom';
 import * as studentsApi from '../api/students.js';
 import * as requestsApi from '../api/requests.js';
@@ -6,23 +8,22 @@ import * as portfolioApi from '../api/portfolio.js';
 import * as experienceApi from '../api/experience.js';
 import * as institutionApi from '../api/institutions.js';
 import * as educationApi from '../api/education.js';
-import * as skillsApi from '../api/skills.js';
-import * as specialitiesApi from '../api/specialities.js';
-import { API_BASE } from '../config.js';
+import { getSkillsOptions, getSpecialityOptions } from '../lib/referenceCache.js';
 import { SkillPicker } from '../components/SkillPicker.jsx';
-import { contactFieldsToApiPayload } from '../utils/studentContact.js';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
+import { contactFieldsToApiPayload } from '../utils/studentContact.js';
+import { PageHeader } from '../components/ui/PageHeader.jsx';
+import { DateField } from '../components/ui/DateTimeField.jsx';
+import { SortableTable } from '../components/SortableTable.jsx';
+import * as studentsAdminApi from '../api/studentsAdmin.js';
+import { ApiPhoto } from '../components/ui/ApiPhoto.jsx';
 
 const PAGE_SIZE = 12;
-
-function avatarUrl(imagePath) {
-  if (!imagePath) return null;
-  return `${API_BASE}/main/photo/${encodeURIComponent(imagePath)}`;
-}
 
 export function Students() {
   const navigate = useNavigate();
   const [findString, setFindString] = useState('');
+  const debouncedFindString = useDebouncedValue(findString);
   const [page, setPage] = useState(0);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -33,6 +34,13 @@ export function Students() {
   const [specialityOptions, setSpecialityOptions] = useState([]);
   const [optionsError, setOptionsError] = useState(null);
   const [createdStudent, setCreatedStudent] = useState(null);
+  const [orderRows, setOrderRows] = useState([]);
+  const [orderPanelOpen, setOrderPanelOpen] = useState(false);
+  const [orderLoading, setOrderLoading] = useState(false);
+  const [orderReordering, setOrderReordering] = useState(false);
+  const [orderMsg, setOrderMsg] = useState(null);
+  const [bulkMsg, setBulkMsg] = useState(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
   // Доп. блоки (портфолио/опыт/образование) добавляются после создания студента на его странице.
   const [createForm, setCreateForm] = useState({
     city: '',
@@ -43,6 +51,8 @@ export function Students() {
     busyness: 'FREE',
     firstName: '',
     lastName: '',
+    username: '',
+    password: '',
     email: '',
     phoneNumber: '',
     telegramUsername: '',
@@ -54,29 +64,93 @@ export function Students() {
     educationRows: [],
   });
 
-  const load = useCallback(async () => {
-    setError(null);
-    setLoading(true);
+  const load = useCallback(async (isActive = () => true) => {
+    if (isActive()) {
+      setError(null);
+      setLoading(true);
+    }
     try {
       const filter = {};
-      if (findString.trim()) filter.findString = findString.trim();
-      const { data: res } = await studentsApi.filterStudentCards(
-        filter,
-        page,
-        PAGE_SIZE
-      );
-      setData(res);
+      if (debouncedFindString.trim()) filter.findString = debouncedFindString.trim();
+      const { data: res } = await studentsApi.filterStudents(filter, page, PAGE_SIZE);
+      if (isActive()) setData(res);
     } catch (e) {
-      setError(e.message);
-      setData(null);
+      if (isActive()) {
+        setError(e.message);
+        setData(null);
+      }
     } finally {
-      setLoading(false);
+      if (isActive()) setLoading(false);
     }
-  }, [findString, page]);
+  }, [debouncedFindString, page]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
+
+  const loadOrderRows = useCallback(async (isActive = () => true) => {
+    if (isActive()) setOrderLoading(true);
+    try {
+      const { data: res } = await studentsApi.filterStudents(
+        {
+          catalogVisible: true,
+          publicProfileConsent: true,
+          useDefaultRanking: false,
+          sortBy: 'MANUAL_SORT_ORDER',
+          sortDirection: 'ASC',
+        },
+        0,
+        100
+      );
+      if (isActive()) setOrderRows(res?.data ?? []);
+    } catch {
+      if (isActive()) setOrderRows([]);
+    } finally {
+      if (isActive()) setOrderLoading(false);
+    }
+  }, []);
+
+  function openOrderPanel() {
+    setOrderPanelOpen(true);
+    if (!orderRows.length && !orderLoading) {
+      loadOrderRows();
+    }
+  }
+
+  async function handleBulkVisibility(payload, confirmText) {
+    if (!window.confirm(confirmText)) return;
+    setBulkLoading(true);
+    setBulkMsg(null);
+    try {
+      const { data } = await studentsAdminApi.bulkStudentVisibility(payload);
+      const updated = data?.updatedCount ?? data?.updated ?? 0;
+      const matched = data?.matchedCount ?? data?.matched ?? 0;
+      setBulkMsg({ type: 'ok', text: `Обновлено ${updated} из ${matched} карточек` });
+      await loadOrderRows();
+      await load();
+    } catch (e) {
+      setBulkMsg({ type: 'err', text: e.message });
+    } finally {
+      setBulkLoading(false);
+    }
+  }
+
+  async function handleStudentsReorder(orderedIds) {
+    const byId = new Map(orderRows.map((s) => [String(s.id), s]));
+    const next = orderedIds.map((id) => byId.get(String(id))).filter(Boolean);
+    setOrderRows(next);
+    setOrderReordering(true);
+    setOrderMsg(null);
+    try {
+      await studentsAdminApi.reorderStudents(orderedIds);
+      setOrderMsg({ type: 'ok', text: 'Порядок витрины сохранён' });
+      await loadOrderRows();
+      await load();
+    } catch (e) {
+      setOrderMsg({ type: 'err', text: e.message });
+      await loadOrderRows();
+    } finally {
+      setOrderReordering(false);
+    }
+  }
 
   async function cascadeDeleteStudent(studentId) {
     const sid = String(studentId);
@@ -139,22 +213,30 @@ export function Students() {
   }
 
   useEffect(() => {
+    if (!creating) return;
+
+    let cancelled = false;
     async function loadOptions() {
       setOptionsError(null);
       try {
-        const [{ data: skillsRes }, { data: specialitiesRes }] = await Promise.all([
-          skillsApi.filterSkills({}, 0, 500, ['id,asc']),
-          specialitiesApi.filterSpecialities({}, 0, 500, ['id,asc']),
+        const [skillsList, specList] = await Promise.all([
+          getSkillsOptions(),
+          getSpecialityOptions(),
         ]);
-        setSkillsOptions(skillsRes?.data ?? []);
-        setSpecialityOptions(specialitiesRes?.data ?? []);
+        if (!cancelled) {
+          setSkillsOptions(skillsList);
+          setSpecialityOptions(specList);
+        }
       } catch (e) {
-        setOptionsError(e.message);
+        if (!cancelled) setOptionsError(e.message);
       }
     }
 
     loadOptions();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [creating]);
 
   function extractCreatedStudentId(data) {
     if (data == null) return null;
@@ -181,6 +263,17 @@ export function Students() {
       if (!skillsIds.length) {
         throw new Error('Укажите хотя бы один навык');
       }
+      const login = createForm.username.trim();
+      const pass = createForm.password;
+      if (!login || login.length < 3) {
+        throw new Error('Укажите логин (минимум 3 символа)');
+      }
+      if (!pass || pass.length < 8) {
+        throw new Error('Укажите пароль (минимум 12 символов)');
+      }
+      if (createForm.specialityId === '') {
+        throw new Error('Выберите специальность');
+      }
 
       const payload = {
         city: createForm.city || undefined,
@@ -191,11 +284,10 @@ export function Students() {
         busyness: createForm.busyness,
         firstName: createForm.firstName.trim(),
         lastName: createForm.lastName.trim(),
+        username: login,
+        password: pass,
         ...contactFieldsToApiPayload(createForm),
-        specialityId:
-          createForm.specialityId === ''
-            ? undefined
-            : Number(createForm.specialityId),
+        specialityId: Number(createForm.specialityId),
         skillsIds,
       };
 
@@ -215,6 +307,8 @@ export function Students() {
         busyness: 'FREE',
         firstName: '',
         lastName: '',
+        username: '',
+        password: '',
         email: '',
         phoneNumber: '',
         telegramUsername: '',
@@ -238,11 +332,10 @@ export function Students() {
 
   return (
     <div className="page">
-      <h1 className="page__title">Студенты</h1>
-      <p className="page__lead">
-        Краткие карточки (POST /student/cardsFilter). Полный профиль — отдельная
-        страница по ID.
-      </p>
+      <PageHeader
+        title="Студенты"
+        lead="Карточка резюме создаётся вместе с учётной записью (логин и пароль обязательны)."
+      />
 
       <div className="panel">
         <h2 className="panel__title">Поиск</h2>
@@ -270,9 +363,7 @@ export function Students() {
       </div>
 
       <div className="panel">
-        <h2 className="panel__title">
-          Создание студента (POST /student)
-        </h2>
+        <h2 className="panel__title">Создание студента</h2>
         {createMsg?.type === 'ok' ? (
           <div className="alert alert--success">{createMsg.text}</div>
         ) : null}
@@ -312,16 +403,39 @@ export function Students() {
                 />
               </div>
               <div className="field">
-                <label>Дата рождения</label>
+                <label>Логин</label>
                 <input
-                  type="date"
                   required
-                  value={createForm.birthDate}
+                  minLength={3}
+                  autoComplete="off"
+                  value={createForm.username}
                   onChange={(e) =>
-                    setCreateForm((p) => ({ ...p, birthDate: e.target.value }))
+                    setCreateForm((p) => ({ ...p, username: e.target.value.replace(/\s/g, '') }))
+                  }
+                  placeholder="latin_letters_123"
+                />
+              </div>
+              <div className="field">
+                <label>Пароль</label>
+                <input
+                  required
+                  type="password"
+                  minLength={12}
+                  autoComplete="new-password"
+                  value={createForm.password}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, password: e.target.value }))
                   }
                 />
               </div>
+              <DateField
+                id="student-birth-date"
+                label="Дата рождения"
+                value={createForm.birthDate}
+                required
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(v) => setCreateForm((p) => ({ ...p, birthDate: v }))}
+              />
             </div>
             <div className="form-row">
               <div className="field">
@@ -359,6 +473,7 @@ export function Students() {
                   onChange={(e) =>
                     setCreateForm((p) => ({ ...p, specialityId: e.target.value }))
                   }
+                  required
                 >
                   <option value="">Не выбрано</option>
                   {specialityOptions.map((s) => (
@@ -456,6 +571,115 @@ export function Students() {
 
       {error ? <div className="alert alert--error">{error}</div> : null}
 
+      <div className="panel panel--accent">
+        <h2 className="panel__title">Видимость резюме {bulkLoading ? '(обработка…)' : ''}</h2>
+        <p className="page__lead" style={{ marginTop: 0 }}>
+          Каталог рекрутёров зависит от <code>catalogVisible</code>; главная витрина — от{' '}
+          <code>publicProfileConsent</code> и видимости в каталоге.
+        </p>
+        {bulkMsg?.type === 'ok' ? <div className="alert alert--success">{bulkMsg.text}</div> : null}
+        {bulkMsg?.type === 'err' ? <div className="alert alert--error">{bulkMsg.text}</div> : null}
+        <div className="form-row" style={{ marginTop: '0.75rem' }}>
+          <button
+            type="button"
+            className="btn btn--primary"
+            disabled={bulkLoading}
+            onClick={() =>
+              handleBulkVisibility(
+                { all: true, catalogVisible: true, onlyApprovedAccounts: true },
+                'Включить показ в каталоге для всех одобренных студентов?'
+              )
+            }
+          >
+            Показать в каталоге (одобренные)
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            disabled={bulkLoading}
+            onClick={() =>
+              handleBulkVisibility(
+                { all: true, publicProfileConsent: true, onlyApprovedAccounts: true },
+                'Включить показ на главной для всех одобренных студентов?'
+              )
+            }
+          >
+            Показать на главной (одобренные)
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            disabled={bulkLoading}
+            onClick={() =>
+              handleBulkVisibility(
+                {
+                  all: true,
+                  catalogVisible: true,
+                  publicProfileConsent: true,
+                  onlyApprovedAccounts: true,
+                },
+                'Опубликовать всех одобренных: каталог и главная?'
+              )
+            }
+          >
+            Опубликовать всё
+          </button>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+          <h2 className="panel__title" style={{ margin: 0 }}>
+            Порядок на главной {orderReordering ? '(сохранение…)' : ''}
+          </h2>
+          {!orderPanelOpen ? (
+            <button type="button" className="btn btn--ghost" onClick={openOrderPanel}>
+              Показать панель сортировки
+            </button>
+          ) : null}
+        </div>
+        {orderPanelOpen ? (
+          <>
+        <p className="page__lead" style={{ marginTop: '0.75rem' }}>
+          Только студенты с включённым показом в каталоге и на главной. Перетащите строки — порядок влияет на слайдер.
+        </p>
+        {orderMsg?.type === 'ok' ? <div className="alert alert--success">{orderMsg.text}</div> : null}
+        {orderMsg?.type === 'err' ? <div className="alert alert--error">{orderMsg.text}</div> : null}
+        {orderLoading ? (
+          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Загрузка…</p>
+        ) : orderRows.length ? (
+          <SortableTable
+            items={orderRows}
+            disabled={orderReordering}
+            onReorder={handleStudentsReorder}
+            headerCells={
+              <>
+                <th>ФИО</th>
+                <th>Специальность</th>
+                <th>Курс</th>
+                <th>Каталог</th>
+                <th>Главная</th>
+              </>
+            }
+            renderCells={(s) => (
+              <>
+                <td>
+                  {s.firstName} {s.lastName}
+                </td>
+                <td>{s.speciality ?? s.specialityName ?? '—'}</td>
+                <td>{s.course}</td>
+                <td>{s.catalogVisible ? 'да' : 'нет'}</td>
+                <td>{s.publicProfileConsent ? 'да' : 'нет'}</td>
+              </>
+            )}
+          />
+        ) : (
+          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Нет студентов для сортировки</p>
+        )}
+          </>
+        ) : null}
+      </div>
+
       <div className="panel">
         <h2 className="panel__title">Карточки</h2>
         {loading ? (
@@ -470,18 +694,18 @@ export function Students() {
                     <th>ФИО</th>
                     <th>Специальность</th>
                     <th>Курс</th>
+                    <th>Каталог</th>
+                    <th>Главная</th>
                     <th>Навыки</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((s) => {
-                    const src = avatarUrl(s.imagePath);
-                    return (
+                  {rows.map((s) => (
                       <tr key={s.id}>
                         <td style={{ width: 48 }}>
-                          {src ? (
-                            <img className="avatar" src={src} alt="" />
+                          {s.imagePath ? (
+                            <ApiPhoto imagePath={s.imagePath} className="avatar" />
                           ) : (
                             <span className="avatar avatar--placeholder">
                               {(s.firstName?.[0] ?? '?').toUpperCase()}
@@ -493,6 +717,8 @@ export function Students() {
                         </td>
                         <td>{s.speciality}</td>
                         <td>{s.course}</td>
+                        <td>{s.catalogVisible ? 'да' : 'нет'}</td>
+                        <td>{s.publicProfileConsent ? 'да' : 'нет'}</td>
                         <td>
                           {(s.skills ?? [])
                             .map((k) => k.name)
@@ -518,8 +744,7 @@ export function Students() {
                           </button>
                         </td>
                       </tr>
-                    );
-                  })}
+                  ))}
                 </tbody>
               </table>
             </div>

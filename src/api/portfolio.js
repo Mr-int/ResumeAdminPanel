@@ -12,10 +12,11 @@ export function deletePortfolio(id) {
   return apiFetch(`/portfolio/${id}`, { method: 'DELETE' });
 }
 
-export function filterPortfolio(filter, page = 0, size = 50, sort) {
+export function filterPortfolio(filter, page = 0, size = 50, sort, fetchOptions = {}) {
   const q = pageableQuery(page, size, sort);
   return apiFetch(`/portfolio/filter${q}`, {
     method: 'POST',
     json: filter,
+    ...fetchOptions,
   });
 }

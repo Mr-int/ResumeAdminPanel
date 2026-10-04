@@ -1,4 +1,5 @@
 import { API_BASE } from '../config.js';
+import { notifyUnauthorized } from '../lib/unauthorized.js';
 
 /**
  * @param {string} path - путь от корня API, например /auth/login
@@ -13,12 +14,30 @@ export async function apiFetch(path, options = {}) {
   }
 
   const url = `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
-  const res = await fetch(url, {
-    ...rest,
-    credentials: 'include',
-    headers,
-    body: json !== undefined ? JSON.stringify(json) : rest.body,
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      ...rest,
+      credentials: 'include',
+      headers,
+      body: json !== undefined ? JSON.stringify(json) : rest.body,
+    });
+  } catch (e) {
+    const isCrossOriginApi =
+      typeof window !== 'undefined' &&
+      API_BASE.startsWith('http') &&
+      (() => {
+        try {
+          return new URL(API_BASE).origin !== window.location.origin;
+        } catch {
+          return false;
+        }
+      })();
+    const hint = isCrossOriginApi
+      ? ' Браузер блокирует прямой доступ к API с другого домена (CORS). Пересоберите админку с VITE_API_URL=/api/v1 и настройте nginx-прокси /api/v1 → бэкенд.'
+      : ' Проверьте сеть, что контейнер запущен и nginx проксирует /api/v1 на API-сервер.';
+    throw new Error(`${e.message || 'Failed to fetch'}.${hint}`);
+  }
 
   const contentType = res.headers.get('content-type') ?? '';
   let data = null;
@@ -37,13 +56,19 @@ export async function apiFetch(path, options = {}) {
   }
 
   if (!res.ok) {
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    // 401 — сессия истекла; 403 — нет прав на эндпоинт (рекрутёр в /admin/*), не разлогиниваем.
+    if (res.status === 401 && !normalizedPath.startsWith('/auth/')) {
+      notifyUnauthorized();
+    }
+
     let msg =
       typeof data === 'object' && data && (data.message || data.error)
         ? data.message || data.error
         : `HTTP ${res.status}`;
     if (res.status === 413) {
       msg =
-        'Файл слишком большой для сервера (413). Попробуйте другое фото или уменьшите размер. Если ошибка повторяется, на стороне API нужно увеличить лимит тела запроса (например client_max_body_size в nginx).';
+        'Файл слишком большой (413). Лимит приложения — 10 МБ. Сожмите изображение или на прокси (nginx) увеличьте client_max_body_size.';
     }
     const err = new Error(typeof msg === 'string' ? msg : `HTTP ${res.status}`);
     err.status = res.status;
