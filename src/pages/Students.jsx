@@ -11,7 +11,10 @@ import * as educationApi from '../api/education.js';
 import { getSkillsOptions, getSpecialityOptions } from '../lib/referenceCache.js';
 import { SkillPicker } from '../components/SkillPicker.jsx';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
-import { contactFieldsToApiPayload } from '../utils/studentContact.js';
+import {
+  contactFieldsFromStudentDto,
+  contactFieldsToApiPayload,
+} from '../utils/studentContact.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { DateField } from '../components/ui/DateTimeField.jsx';
 import { SortableTable } from '../components/SortableTable.jsx';
@@ -19,6 +22,15 @@ import * as studentsAdminApi from '../api/studentsAdmin.js';
 import { ApiPhoto } from '../components/ui/ApiPhoto.jsx';
 
 const PAGE_SIZE = 12;
+
+function studentDisplayName(student) {
+  const name = `${student?.firstName ?? ''} ${student?.lastName ?? ''}`.trim();
+  return name || 'студент';
+}
+
+function studentEmail(student) {
+  return contactFieldsFromStudentDto(student).email;
+}
 
 export function Students() {
   const navigate = useNavigate();
@@ -41,6 +53,8 @@ export function Students() {
   const [orderMsg, setOrderMsg] = useState(null);
   const [bulkMsg, setBulkMsg] = useState(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [deleteStatus, setDeleteStatus] = useState(null);
   // Доп. блоки (портфолио/опыт/образование) добавляются после создания студента на его странице.
   const [createForm, setCreateForm] = useState({
     city: '',
@@ -189,8 +203,17 @@ export function Students() {
     // При удалении студента удаляем только привязки (institution), а education не трогаем.
   }
 
-  async function handleDelete(id) {
-    if (!window.confirm('Удалить студента?')) return;
+  async function handleDelete(student) {
+    const id = student?.id;
+    if (id == null) return;
+    const name = studentDisplayName(student);
+    const email = studentEmail(student);
+    const label = email ? `«${name}» (${email})` : `«${name}»`;
+    if (!window.confirm(`Удалить ${label}? Действие нельзя отменить.`)) return;
+
+    setDeletingId(id);
+    setError(null);
+    setDeleteStatus(null);
     try {
       await studentsApi.deleteStudent(id);
       await load();
@@ -199,16 +222,21 @@ export function Students() {
       const msg = String(e?.message ?? '');
       if (msg.includes('409') || msg.toLowerCase().includes('conflict')) {
         try {
+          setDeleteStatus('Удаляем связанные данные (заявки, портфолио, опыт)…');
           await cascadeDeleteStudent(id);
           await studentsApi.deleteStudent(id);
+          setDeleteStatus(null);
           await load();
           return;
         } catch (e2) {
+          setDeleteStatus(null);
           setError(e2.message);
           return;
         }
       }
       setError(msg || 'Ошибка удаления');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -348,12 +376,15 @@ export function Students() {
           }}
         >
           <div className="field">
-            <label htmlFor="sfind">Строка поиска (ФИО и др.)</label>
+            <label htmlFor="sfind">Строка поиска (ФИО, email)</label>
             <input
               id="sfind"
               value={findString}
-              onChange={(e) => setFindString(e.target.value)}
-              placeholder="Пусто — без фильтра по строке"
+              onChange={(e) => {
+                setFindString(e.target.value);
+                setPage(0);
+              }}
+              placeholder="ФИО или email"
             />
           </div>
           <button type="submit" className="btn btn--primary">
@@ -570,6 +601,7 @@ export function Students() {
       </div>
 
       {error ? <div className="alert alert--error">{error}</div> : null}
+      {deleteStatus ? <div className="alert">{deleteStatus}</div> : null}
 
       <div className="panel panel--accent">
         <h2 className="panel__title">Видимость резюме {bulkLoading ? '(обработка…)' : ''}</h2>
@@ -692,6 +724,7 @@ export function Students() {
                   <tr>
                     <th />
                     <th>ФИО</th>
+                    <th>Email</th>
                     <th>Специальность</th>
                     <th>Курс</th>
                     <th>Каталог</th>
@@ -701,7 +734,10 @@ export function Students() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((s) => (
+                  {rows.map((s) => {
+                    const email = studentEmail(s);
+                    const isDeleting = deletingId === s.id;
+                    return (
                       <tr key={s.id}>
                         <td style={{ width: 48 }}>
                           {s.imagePath ? (
@@ -715,6 +751,7 @@ export function Students() {
                         <td>
                           {s.firstName} {s.lastName}
                         </td>
+                        <td style={{ fontSize: '0.85rem' }}>{email || '—'}</td>
                         <td>{s.speciality}</td>
                         <td>{s.course}</td>
                         <td>{s.catalogVisible ? 'да' : 'нет'}</td>
@@ -738,13 +775,15 @@ export function Students() {
                             type="button"
                             className="btn btn--danger"
                             style={{ marginLeft: '0.5rem' }}
-                            onClick={() => handleDelete(s.id)}
+                            disabled={isDeleting || deletingId != null}
+                            onClick={() => handleDelete(s)}
                           >
-                            Удалить
+                            {isDeleting ? 'Удаление…' : 'Удалить'}
                           </button>
                         </td>
                       </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
