@@ -9,13 +9,10 @@ import { Skills } from './pages/Skills.jsx';
 import { Specialities } from './pages/Specialities.jsx';
 import { Companies } from './pages/Companies.jsx';
 import { Students } from './pages/Students.jsx';
-import { Users } from './pages/Users.jsx';
 import { RecruiterRegistrations } from './pages/RecruiterRegistrations.jsx';
 import { Projects } from './pages/Projects.jsx';
 import { ProjectDetail } from './pages/ProjectDetail.jsx';
 import { Storage } from './pages/Storage.jsx';
-import { Analytics } from './pages/Analytics.jsx';
-import { AccountApprovals } from './pages/AccountApprovals.jsx';
 
 const Dashboard = lazy(() =>
   import('./pages/Dashboard.jsx').then((m) => ({ default: m.Dashboard }))
@@ -78,8 +75,6 @@ export default function App() {
                 </LazyPage>
               }
             />
-            <Route path="/users" element={<Users />} />
-            <Route path="/account-approvals" element={<AccountApprovals />} />
             <Route path="/students" element={<Students />} />
             <Route
               path="/students/:id"
@@ -106,7 +101,6 @@ export default function App() {
             <Route path="/projects" element={<Projects />} />
             <Route path="/projects/:id" element={<ProjectDetail />} />
             <Route path="/storage" element={<Storage />} />
-            <Route path="/analytics" element={<Analytics />} />
           </Route>
         </Route>
       </Route>

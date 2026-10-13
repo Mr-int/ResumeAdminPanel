@@ -7,7 +7,7 @@ import * as requestsApi from '../api/requests.js';
 import * as portfolioApi from '../api/portfolio.js';
 import * as experienceApi from '../api/experience.js';
 import * as institutionApi from '../api/institutions.js';
-import * as educationApi from '../api/education.js';
+import * as accountApi from '../api/accountApprovals.js';
 import { getSkillsOptions, getSpecialityOptions } from '../lib/referenceCache.js';
 import { SkillPicker } from '../components/SkillPicker.jsx';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
@@ -17,9 +17,15 @@ import {
 } from '../utils/studentContact.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { DateField } from '../components/ui/DateTimeField.jsx';
-import { SortableTable } from '../components/SortableTable.jsx';
-import * as studentsAdminApi from '../api/studentsAdmin.js';
 import { ApiPhoto } from '../components/ui/ApiPhoto.jsx';
+import { StatusBadge } from '../components/ui/StatusBadge.jsx';
+import { ACCOUNT_STATUS_LABELS, labelOf } from '../lib/labels.js';
+import {
+  accountStatusVariant,
+  isPendingApproval,
+  studentAccountStatus,
+  studentUserId,
+} from '../lib/studentAccount.js';
 
 const PAGE_SIZE = 12;
 
@@ -45,17 +51,12 @@ export function Students() {
   const [skillsOptions, setSkillsOptions] = useState([]);
   const [specialityOptions, setSpecialityOptions] = useState([]);
   const [optionsError, setOptionsError] = useState(null);
-  const [createdStudent, setCreatedStudent] = useState(null);
-  const [orderRows, setOrderRows] = useState([]);
-  const [orderPanelOpen, setOrderPanelOpen] = useState(false);
-  const [orderLoading, setOrderLoading] = useState(false);
-  const [orderReordering, setOrderReordering] = useState(false);
-  const [orderMsg, setOrderMsg] = useState(null);
-  const [bulkMsg, setBulkMsg] = useState(null);
-  const [bulkLoading, setBulkLoading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [deleteStatus, setDeleteStatus] = useState(null);
-  // Доп. блоки (портфолио/опыт/образование) добавляются после создания студента на его странице.
+  const [pendingByStudentId, setPendingByStudentId] = useState(() => new Map());
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [approvalMsg, setApprovalMsg] = useState(null);
+  const [approvalLoading, setApprovalLoading] = useState(false);
   const [createForm, setCreateForm] = useState({
     city: '',
     hhLink: '',
@@ -78,6 +79,15 @@ export function Students() {
     educationRows: [],
   });
 
+  const loadPending = useCallback(async (isActive = () => true) => {
+    try {
+      const pending = await accountApi.loadPendingStudentApprovals();
+      if (isActive()) setPendingByStudentId(pending);
+    } catch {
+      if (isActive()) setPendingByStudentId(new Map());
+    }
+  }, []);
+
   const load = useCallback(async (isActive = () => true) => {
     if (isActive()) {
       setError(null);
@@ -99,72 +109,7 @@ export function Students() {
   }, [debouncedFindString, page]);
 
   useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
-
-  const loadOrderRows = useCallback(async (isActive = () => true) => {
-    if (isActive()) setOrderLoading(true);
-    try {
-      const { data: res } = await studentsApi.filterStudents(
-        {
-          catalogVisible: true,
-          publicProfileConsent: true,
-          useDefaultRanking: false,
-          sortBy: 'MANUAL_SORT_ORDER',
-          sortDirection: 'ASC',
-        },
-        0,
-        100
-      );
-      if (isActive()) setOrderRows(res?.data ?? []);
-    } catch {
-      if (isActive()) setOrderRows([]);
-    } finally {
-      if (isActive()) setOrderLoading(false);
-    }
-  }, []);
-
-  function openOrderPanel() {
-    setOrderPanelOpen(true);
-    if (!orderRows.length && !orderLoading) {
-      loadOrderRows();
-    }
-  }
-
-  async function handleBulkVisibility(payload, confirmText) {
-    if (!window.confirm(confirmText)) return;
-    setBulkLoading(true);
-    setBulkMsg(null);
-    try {
-      const { data } = await studentsAdminApi.bulkStudentVisibility(payload);
-      const updated = data?.updatedCount ?? data?.updated ?? 0;
-      const matched = data?.matchedCount ?? data?.matched ?? 0;
-      setBulkMsg({ type: 'ok', text: `Обновлено ${updated} из ${matched} карточек` });
-      await loadOrderRows();
-      await load();
-    } catch (e) {
-      setBulkMsg({ type: 'err', text: e.message });
-    } finally {
-      setBulkLoading(false);
-    }
-  }
-
-  async function handleStudentsReorder(orderedIds) {
-    const byId = new Map(orderRows.map((s) => [String(s.id), s]));
-    const next = orderedIds.map((id) => byId.get(String(id))).filter(Boolean);
-    setOrderRows(next);
-    setOrderReordering(true);
-    setOrderMsg(null);
-    try {
-      await studentsAdminApi.reorderStudents(orderedIds);
-      setOrderMsg({ type: 'ok', text: 'Порядок витрины сохранён' });
-      await loadOrderRows();
-      await load();
-    } catch (e) {
-      setOrderMsg({ type: 'err', text: e.message });
-      await loadOrderRows();
-    } finally {
-      setOrderReordering(false);
-    }
-  }
+  useEffectWithAbort((_signal, isActive) => loadPending(isActive), [loadPending]);
 
   async function cascadeDeleteStudent(studentId) {
     const sid = String(studentId);
@@ -174,7 +119,6 @@ export function Students() {
     };
 
     async function deleteAllByFilter(filterFn, deleteFn, filter) {
-      // удаляем пачками, пока не опустеет (на случай пагинации/нестабильного бэка)
       for (let i = 0; i < 10; i += 1) {
         const { data } = await filterFn(filter, 0, 200);
         const rows = safeList({ data });
@@ -184,7 +128,6 @@ export function Students() {
             (r && typeof r === 'object' && 'id' in r ? r.id : r) ??
             (r && typeof r === 'object' && r.id ? r.id : null);
 
-          // не допускаем /institution/[object Object]
           const idStr = rid == null ? '' : String(rid).trim();
           if (!idStr || idStr.toLowerCase() === 'nan' || idStr === '[object Object]') continue;
           await deleteFn(idStr);
@@ -192,15 +135,10 @@ export function Students() {
       }
     }
 
-    // 1) Requests (частая FK причина 409)
     await deleteAllByFilter(requestsApi.filterRequests, requestsApi.deleteRequest, { studentId: sid });
-
-    // 2) Extended сущности
     await deleteAllByFilter(portfolioApi.filterPortfolio, portfolioApi.deletePortfolio, { studentId: sid });
     await deleteAllByFilter(experienceApi.filterExperience, experienceApi.deleteExperience, { studentId: sid });
     await deleteAllByFilter(institutionApi.filterInstitutions, institutionApi.deleteInstitution, { studentId: sid });
-    // Education часто является общей сущностью/справочником и может использоваться другими записями.
-    // При удалении студента удаляем только привязки (institution), а education не трогаем.
   }
 
   async function handleDelete(student) {
@@ -217,8 +155,8 @@ export function Students() {
     try {
       await studentsApi.deleteStudent(id);
       await load();
+      await loadPending();
     } catch (e) {
-      // если 409 — пробуем удалить зависимости и повторить
       const msg = String(e?.message ?? '');
       if (msg.includes('409') || msg.toLowerCase().includes('conflict')) {
         try {
@@ -227,6 +165,7 @@ export function Students() {
           await studentsApi.deleteStudent(id);
           setDeleteStatus(null);
           await load();
+          await loadPending();
           return;
         } catch (e2) {
           setDeleteStatus(null);
@@ -319,13 +258,11 @@ export function Students() {
         skillsIds,
       };
 
-      // 1) создаём студента без расширенных сущностей
       const { data: resData } = await studentsApi.createStudent(payload);
       const newId = extractCreatedStudentId(resData);
       if (newId == null) throw new Error('Не удалось получить ID созданного студента');
       setCreateMsg({ type: 'ok', text: 'Студент создан. Открываю карточку…' });
 
-      setCreatedStudent(null);
       setCreateForm({
         city: '',
         hhLink: '',
@@ -358,59 +295,113 @@ export function Students() {
   const totalPages = data?.totalPages ?? 0;
   const rows = data?.data ?? [];
 
+  function rowMeta(student) {
+    const status = studentAccountStatus(student, pendingByStudentId);
+    const userId = studentUserId(student, pendingByStudentId);
+    const selectable = Boolean(userId) && isPendingApproval(status);
+    return { status, userId, selectable };
+  }
+
+  const selectableRows = rows.filter((s) => rowMeta(s).selectable);
+  const selectedOnPage = selectableRows.filter((s) => selectedIds.has(String(s.id)));
+  const allSelectableChecked =
+    selectableRows.length > 0 && selectedOnPage.length === selectableRows.length;
+
+  function toggleSelected(studentId, checked) {
+    const key = String(studentId);
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }
+
+  function toggleSelectAllOnPage(checked) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const s of selectableRows) {
+        const key = String(s.id);
+        if (checked) next.add(key);
+        else next.delete(key);
+      }
+      return next;
+    });
+  }
+
+  function selectedPendingTargets() {
+    return rows
+      .filter((s) => selectedIds.has(String(s.id)))
+      .map((s) => ({ student: s, ...rowMeta(s) }))
+      .filter((item) => item.selectable);
+  }
+
+  async function handleBulkApprove() {
+    const targets = selectedPendingTargets();
+    if (!targets.length) return;
+    if (!window.confirm(`Одобрить выбранные аккаунты (${targets.length})?`)) return;
+    setApprovalLoading(true);
+    setApprovalMsg(null);
+    try {
+      for (const item of targets) {
+        await accountApi.approveAccount(item.userId);
+      }
+      setApprovalMsg({ type: 'ok', text: `Одобрено: ${targets.length}` });
+      setSelectedIds(new Set());
+      await loadPending();
+      await load();
+    } catch (e) {
+      setApprovalMsg({ type: 'err', text: e.message });
+    } finally {
+      setApprovalLoading(false);
+    }
+  }
+
+  async function handleBulkReject() {
+    const targets = selectedPendingTargets();
+    if (!targets.length) return;
+    if (!window.confirm(`Отклонить выбранные аккаунты (${targets.length})?`)) return;
+    setApprovalLoading(true);
+    setApprovalMsg(null);
+    try {
+      for (const item of targets) {
+        await accountApi.rejectAccount(item.userId, {});
+      }
+      setApprovalMsg({ type: 'ok', text: `Отклонено: ${targets.length}` });
+      setSelectedIds(new Set());
+      await loadPending();
+      await load();
+    } catch (e) {
+      setApprovalMsg({ type: 'err', text: e.message });
+    } finally {
+      setApprovalLoading(false);
+    }
+  }
+
   return (
     <div className="page">
       <PageHeader
         title="Студенты"
         lead="Карточка резюме создаётся вместе с учётной записью (логин и пароль обязательны)."
-      />
-
-      <div className="panel">
-        <h2 className="panel__title">Поиск</h2>
-        <form
-          className="form-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setPage(0);
-            load();
-          }}
-        >
-          <div className="field">
-            <label htmlFor="sfind">Строка поиска (ФИО, email)</label>
-            <input
-              id="sfind"
-              value={findString}
-              onChange={(e) => {
-                setFindString(e.target.value);
-                setPage(0);
-              }}
-              placeholder="ФИО или email"
-            />
-          </div>
-          <button type="submit" className="btn btn--primary">
-            Применить
-          </button>
-        </form>
-      </div>
-
-      <div className="panel">
-        <h2 className="panel__title">Создание студента</h2>
-        {createMsg?.type === 'ok' ? (
-          <div className="alert alert--success">{createMsg.text}</div>
-        ) : null}
-        {createMsg?.type === 'err' ? (
-          <div className="alert alert--error">{createMsg.text}</div>
-        ) : null}
-        {optionsError ? <div className="alert alert--error">{optionsError}</div> : null}
+      >
         <button
           type="button"
-          className="btn btn--ghost"
+          className="btn btn--ghost btn--small"
           onClick={() => setCreating((v) => !v)}
-          style={{ marginBottom: creating ? '1rem' : 0 }}
         >
-          {creating ? 'Скрыть форму' : 'Открыть форму создания'}
+          {creating ? 'Скрыть форму' : 'Создать студента'}
         </button>
-        {creating ? (
+      </PageHeader>
+
+      {creating ? (
+        <div className="panel">
+          {createMsg?.type === 'ok' ? (
+            <div className="alert alert--success">{createMsg.text}</div>
+          ) : null}
+          {createMsg?.type === 'err' ? (
+            <div className="alert alert--error">{createMsg.text}</div>
+          ) : null}
+          {optionsError ? <div className="alert alert--error">{optionsError}</div> : null}
           <form onSubmit={handleCreate}>
             <div className="form-row">
               <div className="field">
@@ -597,138 +588,87 @@ export function Students() {
               </button>
             </div>
           </form>
-        ) : null}
+        </div>
+      ) : null}
+
+      <div className="panel">
+        <h2 className="panel__title">Поиск</h2>
+        <form
+          className="form-row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setPage(0);
+            load();
+          }}
+        >
+          <div className="field">
+            <label htmlFor="sfind">Строка поиска (ФИО, email)</label>
+            <input
+              id="sfind"
+              value={findString}
+              onChange={(e) => {
+                setFindString(e.target.value);
+                setPage(0);
+              }}
+              placeholder="ФИО или email"
+            />
+          </div>
+          <button type="submit" className="btn btn--primary">
+            Применить
+          </button>
+        </form>
       </div>
 
       {error ? <div className="alert alert--error">{error}</div> : null}
       {deleteStatus ? <div className="alert">{deleteStatus}</div> : null}
-
-      <div className="panel panel--accent">
-        <h2 className="panel__title">Видимость резюме {bulkLoading ? '(обработка…)' : ''}</h2>
-        <p className="page__lead" style={{ marginTop: 0 }}>
-          Каталог рекрутёров зависит от <code>catalogVisible</code>; главная витрина — от{' '}
-          <code>publicProfileConsent</code> и видимости в каталоге.
-        </p>
-        {bulkMsg?.type === 'ok' ? <div className="alert alert--success">{bulkMsg.text}</div> : null}
-        {bulkMsg?.type === 'err' ? <div className="alert alert--error">{bulkMsg.text}</div> : null}
-        <div className="form-row" style={{ marginTop: '0.75rem' }}>
-          <button
-            type="button"
-            className="btn btn--primary"
-            disabled={bulkLoading}
-            onClick={() =>
-              handleBulkVisibility(
-                { all: true, catalogVisible: true, onlyApprovedAccounts: true },
-                'Включить показ в каталоге для всех одобренных студентов?'
-              )
-            }
-          >
-            Показать в каталоге (одобренные)
-          </button>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            disabled={bulkLoading}
-            onClick={() =>
-              handleBulkVisibility(
-                { all: true, publicProfileConsent: true, onlyApprovedAccounts: true },
-                'Включить показ на главной для всех одобренных студентов?'
-              )
-            }
-          >
-            Показать на главной (одобренные)
-          </button>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            disabled={bulkLoading}
-            onClick={() =>
-              handleBulkVisibility(
-                {
-                  all: true,
-                  catalogVisible: true,
-                  publicProfileConsent: true,
-                  onlyApprovedAccounts: true,
-                },
-                'Опубликовать всех одобренных: каталог и главная?'
-              )
-            }
-          >
-            Опубликовать всё
-          </button>
-        </div>
-      </div>
+      {approvalMsg?.type === 'ok' ? <div className="alert alert--success">{approvalMsg.text}</div> : null}
+      {approvalMsg?.type === 'err' ? <div className="alert alert--error">{approvalMsg.text}</div> : null}
 
       <div className="panel">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-          <h2 className="panel__title" style={{ margin: 0 }}>
-            Порядок на главной {orderReordering ? '(сохранение…)' : ''}
-          </h2>
-          {!orderPanelOpen ? (
-            <button type="button" className="btn btn--ghost" onClick={openOrderPanel}>
-              Показать панель сортировки
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+          <h2 className="panel__title" style={{ margin: 0 }}>Карточки</h2>
+          <div className="form-row" style={{ margin: 0 }}>
+            <button
+              type="button"
+              className="btn btn--primary btn--small"
+              disabled={approvalLoading || selectedOnPage.length === 0}
+              onClick={handleBulkApprove}
+            >
+              Одобрить выбранных
             </button>
-          ) : null}
+            <button
+              type="button"
+              className="btn btn--danger btn--small"
+              disabled={approvalLoading || selectedOnPage.length === 0}
+              onClick={handleBulkReject}
+            >
+              Отклонить выбранных
+            </button>
+          </div>
         </div>
-        {orderPanelOpen ? (
-          <>
-        <p className="page__lead" style={{ marginTop: '0.75rem' }}>
-          Только студенты с включённым показом в каталоге и на главной. Перетащите строки — порядок влияет на слайдер.
-        </p>
-        {orderMsg?.type === 'ok' ? <div className="alert alert--success">{orderMsg.text}</div> : null}
-        {orderMsg?.type === 'err' ? <div className="alert alert--error">{orderMsg.text}</div> : null}
-        {orderLoading ? (
-          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Загрузка…</p>
-        ) : orderRows.length ? (
-          <SortableTable
-            items={orderRows}
-            disabled={orderReordering}
-            onReorder={handleStudentsReorder}
-            headerCells={
-              <>
-                <th>ФИО</th>
-                <th>Специальность</th>
-                <th>Курс</th>
-                <th>Каталог</th>
-                <th>Главная</th>
-              </>
-            }
-            renderCells={(s) => (
-              <>
-                <td>
-                  {s.firstName} {s.lastName}
-                </td>
-                <td>{s.speciality ?? s.specialityName ?? '—'}</td>
-                <td>{s.course}</td>
-                <td>{s.catalogVisible ? 'да' : 'нет'}</td>
-                <td>{s.publicProfileConsent ? 'да' : 'нет'}</td>
-              </>
-            )}
-          />
-        ) : (
-          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Нет студентов для сортировки</p>
-        )}
-          </>
-        ) : null}
-      </div>
-
-      <div className="panel">
-        <h2 className="panel__title">Карточки</h2>
         {loading ? (
-          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Загрузка…</p>
+          <p style={{ color: 'var(--text-muted)', margin: '0.75rem 0 0' }}>Загрузка…</p>
         ) : (
           <>
-            <div className="table-wrap">
+            <div className="table-wrap" style={{ marginTop: '0.75rem' }}>
               <table className="data">
                 <thead>
                   <tr>
+                    <th style={{ width: 36 }}>
+                      <input
+                        type="checkbox"
+                        checked={allSelectableChecked}
+                        disabled={!selectableRows.length || approvalLoading}
+                        onChange={(e) => toggleSelectAllOnPage(e.target.checked)}
+                        aria-label="Выбрать всех на модерации"
+                      />
+                    </th>
                     <th />
                     <th>ФИО</th>
                     <th>Email</th>
                     <th>Специальность</th>
                     <th>Курс</th>
-                    <th>Каталог</th>
-                    <th>Главная</th>
+                    <th>Статус</th>
                     <th>Навыки</th>
                     <th />
                   </tr>
@@ -737,8 +677,19 @@ export function Students() {
                   {rows.map((s) => {
                     const email = studentEmail(s);
                     const isDeleting = deletingId === s.id;
+                    const meta = rowMeta(s);
+                    const checked = selectedIds.has(String(s.id));
                     return (
                       <tr key={s.id}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={meta.selectable && checked}
+                            disabled={!meta.selectable || approvalLoading}
+                            onChange={(e) => toggleSelected(s.id, e.target.checked)}
+                            aria-label={`Выбрать ${studentDisplayName(s)}`}
+                          />
+                        </td>
                         <td style={{ width: 48 }}>
                           {s.imagePath ? (
                             <ApiPhoto imagePath={s.imagePath} className="avatar" />
@@ -754,8 +705,11 @@ export function Students() {
                         <td style={{ fontSize: '0.85rem' }}>{email || '—'}</td>
                         <td>{s.speciality}</td>
                         <td>{s.course}</td>
-                        <td>{s.catalogVisible ? 'да' : 'нет'}</td>
-                        <td>{s.publicProfileConsent ? 'да' : 'нет'}</td>
+                        <td>
+                          <StatusBadge variant={accountStatusVariant(meta.status)}>
+                            {labelOf(ACCOUNT_STATUS_LABELS, meta.status, meta.status)}
+                          </StatusBadge>
+                        </td>
                         <td>
                           {(s.skills ?? [])
                             .map((k) => k.name)
