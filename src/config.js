@@ -38,6 +38,38 @@ export const SITE_BASE_URL = String(
   import.meta.env.VITE_SITE_URL || 'https://singularity-resume.ru'
 ).replace(/\/$/, '');
 
+function normalizePrefix(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw || raw === '/') return '';
+  const withSlash = raw.startsWith('/') ? raw : `/${raw}`;
+  return withSlash.replace(/\/$/, '');
+}
+
+/**
+ * Публичный префикс анкеты.
+ * Прод: `/studentsResume/...`. Площадка plt: `/plt/studentsResume/...`.
+ * Локальный vite не открыт по `/plt/admin/`, поэтому в dev префикс берётся из
+ * `VITE_SITE_PATH`, а если его нет — `/plt`.
+ */
+function publicSitePrefix() {
+  const explicit = import.meta.env.VITE_SITE_PATH;
+  if (explicit != null && String(explicit).trim() !== '') {
+    return normalizePrefix(explicit);
+  }
+
+  const hints = [
+    import.meta.env.BASE_URL,
+    import.meta.env.VITE_API_URL,
+    typeof window !== 'undefined' ? window.location.pathname : '',
+  ];
+  if (hints.some((value) => String(value || '').includes('/plt'))) {
+    return '/plt';
+  }
+
+  if (import.meta.env.DEV) return '/plt';
+  return '';
+}
+
 export function studentResumeUrl(studentId) {
-  return `${SITE_BASE_URL}/studentsResume/${studentId}`;
+  return `${SITE_BASE_URL}${publicSitePrefix()}/studentsResume/${studentId}`;
 }
