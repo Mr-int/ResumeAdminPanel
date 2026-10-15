@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useEffectWithAbort } from '../hooks/useEffectWithAbort.js';
 import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { Link, useNavigate } from 'react-router-dom';
@@ -27,7 +27,49 @@ import {
   studentUserId,
 } from '../lib/studentAccount.js';
 
-const PAGE_SIZE = 12;
+const PAGE_SIZES = [10, 25, 50, 100, 200];
+
+const COURSE_RANK = {
+  NEW: 0,
+  FIRST: 1,
+  SECOND: 2,
+  THIRD: 3,
+  FOURTH: 4,
+  FIFTH: 5,
+  GRADUATE: 6,
+};
+
+const STATUS_RANK = {
+  PENDING_APPROVAL: 0,
+  PENDING: 0,
+  APPROVED: 1,
+  REJECTED: 2,
+};
+
+function sortValue(student, key, pendingByStudentId) {
+  if (key === 'name') {
+    return `${student?.lastName ?? ''} ${student?.firstName ?? ''} ${student?.middleName ?? ''}`
+      .trim()
+      .toLocaleLowerCase();
+  }
+  if (key === 'email') return (studentEmail(student) || '').toLocaleLowerCase();
+  if (key === 'course') return COURSE_RANK[student?.course] ?? 99;
+  if (key === 'status') {
+    return STATUS_RANK[studentAccountStatus(student, pendingByStudentId)] ?? 99;
+  }
+  return '';
+}
+
+function SortHeader({ label, sortKey, sort, onSort }) {
+  const active = sort.key === sortKey;
+  const mark = active ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '';
+  return (
+    <button type="button" className="th-sort" onClick={() => onSort(sortKey)}>
+      {label}
+      {mark}
+    </button>
+  );
+}
 
 function studentDisplayName(student) {
   const name = `${student?.firstName ?? ''} ${student?.lastName ?? ''}`.trim();
@@ -43,6 +85,8 @@ export function Students() {
   const [findString, setFindString] = useState('');
   const debouncedFindString = useDebouncedValue(findString);
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(PAGE_SIZES[1]);
+  const [sort, setSort] = useState({ key: null, dir: 'asc' });
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -96,7 +140,7 @@ export function Students() {
     try {
       const filter = {};
       if (debouncedFindString.trim()) filter.findString = debouncedFindString.trim();
-      const { data: res } = await studentsApi.filterStudents(filter, page, PAGE_SIZE);
+      const { data: res } = await studentsApi.filterStudents(filter, page, pageSize);
       if (isActive()) setData(res);
     } catch (e) {
       if (isActive()) {
@@ -106,7 +150,7 @@ export function Students() {
     } finally {
       if (isActive()) setLoading(false);
     }
-  }, [debouncedFindString, page]);
+  }, [debouncedFindString, page, pageSize]);
 
   useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
   useEffectWithAbort((_signal, isActive) => loadPending(isActive), [loadPending]);
@@ -294,6 +338,16 @@ export function Students() {
 
   const totalPages = data?.totalPages ?? 0;
   const rows = data?.data ?? [];
+  const displayedRows = useMemo(() => {
+    if (!sort.key) return rows;
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const av = sortValue(a, sort.key, pendingByStudentId);
+      const bv = sortValue(b, sort.key, pendingByStudentId);
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+      return String(av).localeCompare(String(bv), 'ru', { sensitivity: 'base' }) * dir;
+    });
+  }, [rows, sort, pendingByStudentId]);
 
   function rowMeta(student) {
     const status = studentAccountStatus(student, pendingByStudentId);
@@ -334,6 +388,37 @@ export function Students() {
       .filter((s) => selectedIds.has(String(s.id)))
       .map((s) => ({ student: s, ...rowMeta(s) }))
       .filter((item) => item.selectable);
+  }
+
+  function handleSort(key) {
+    setSort((prev) => {
+      if (prev.key === key) {
+        return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, dir: 'asc' };
+    });
+  }
+
+  async function handleApproveOne(studentId, userId) {
+    if (!userId) return;
+    if (!window.confirm('Одобрить учётную запись?')) return;
+    setApprovalLoading(true);
+    setApprovalMsg(null);
+    try {
+      await accountApi.approveAccount(userId);
+      setApprovalMsg({ type: 'ok', text: 'Аккаунт одобрен' });
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(String(studentId));
+        return next;
+      });
+      await loadPending();
+      await load();
+    } catch (e) {
+      setApprovalMsg({ type: 'err', text: e.message });
+    } finally {
+      setApprovalLoading(false);
+    }
   }
 
   async function handleBulkApprove() {
@@ -664,17 +749,25 @@ export function Students() {
                       />
                     </th>
                     <th />
-                    <th>ФИО</th>
-                    <th>Email</th>
+                    <th>
+                      <SortHeader label="ФИО" sortKey="name" sort={sort} onSort={handleSort} />
+                    </th>
+                    <th>
+                      <SortHeader label="Email" sortKey="email" sort={sort} onSort={handleSort} />
+                    </th>
                     <th>Специальность</th>
-                    <th>Курс</th>
-                    <th>Статус</th>
+                    <th>
+                      <SortHeader label="Курс" sortKey="course" sort={sort} onSort={handleSort} />
+                    </th>
+                    <th>
+                      <SortHeader label="Статус" sortKey="status" sort={sort} onSort={handleSort} />
+                    </th>
                     <th>Навыки</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((s) => {
+                  {displayedRows.map((s) => {
                     const email = studentEmail(s);
                     const isDeleting = deletingId === s.id;
                     const meta = rowMeta(s);
@@ -718,6 +811,17 @@ export function Students() {
                           {(s.skills?.length ?? 0) > 4 ? '…' : ''}
                         </td>
                         <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          {meta.selectable ? (
+                            <button
+                              type="button"
+                              className="btn btn--primary btn--small"
+                              style={{ marginRight: '0.5rem' }}
+                              disabled={approvalLoading || deletingId != null}
+                              onClick={() => handleApproveOne(s.id, meta.userId)}
+                            >
+                              Одобрить
+                            </button>
+                          ) : null}
                           <Link
                             className="btn btn--ghost"
                             to={`/students/${s.id}`}
@@ -746,6 +850,22 @@ export function Students() {
                 Стр. {data ? data.page + 1 : 1} из {Math.max(totalPages, 1)} · всего{' '}
                 {data?.totalElements ?? 0}
               </span>
+              <label className="pager__size">
+                На странице
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(0);
+                  }}
+                >
+                  {PAGE_SIZES.map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <div className="pager__btns">
                 <button
                   type="button"
