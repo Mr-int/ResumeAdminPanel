@@ -8,7 +8,6 @@ import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 
 const QUICK_LINKS = [
   { to: '/students', title: 'Студенты', desc: 'Карточки резюме и модерация аккаунтов' },
-  { to: '/projects', title: 'Проекты', desc: 'Кейсы на главной странице' },
 ];
 
 export function Dashboard() {
