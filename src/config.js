@@ -32,3 +32,12 @@ function resolveApiBase() {
 }
 
 export const API_BASE = resolveApiBase();
+
+/** Публичный сайт резюме (без завершающего слэша). */
+export const SITE_BASE_URL = String(
+  import.meta.env.VITE_SITE_URL || 'https://singularity-resume.ru'
+).replace(/\/$/, '');
+
+export function studentResumeUrl(studentId) {
+  return `${SITE_BASE_URL}/studentsResume/${studentId}`;
+}

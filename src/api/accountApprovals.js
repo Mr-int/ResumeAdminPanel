@@ -22,3 +22,24 @@ export function rejectAccount(userId, body) {
   });
 }
 
+/** Очередь студентов на модерации, ключ — studentId. */
+export async function loadPendingStudentApprovals(fetchOptions = {}) {
+  const byStudentId = new Map();
+  let page = 0;
+  for (let i = 0; i < 20; i += 1) {
+    const { data } = await listAccountApprovals('STUDENT', page, 50, fetchOptions);
+    const rows = data?.data ?? [];
+    for (const user of rows) {
+      if (user?.studentId == null || user?.id == null) continue;
+      byStudentId.set(String(user.studentId), {
+        userId: user.id,
+        accountStatus: user.accountStatus ?? 'PENDING_APPROVAL',
+      });
+    }
+    const totalPages = data?.totalPages ?? 1;
+    if (page + 1 >= totalPages || !rows.length) break;
+    page += 1;
+  }
+  return byStudentId;
+}
+

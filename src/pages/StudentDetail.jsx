@@ -20,6 +20,16 @@ import { StudentCreateExtendedBlocks } from '../components/StudentCreateExtended
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { DateField } from '../components/ui/DateTimeField.jsx';
+import { StatusBadge } from '../components/ui/StatusBadge.jsx';
+import * as accountApi from '../api/accountApprovals.js';
+import { studentResumeUrl } from '../config.js';
+import { ACCOUNT_STATUS_LABELS, labelOf } from '../lib/labels.js';
+import {
+  accountStatusVariant,
+  isPendingApproval,
+  studentAccountStatus,
+  studentUserId,
+} from '../lib/studentAccount.js';
 
 const EXTENDED_PAGE_SIZE = 50;
 
@@ -61,7 +71,9 @@ export function StudentDetail() {
     firstName: '', lastName: '', email: '', phoneNumber: '', telegramUsername: '',
     specialityId: '', skillsIds: [],
   });
-  const [consentSaving, setConsentSaving] = useState(false);
+  const [pendingByStudentId, setPendingByStudentId] = useState(() => new Map());
+  const [approvalMsg, setApprovalMsg] = useState(null);
+  const [approvalLoading, setApprovalLoading] = useState(false);
 
   function readSkillsIdsFromStudentDto(data, skillsList) {
     if (!data || typeof data !== 'object') return [];
@@ -219,37 +231,19 @@ export function StudentDetail() {
 
   useEffectWithAbort((signal, isActive) => loadStudent(signal, isActive), [loadStudent]);
 
+  useEffectWithAbort(async (signal, isActive) => {
+    try {
+      const pending = await accountApi.loadPendingStudentApprovals({ signal });
+      if (isActive()) setPendingByStudentId(pending);
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      if (isActive()) setPendingByStudentId(new Map());
+    }
+  }, [id]);
+
   const portfolios = extExisting.portfolios;
   const experiences = extExisting.experiences;
   const institutions = extExisting.institutions;
-
-  async function handleVisibilityPatch(patch, okText) {
-    setConsentSaving(true);
-    setMsg(null);
-    try {
-      await studentsApi.patchStudent(id, patch);
-      setStudent((s) => (s ? { ...s, ...patch } : s));
-      setMsg({ type: 'ok', text: okText });
-    } catch (e) {
-      setMsg({ type: 'err', text: e.message });
-    } finally {
-      setConsentSaving(false);
-    }
-  }
-
-  async function handleConsentToggle(checked) {
-    await handleVisibilityPatch(
-      { publicProfileConsent: checked },
-      checked ? 'Согласие на публичный профиль включено' : 'Согласие отключено'
-    );
-  }
-
-  async function handleCatalogVisibleToggle(checked) {
-    await handleVisibilityPatch(
-      { catalogVisible: checked },
-      checked ? 'Карточка видна в каталоге рекрутёров' : 'Карточка скрыта из каталога'
-    );
-  }
 
   async function handleUpdate(e) {
     e.preventDefault();
@@ -485,38 +479,96 @@ export function StudentDetail() {
     return <div className="page"><div className="alert alert--error">{error ?? 'Not found'}</div><Link to="/students" className="btn btn--ghost">Back to list</Link></div>;
   }
 
+  const accountStatus = studentAccountStatus(student, pendingByStudentId);
+  const userId = studentUserId(student, pendingByStudentId);
+  const canModerate = Boolean(userId) && isPendingApproval(accountStatus);
+  const publicResumeUrl = studentResumeUrl(id);
+
+  async function handleApproveAccount() {
+    if (!userId) return;
+    if (!window.confirm('Одобрить учётную запись?')) return;
+    setApprovalLoading(true);
+    setApprovalMsg(null);
+    try {
+      await accountApi.approveAccount(userId);
+      setApprovalMsg({ type: 'ok', text: 'Аккаунт одобрен' });
+      const pending = await accountApi.loadPendingStudentApprovals();
+      setPendingByStudentId(pending);
+      await loadStudent(undefined, () => true, { silent: true });
+    } catch (e) {
+      setApprovalMsg({ type: 'err', text: e.message });
+    } finally {
+      setApprovalLoading(false);
+    }
+  }
+
+  async function handleRejectAccount() {
+    if (!userId) return;
+    if (!window.confirm('Отклонить учётную запись?')) return;
+    setApprovalLoading(true);
+    setApprovalMsg(null);
+    try {
+      await accountApi.rejectAccount(userId, {});
+      setApprovalMsg({ type: 'ok', text: 'Аккаунт отклонён' });
+      const pending = await accountApi.loadPendingStudentApprovals();
+      setPendingByStudentId(pending);
+      await loadStudent(undefined, () => true, { silent: true });
+    } catch (e) {
+      setApprovalMsg({ type: 'err', text: e.message });
+    } finally {
+      setApprovalLoading(false);
+    }
+  }
+
   return (
     <div className="page">
       <p style={{ marginBottom: '1rem' }}><Link to="/students" style={{ color: 'var(--text-secondary)' }}>К списку студентов</Link></p>
       <div style={{ marginBottom: '1rem' }}>
         <h1 className="page__title" style={{ marginBottom: '0.25rem' }}>{student.firstName} {student.lastName}</h1>
         <p className="page__lead" style={{ margin: 0 }}>{student.course} · {student.busyness}{student.speciality ? ` · ${student.speciality}` : ''}</p>
+        <p style={{ margin: '0.75rem 0 0' }}>
+          <a href={publicResumeUrl} target="_blank" rel="noreferrer">
+            Перейти на сайт и посмотреть резюме
+          </a>
+        </p>
+        <p className="page__lead" style={{ margin: '0.25rem 0 0', wordBreak: 'break-all' }}>
+          {publicResumeUrl}
+        </p>
       </div>
 
       <div className="panel panel--accent">
-        <h2 className="panel__title">Видимость</h2>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-          <input
-            type="checkbox"
-            checked={!!student.catalogVisible}
-            disabled={consentSaving}
-            onChange={(e) => handleCatalogVisibleToggle(e.target.checked)}
-          />
-          <span>
-            Показывать в каталоге рекрутёров (<code>catalogVisible</code>)
-          </span>
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <input
-            type="checkbox"
-            checked={!!student.publicProfileConsent}
-            disabled={consentSaving}
-            onChange={(e) => handleConsentToggle(e.target.checked)}
-          />
-          <span>
-            Показывать на главной (<code>publicProfileConsent</code>)
-          </span>
-        </label>
+        <h2 className="panel__title">Модерация аккаунта</h2>
+        <p style={{ margin: '0 0 0.75rem' }}>
+          <StatusBadge variant={accountStatusVariant(accountStatus)}>
+            {labelOf(ACCOUNT_STATUS_LABELS, accountStatus, accountStatus)}
+          </StatusBadge>
+        </p>
+        {approvalMsg?.type === 'ok' ? <div className="alert alert--success">{approvalMsg.text}</div> : null}
+        {approvalMsg?.type === 'err' ? <div className="alert alert--error">{approvalMsg.text}</div> : null}
+        {canModerate ? (
+          <div className="form-row">
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={approvalLoading}
+              onClick={handleApproveAccount}
+            >
+              Одобрить
+            </button>
+            <button
+              type="button"
+              className="btn btn--danger"
+              disabled={approvalLoading}
+              onClick={handleRejectAccount}
+            >
+              Отклонить
+            </button>
+          </div>
+        ) : (
+          <p className="page__lead" style={{ margin: 0 }}>
+            Действия доступны только для аккаунтов на модерации.
+          </p>
+        )}
       </div>
 
       <div className="panel">

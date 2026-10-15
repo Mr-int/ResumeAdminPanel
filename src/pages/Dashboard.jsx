@@ -1,31 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import * as analyticsApi from '../api/analytics.js';
-import * as accountApi from '../api/accountApprovals.js';
-import * as vacanciesApi from '../api/vacancies.js';
-import * as regApi from '../api/recruiterRegistrations.js';
+import * as studentsApi from '../api/students.js';
 import { API_BASE } from '../config.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 
 const QUICK_LINKS = [
-  { to: '/account-approvals', title: 'Одобрение аккаунтов', desc: 'Очередь студентов и рекрутеров' },
-  { to: '/students', title: 'Студенты', desc: 'Карточки резюме и порядок на главной' },
-  { to: '/recruiter-registrations', title: 'Заявки рекрутеров', desc: 'Одобрение регистрации работодателей' },
-  { to: '/vacancies', title: 'Вакансии', desc: 'Модерация и каталог после входа' },
-  { to: '/chats', title: 'Чаты', desc: 'Переписка и модерация сообщений' },
-  { to: '/requests', title: 'Заявки на контакт', desc: 'Связь рекрутер ↔ студент' },
-  { to: '/projects', title: 'Проекты', desc: 'Кейсы на главной странице' },
-  { to: '/analytics', title: 'Аналитика', desc: 'Воронка и просмотры' },
+  { to: '/students', title: 'Студенты', desc: 'Карточки резюме и модерация аккаунтов' },
 ];
 
 export function Dashboard() {
   const { isRecruiter } = useAuth();
   const [ok, setOk] = useState(null);
   const [err, setErr] = useState(null);
-  const [stats, setStats] = useState(null);
-  const [statsErr, setStatsErr] = useState(null);
+  const [studentCount, setStudentCount] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -34,29 +23,17 @@ export function Dashboard() {
     setLoading(true);
     (async () => {
       try {
-        const [popRes, accRes, vacRes, regRes] = await Promise.all([
-          analyticsApi.entityPopulation({}),
-          accountApi.listAccountApprovals(undefined, 0, 1),
-          vacanciesApi.filterVacancies({ status: 'PENDING_REVIEW' }, 0, 1),
-          regApi.filterRecruiterRegistrations({ status: 'PENDING' }, 0, 1),
-        ]);
+        const { data } = await studentsApi.filterStudents({}, 0, 1);
         if (!cancelled) {
           setOk(true);
           setErr(null);
-          setStats({
-            population: popRes.data,
-            pendingAccounts: accRes.data?.totalElements ?? 0,
-            pendingVacancies: vacRes.data?.totalElements ?? 0,
-            pendingRegistrations: regRes.data?.totalElements ?? 0,
-          });
-          setStatsErr(null);
+          setStudentCount(data?.totalElements ?? 0);
         }
       } catch (e) {
         if (!cancelled) {
           setOk(false);
           setErr(e.message);
-          setStats(null);
-          setStatsErr(e.message);
+          setStudentCount(null);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -70,8 +47,6 @@ export function Dashboard() {
   if (isRecruiter) {
     return <Navigate to="/vacancies" replace />;
   }
-
-  const pop = stats?.population;
 
   return (
     <div className="page">
@@ -91,40 +66,12 @@ export function Dashboard() {
           </p>
         </div>
         <div className="stat-card">
-          <p className="stat-card__label">Аккаунты на одобрении</p>
-          <p className="stat-card__value">{stats ? stats.pendingAccounts : '…'}</p>
+          <p className="stat-card__label">Студенты</p>
+          <p className="stat-card__value">{studentCount ?? '…'}</p>
           <p className="stat-card__hint">
-            <Link to="/account-approvals">Открыть очередь</Link>
+            <Link to="/students">Открыть список</Link>
           </p>
         </div>
-        <div className="stat-card">
-          <p className="stat-card__label">Вакансии на модерации</p>
-          <p className="stat-card__value">{stats ? stats.pendingVacancies : '…'}</p>
-          <p className="stat-card__hint">
-            <Link to="/vacancies">Модерация</Link>
-          </p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-card__label">Заявки рекрутеров</p>
-          <p className="stat-card__value">{stats ? stats.pendingRegistrations : '…'}</p>
-          <p className="stat-card__hint">
-            <Link to="/recruiter-registrations">Очередь</Link>
-          </p>
-        </div>
-        {pop ? (
-          <>
-            <div className="stat-card">
-              <p className="stat-card__label">Студенты</p>
-              <p className="stat-card__value">{pop.totalStudents}</p>
-              <p className="stat-card__hint">Учётных записей STUDENT: {pop.usersStudent}</p>
-            </div>
-            <div className="stat-card">
-              <p className="stat-card__label">Рекрутеры</p>
-              <p className="stat-card__value">{pop.totalRecruiters}</p>
-              <p className="stat-card__hint">Учётных записей RECRUITER: {pop.usersRecruiter}</p>
-            </div>
-          </>
-        ) : null}
         <div className="stat-card">
           <p className="stat-card__label">Базовый URL</p>
           <p className="stat-card__value" style={{ fontSize: '0.85rem', wordBreak: 'break-all' }}>
@@ -133,8 +80,6 @@ export function Dashboard() {
           <p className="stat-card__hint">Cookie-сессия, credentials: include</p>
         </div>
       </div>
-
-      {statsErr ? <div className="alert alert--error">{statsErr}</div> : null}
 
       {ok === false ? (
         <div className="alert alert--error">
