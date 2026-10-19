@@ -116,6 +116,12 @@ export const HOME_VITRINA_LABELS = {
   vacancyCatalog: 'В каталоге после входа',
 };
 
+export const MAIL_SKIP_REASONS = {
+  NO_EMAIL: 'Нет почты, письмо не отправляли',
+  DUPLICATE: 'Такой адрес уже был в этой пачке',
+  NOT_FOUND: 'Карточка не найдена',
+};
+
 export function labelOf(map, key, fallback = '—') {
   if (key == null || key === '') return fallback;
   return map[key] ?? key;

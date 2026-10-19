@@ -12,7 +12,10 @@ const ADMIN_NAV_GROUPS = [
   },
   {
     title: 'Пользователи',
-    items: [{ to: '/students', label: 'Студенты' }],
+    items: [
+      { to: '/students', label: 'Студенты' },
+      { to: '/mail', label: 'Рассылка' },
+    ],
   },
   {
     title: 'Контент',

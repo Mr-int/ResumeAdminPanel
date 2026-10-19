@@ -253,6 +253,13 @@ a {
   color: var(--text);
 }
 
+.btn:disabled,
+.btn:disabled:hover {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: none;
+}
+
 .btn--danger {
   background: rgba(239, 68, 68, 0.15);
   border-color: rgba(239, 68, 68, 0.35);
