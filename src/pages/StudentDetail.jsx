@@ -29,6 +29,7 @@ import {
   accountStatusVariant,
   isPendingApproval,
   studentAccountStatus,
+  studentEmailVerified,
   studentUserId,
 } from '../lib/studentAccount.js';
 
@@ -484,7 +485,27 @@ export function StudentDetail() {
   const accountStatus = studentAccountStatus(student, pendingByStudentId);
   const userId = studentUserId(student, pendingByStudentId);
   const canModerate = Boolean(userId) && isPendingApproval(accountStatus);
+  const emailVerified = studentEmailVerified(student, pendingByStudentId);
   const publicResumeUrl = studentResumeUrl(id);
+
+  async function handleEmailVerified(nextVerified) {
+    if (!userId) return;
+    setApprovalLoading(true);
+    setApprovalMsg(null);
+    try {
+      await accountApi.setAccountEmailVerified(userId, nextVerified);
+      setApprovalMsg({
+        type: 'ok',
+        text: nextVerified ? 'Почта подтверждена' : 'Подтверждение почты снято',
+      });
+      const pending = await accountApi.loadPendingStudentApprovals();
+      setPendingByStudentId(pending);
+    } catch (e) {
+      setApprovalMsg({ type: 'err', text: e.message });
+    } finally {
+      setApprovalLoading(false);
+    }
+  }
 
   async function handleApproveAccount() {
     if (!userId) return;
@@ -549,6 +570,26 @@ export function StudentDetail() {
         {approvalMsg?.type === 'err' ? <div className="alert alert--error">{approvalMsg.text}</div> : null}
         {canModerate ? (
           <div className="form-row">
+            {emailVerified === false ? (
+              <button
+                type="button"
+                className="btn btn--ghost"
+                disabled={approvalLoading}
+                onClick={() => handleEmailVerified(true)}
+              >
+                Подтвердить почту
+              </button>
+            ) : null}
+            {emailVerified === true ? (
+              <button
+                type="button"
+                className="btn btn--ghost"
+                disabled={approvalLoading}
+                onClick={() => handleEmailVerified(false)}
+              >
+                Снять подтверждение
+              </button>
+            ) : null}
             <button
               type="button"
               className="btn btn--primary"

@@ -22,6 +22,13 @@ export function rejectAccount(userId, body) {
   });
 }
 
+export function setAccountEmailVerified(userId, emailVerified) {
+  return apiFetch(`/admin/account-approvals/${userId}/email-verified`, {
+    method: 'POST',
+    json: { emailVerified },
+  });
+}
+
 /** Очередь студентов на модерации, ключ — studentId. */
 export async function loadPendingStudentApprovals(fetchOptions = {}) {
   const byStudentId = new Map();
@@ -34,6 +41,7 @@ export async function loadPendingStudentApprovals(fetchOptions = {}) {
       byStudentId.set(String(user.studentId), {
         userId: user.id,
         accountStatus: user.accountStatus ?? 'PENDING_APPROVAL',
+        emailVerified: user.emailVerified === true,
       });
     }
     const totalPages = data?.totalPages ?? 1;

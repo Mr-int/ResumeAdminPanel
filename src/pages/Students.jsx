@@ -25,6 +25,7 @@ import {
   accountStatusVariant,
   isPendingApproval,
   studentAccountStatus,
+  studentEmailVerified,
   studentUserId,
 } from '../lib/studentAccount.js';
 
@@ -355,7 +356,8 @@ export function Students() {
     const status = studentAccountStatus(student, pendingByStudentId);
     const userId = studentUserId(student, pendingByStudentId);
     const selectable = Boolean(userId) && isPendingApproval(status);
-    return { status, userId, selectable };
+    const emailVerified = studentEmailVerified(student, pendingByStudentId);
+    return { status, userId, selectable, emailVerified };
   }
 
   const selectableRows = rows.filter((s) => rowMeta(s).selectable);
@@ -399,6 +401,24 @@ export function Students() {
       }
       return { key, dir: 'asc' };
     });
+  }
+
+  async function handleEmailVerified(userId, emailVerified) {
+    if (!userId) return;
+    setApprovalLoading(true);
+    setApprovalMsg(null);
+    try {
+      await accountApi.setAccountEmailVerified(userId, emailVerified);
+      setApprovalMsg({
+        type: 'ok',
+        text: emailVerified ? 'Почта подтверждена' : 'Подтверждение почты снято',
+      });
+      await loadPending();
+    } catch (e) {
+      setApprovalMsg({ type: 'err', text: e.message });
+    } finally {
+      setApprovalLoading(false);
+    }
   }
 
   async function handleApproveOne(studentId, userId) {
@@ -827,6 +847,28 @@ export function Students() {
                           {(s.skills?.length ?? 0) > 4 ? '…' : ''}
                         </td>
                         <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          {meta.selectable && meta.emailVerified === false ? (
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--small"
+                              style={{ marginRight: '0.5rem' }}
+                              disabled={approvalLoading || deletingId != null}
+                              onClick={() => handleEmailVerified(meta.userId, true)}
+                            >
+                              Подтвердить почту
+                            </button>
+                          ) : null}
+                          {meta.selectable && meta.emailVerified === true ? (
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--small"
+                              style={{ marginRight: '0.5rem' }}
+                              disabled={approvalLoading || deletingId != null}
+                              onClick={() => handleEmailVerified(meta.userId, false)}
+                            >
+                              Снять подтверждение
+                            </button>
+                          ) : null}
                           {meta.selectable ? (
                             <button
                               type="button"
