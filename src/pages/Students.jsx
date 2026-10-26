@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useEffectWithAbort } from '../hooks/useEffectWithAbort.js';
 import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { Link, useNavigate } from 'react-router-dom';
@@ -9,6 +9,7 @@ import * as experienceApi from '../api/experience.js';
 import * as institutionApi from '../api/institutions.js';
 import * as accountApi from '../api/accountApprovals.js';
 import { getSkillsOptions, getSpecialityOptions } from '../lib/referenceCache.js';
+import { AccountRejectForm } from '../components/AccountRejectForm.jsx';
 import { SkillPicker } from '../components/SkillPicker.jsx';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
 import {
@@ -24,41 +25,18 @@ import {
   accountStatusVariant,
   isPendingApproval,
   studentAccountStatus,
+  studentEmailVerified,
   studentUserId,
 } from '../lib/studentAccount.js';
 
 const PAGE_SIZES = [10, 25, 50, 100, 200];
 
-const COURSE_RANK = {
-  NEW: 0,
-  FIRST: 1,
-  SECOND: 2,
-  THIRD: 3,
-  FOURTH: 4,
-  FIFTH: 5,
-  GRADUATE: 6,
+const SORT_FIELDS = {
+  name: 'LAST_NAME',
+  email: 'EMAIL',
+  course: 'COURSE',
+  status: 'ACCOUNT_STATUS',
 };
-
-const STATUS_RANK = {
-  PENDING_APPROVAL: 0,
-  PENDING: 0,
-  APPROVED: 1,
-  REJECTED: 2,
-};
-
-function sortValue(student, key, pendingByStudentId) {
-  if (key === 'name') {
-    return `${student?.lastName ?? ''} ${student?.firstName ?? ''} ${student?.middleName ?? ''}`
-      .trim()
-      .toLocaleLowerCase();
-  }
-  if (key === 'email') return (studentEmail(student) || '').toLocaleLowerCase();
-  if (key === 'course') return COURSE_RANK[student?.course] ?? 99;
-  if (key === 'status') {
-    return STATUS_RANK[studentAccountStatus(student, pendingByStudentId)] ?? 99;
-  }
-  return '';
-}
 
 function SortHeader({ label, sortKey, sort, onSort }) {
   const active = sort.key === sortKey;
@@ -101,6 +79,7 @@ export function Students() {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [approvalMsg, setApprovalMsg] = useState(null);
   const [approvalLoading, setApprovalLoading] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
   const [createForm, setCreateForm] = useState({
     city: '',
     hhLink: '',
@@ -140,6 +119,11 @@ export function Students() {
     try {
       const filter = {};
       if (debouncedFindString.trim()) filter.findString = debouncedFindString.trim();
+      if (sort.key && SORT_FIELDS[sort.key]) {
+        filter.useDefaultRanking = false;
+        filter.sortBy = SORT_FIELDS[sort.key];
+        filter.sortDirection = sort.dir === 'asc' ? 'ASC' : 'DESC';
+      }
       const { data: res } = await studentsApi.filterStudents(filter, page, pageSize);
       if (isActive()) setData(res);
     } catch (e) {
@@ -150,7 +134,7 @@ export function Students() {
     } finally {
       if (isActive()) setLoading(false);
     }
-  }, [debouncedFindString, page, pageSize]);
+  }, [debouncedFindString, page, pageSize, sort]);
 
   useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
   useEffectWithAbort((_signal, isActive) => loadPending(isActive), [loadPending]);
@@ -338,22 +322,13 @@ export function Students() {
 
   const totalPages = data?.totalPages ?? 0;
   const rows = data?.data ?? [];
-  const displayedRows = useMemo(() => {
-    if (!sort.key) return rows;
-    const dir = sort.dir === 'asc' ? 1 : -1;
-    return [...rows].sort((a, b) => {
-      const av = sortValue(a, sort.key, pendingByStudentId);
-      const bv = sortValue(b, sort.key, pendingByStudentId);
-      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
-      return String(av).localeCompare(String(bv), 'ru', { sensitivity: 'base' }) * dir;
-    });
-  }, [rows, sort, pendingByStudentId]);
 
   function rowMeta(student) {
     const status = studentAccountStatus(student, pendingByStudentId);
     const userId = studentUserId(student, pendingByStudentId);
     const selectable = Boolean(userId) && isPendingApproval(status);
-    return { status, userId, selectable };
+    const emailVerified = studentEmailVerified(student, pendingByStudentId);
+    return { status, userId, selectable, emailVerified };
   }
 
   const selectableRows = rows.filter((s) => rowMeta(s).selectable);
@@ -397,6 +372,25 @@ export function Students() {
       }
       return { key, dir: 'asc' };
     });
+    setPage(0);
+  }
+
+  async function handleEmailVerified(userId, emailVerified) {
+    if (!userId) return;
+    setApprovalLoading(true);
+    setApprovalMsg(null);
+    try {
+      await accountApi.setAccountEmailVerified(userId, emailVerified);
+      setApprovalMsg({
+        type: 'ok',
+        text: emailVerified ? 'Почта подтверждена' : 'Подтверждение почты снято',
+      });
+      await loadPending();
+    } catch (e) {
+      setApprovalMsg({ type: 'err', text: e.message });
+    } finally {
+      setApprovalLoading(false);
+    }
   }
 
   async function handleApproveOne(studentId, userId) {
@@ -442,18 +436,24 @@ export function Students() {
     }
   }
 
-  async function handleBulkReject() {
+  function openBulkReject() {
+    if (!selectedPendingTargets().length) return;
+    setApprovalMsg(null);
+    setRejectOpen(true);
+  }
+
+  async function handleBulkReject(body) {
     const targets = selectedPendingTargets();
     if (!targets.length) return;
-    if (!window.confirm(`Отклонить выбранные аккаунты (${targets.length})?`)) return;
     setApprovalLoading(true);
     setApprovalMsg(null);
     try {
       for (const item of targets) {
-        await accountApi.rejectAccount(item.userId, {});
+        await accountApi.rejectAccount(item.userId, body);
       }
       setApprovalMsg({ type: 'ok', text: `Отклонено: ${targets.length}` });
       setSelectedIds(new Set());
+      setRejectOpen(false);
       await loadPending();
       await load();
     } catch (e) {
@@ -725,12 +725,20 @@ export function Students() {
               type="button"
               className="btn btn--danger btn--small"
               disabled={approvalLoading || selectedOnPage.length === 0}
-              onClick={handleBulkReject}
+              onClick={openBulkReject}
             >
               Отклонить выбранных
             </button>
           </div>
         </div>
+        {rejectOpen ? (
+          <AccountRejectForm
+            title={`Отклонение выбранных (${selectedOnPage.length})`}
+            submitting={approvalLoading}
+            onSubmit={handleBulkReject}
+            onCancel={() => setRejectOpen(false)}
+          />
+        ) : null}
         {loading ? (
           <p style={{ color: 'var(--text-muted)', margin: '0.75rem 0 0' }}>Загрузка…</p>
         ) : (
@@ -762,12 +770,11 @@ export function Students() {
                     <th>
                       <SortHeader label="Статус" sortKey="status" sort={sort} onSort={handleSort} />
                     </th>
-                    <th>Навыки</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
-                  {displayedRows.map((s) => {
+                  {rows.map((s) => {
                     const email = studentEmail(s);
                     const isDeleting = deletingId === s.id;
                     const meta = rowMeta(s);
@@ -804,18 +811,31 @@ export function Students() {
                           </StatusBadge>
                         </td>
                         <td>
-                          {(s.skills ?? [])
-                            .map((k) => k.name)
-                            .slice(0, 4)
-                            .join(', ')}
-                          {(s.skills?.length ?? 0) > 4 ? '…' : ''}
-                        </td>
-                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          <div className="table-actions">
+                          {meta.selectable && meta.emailVerified === false ? (
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--small"
+                              disabled={approvalLoading || deletingId != null}
+                              onClick={() => handleEmailVerified(meta.userId, true)}
+                            >
+                              Подтвердить почту
+                            </button>
+                          ) : null}
+                          {meta.selectable && meta.emailVerified === true ? (
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--small"
+                              disabled={approvalLoading || deletingId != null}
+                              onClick={() => handleEmailVerified(meta.userId, false)}
+                            >
+                              Снять подтверждение
+                            </button>
+                          ) : null}
                           {meta.selectable ? (
                             <button
                               type="button"
                               className="btn btn--primary btn--small"
-                              style={{ marginRight: '0.5rem' }}
                               disabled={approvalLoading || deletingId != null}
                               onClick={() => handleApproveOne(s.id, meta.userId)}
                             >
@@ -825,19 +845,19 @@ export function Students() {
                           <Link
                             className="btn btn--ghost"
                             to={`/students/${s.id}`}
-                            style={{ textDecoration: 'none', display: 'inline-flex' }}
+                            style={{ textDecoration: 'none' }}
                           >
                             Открыть
                           </Link>
                           <button
                             type="button"
                             className="btn btn--danger"
-                            style={{ marginLeft: '0.5rem' }}
                             disabled={isDeleting || deletingId != null}
                             onClick={() => handleDelete(s)}
                           >
                             {isDeleting ? 'Удаление…' : 'Удалить'}
                           </button>
+                          </div>
                         </td>
                       </tr>
                     );

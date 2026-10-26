@@ -13,3 +13,10 @@ export function bulkStudentVisibility(body) {
     json: body,
   });
 }
+
+export function sendStudentMail(body) {
+  return apiFetch('/admin/students/mail', {
+    method: 'POST',
+    json: body,
+  });
+}

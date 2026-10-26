@@ -253,6 +253,13 @@ a {
   color: var(--text);
 }
 
+.btn:disabled,
+.btn:disabled:hover {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: none;
+}
+
 .btn--danger {
   background: rgba(239, 68, 68, 0.15);
   border-color: rgba(239, 68, 68, 0.35);
@@ -1219,11 +1226,30 @@ table.data tbody tr:hover td {
 }
 
 .extended-block {
+  display: flex;
+  flex-direction: column;
   margin-bottom: 1.25rem;
   padding: 0.85rem 1rem;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: rgba(0, 0, 0, 0.15);
+}
+
+.extended-block__head {
+  order: 0;
+}
+
+.extended-saved-section {
+  order: 1;
+}
+
+.extended-block__empty,
+.extended-block__row:not(.extended-block__row--saved) {
+  order: 2;
+}
+
+.extended-block__commit {
+  order: 3;
 }
 
 .extended-block:last-child {
@@ -1517,10 +1543,12 @@ table.data .cell-mono {
 }
 
 .table-actions {
-  display: inline-flex;
+  display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
   justify-content: flex-end;
+  margin-left: auto;
+  max-width: 18rem;
 }
 
 .loading-block {

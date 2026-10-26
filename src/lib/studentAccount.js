@@ -14,6 +14,13 @@ export function studentAccountStatus(student, pendingByStudentId) {
   return 'APPROVED';
 }
 
+export function studentEmailVerified(student, pendingByStudentId) {
+  const pending = pendingByStudentId?.get(String(student?.id));
+  if (pending && typeof pending.emailVerified === 'boolean') return pending.emailVerified;
+  if (typeof student?.emailVerified === 'boolean') return student.emailVerified;
+  return null;
+}
+
 export function isPendingApproval(status) {
   return status === 'PENDING_APPROVAL' || status === 'PENDING';
 }
