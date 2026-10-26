@@ -15,6 +15,7 @@ import {
   buildExperienceCreateBody,
   buildInstitutionCreateBody,
 } from '../utils/experienceInstitutionPayload.js';
+import { AccountRejectForm } from '../components/AccountRejectForm.jsx';
 import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
 import { StudentCreateExtendedBlocks } from '../components/StudentCreateExtendedBlocks.jsx';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
@@ -74,6 +75,7 @@ export function StudentDetail() {
   const [pendingByStudentId, setPendingByStudentId] = useState(() => new Map());
   const [approvalMsg, setApprovalMsg] = useState(null);
   const [approvalLoading, setApprovalLoading] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
 
   function readSkillsIdsFromStudentDto(data, skillsList) {
     if (!data || typeof data !== 'object') return [];
@@ -502,14 +504,14 @@ export function StudentDetail() {
     }
   }
 
-  async function handleRejectAccount() {
+  async function handleRejectAccount(body) {
     if (!userId) return;
-    if (!window.confirm('Отклонить учётную запись?')) return;
     setApprovalLoading(true);
     setApprovalMsg(null);
     try {
-      await accountApi.rejectAccount(userId, {});
+      await accountApi.rejectAccount(userId, body);
       setApprovalMsg({ type: 'ok', text: 'Аккаунт отклонён' });
+      setRejectOpen(false);
       const pending = await accountApi.loadPendingStudentApprovals();
       setPendingByStudentId(pending);
       await loadStudent(undefined, () => true, { silent: true });
@@ -559,7 +561,10 @@ export function StudentDetail() {
               type="button"
               className="btn btn--danger"
               disabled={approvalLoading}
-              onClick={handleRejectAccount}
+              onClick={() => {
+                setApprovalMsg(null);
+                setRejectOpen(true);
+              }}
             >
               Отклонить
             </button>
@@ -569,6 +574,14 @@ export function StudentDetail() {
             Действия доступны только для аккаунтов на модерации.
           </p>
         )}
+        {canModerate && rejectOpen ? (
+          <AccountRejectForm
+            title="Отклонение аккаунта"
+            submitting={approvalLoading}
+            onSubmit={handleRejectAccount}
+            onCancel={() => setRejectOpen(false)}
+          />
+        ) : null}
       </div>
 
       <div className="panel">

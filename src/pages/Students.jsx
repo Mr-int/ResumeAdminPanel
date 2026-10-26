@@ -9,6 +9,7 @@ import * as experienceApi from '../api/experience.js';
 import * as institutionApi from '../api/institutions.js';
 import * as accountApi from '../api/accountApprovals.js';
 import { getSkillsOptions, getSpecialityOptions } from '../lib/referenceCache.js';
+import { AccountRejectForm } from '../components/AccountRejectForm.jsx';
 import { SkillPicker } from '../components/SkillPicker.jsx';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
 import {
@@ -101,6 +102,7 @@ export function Students() {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [approvalMsg, setApprovalMsg] = useState(null);
   const [approvalLoading, setApprovalLoading] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
   const [createForm, setCreateForm] = useState({
     city: '',
     hhLink: '',
@@ -442,18 +444,24 @@ export function Students() {
     }
   }
 
-  async function handleBulkReject() {
+  function openBulkReject() {
+    if (!selectedPendingTargets().length) return;
+    setApprovalMsg(null);
+    setRejectOpen(true);
+  }
+
+  async function handleBulkReject(body) {
     const targets = selectedPendingTargets();
     if (!targets.length) return;
-    if (!window.confirm(`Отклонить выбранные аккаунты (${targets.length})?`)) return;
     setApprovalLoading(true);
     setApprovalMsg(null);
     try {
       for (const item of targets) {
-        await accountApi.rejectAccount(item.userId, {});
+        await accountApi.rejectAccount(item.userId, body);
       }
       setApprovalMsg({ type: 'ok', text: `Отклонено: ${targets.length}` });
       setSelectedIds(new Set());
+      setRejectOpen(false);
       await loadPending();
       await load();
     } catch (e) {
@@ -725,12 +733,20 @@ export function Students() {
               type="button"
               className="btn btn--danger btn--small"
               disabled={approvalLoading || selectedOnPage.length === 0}
-              onClick={handleBulkReject}
+              onClick={openBulkReject}
             >
               Отклонить выбранных
             </button>
           </div>
         </div>
+        {rejectOpen ? (
+          <AccountRejectForm
+            title={`Отклонение выбранных (${selectedOnPage.length})`}
+            submitting={approvalLoading}
+            onSubmit={handleBulkReject}
+            onCancel={() => setRejectOpen(false)}
+          />
+        ) : null}
         {loading ? (
           <p style={{ color: 'var(--text-muted)', margin: '0.75rem 0 0' }}>Загрузка…</p>
         ) : (
