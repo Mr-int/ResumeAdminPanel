@@ -76,7 +76,7 @@ function pickCompanyByName(companyOptions, name) {
 }
 
 function SavedRecordsSection({ count, label, children }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   if (!count) return null;
   return (
     <div className="extended-saved-section">
