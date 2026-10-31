@@ -245,21 +245,6 @@ export function ProjectDetail() {
             />
           </div>
 
-          <div className="form-row" style={{ marginTop: '0.75rem' }}>
-            <div className="field">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={form.visibleToAnonymous}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, visibleToAnonymous: e.target.checked }))
-                  }
-                  style={{ marginRight: '0.35rem' }}
-                />
-                Виден на публичной витрине
-              </label>
-            </div>
-          </div>
           <div className="form-row">
             <DateTimeField
               id="proj-edit-from"

@@ -117,20 +117,6 @@ export function rejectVacancy(id, body) {
   });
 }
 
-export function reorderVacancies(orderedIds) {
-  return apiFetch('/admin/vacancies/reorder', {
-    method: 'POST',
-    json: { orderedIds },
-  });
-}
-
-export function patchVacancyVitrina(id, body) {
-  return apiFetch(`/admin/vacancies/${id}/vitrina`, {
-    method: 'PATCH',
-    json: body,
-  });
-}
-
 /** Архивировать вакансию (DELETE /vacancies/{id}, для не-черновиков). */
 export function archiveVacancy(id) {
   return apiFetch(`/vacancies/${id}`, { method: 'DELETE' });

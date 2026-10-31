@@ -110,12 +110,6 @@ export const FUNNEL_EVENT_ORDER = [
   'CHAT_SUCCESS',
 ];
 
-export const HOME_VITRINA_LABELS = {
-  publicProfileConsent: 'На главной',
-  visibleToAnonymous: 'На главной',
-  vacancyCatalog: 'В каталоге после входа',
-};
-
 export const MAIL_SKIP_REASONS = {
   NO_EMAIL: 'Нет почты, письмо не отправляли',
   DUPLICATE: 'Такой адрес уже был в этой пачке',

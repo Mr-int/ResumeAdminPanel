@@ -39,7 +39,6 @@ const emptyCreateForm = () => ({
   publishedFrom: '',
   publishedTo: '',
   slotsCount: '',
-  visibleToAnonymous: true,
   submitForReview: true,
   approveImmediately: false,
 });
@@ -63,7 +62,6 @@ export function Vacancies() {
   const [rejectId, setRejectId] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [msg, setMsg] = useState(null);
-  const [detailsToggling, setDetailsToggling] = useState(null);
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState(emptyCreateForm);
   const [createPending, setCreatePending] = useState(false);
@@ -225,7 +223,6 @@ export function Vacancies() {
           createForm.slotsCount !== '' && !Number.isNaN(Number(createForm.slotsCount))
             ? Number(createForm.slotsCount)
             : null,
-        visibleToAnonymous: createForm.visibleToAnonymous,
       };
 
       const createCall = createForm.useOnboarding
@@ -365,23 +362,6 @@ export function Vacancies() {
     if (!v?.id) return false;
     if (isRecruiter) return v.status === 'DRAFT';
     return true;
-  }
-
-  async function handleVisibleToggle(v, checked) {
-    setDetailsToggling(v.id);
-    setError(null);
-    try {
-      await vacanciesApi.patchVacancyVitrina(v.id, { visibleToAnonymous: checked });
-      if (selectedId === v.id && details) {
-        setDetails({ ...details, visibleToAnonymous: checked });
-      }
-      setMsg({ type: 'ok', text: 'Настройки каталога обновлены' });
-      await load();
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setDetailsToggling(null);
-    }
   }
 
   const totalPages = data?.totalPages ?? 0;
@@ -539,16 +519,6 @@ export function Vacancies() {
                   }
                 />
                 Первая вакансия (onboarding API)
-              </label>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-                <input
-                  type="checkbox"
-                  checked={createForm.visibleToAnonymous}
-                  onChange={(e) =>
-                    setCreateForm((p) => ({ ...p, visibleToAnonymous: e.target.checked }))
-                  }
-                />
-                Видна в каталоге после входа
               </label>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
                 <input
@@ -817,22 +787,6 @@ export function Vacancies() {
                 { label: 'Занятость', value: details.employmentType },
                 { label: 'Навыки', value: (details.skills ?? []).map((s) => s.name).join(', ') || '—' },
                 { label: 'Откликов', value: details.applicationsCount ?? 0 },
-                {
-                  label: 'В каталоге после входа',
-                  value: isRecruiter ? (
-                    details.visibleToAnonymous ? 'да' : 'нет'
-                  ) : (
-                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <input
-                        type="checkbox"
-                        checked={!!details.visibleToAnonymous}
-                        disabled={detailsToggling === details.id || details.status !== 'PUBLISHED'}
-                        onChange={(e) => handleVisibleToggle(details, e.target.checked)}
-                      />
-                      {details.visibleToAnonymous ? 'да' : 'нет'}
-                    </label>
-                  ),
-                },
                 ...(details.moderationRejectionReason
                   ? [{ label: 'Причина отклонения', value: details.moderationRejectionReason }]
                   : []),
