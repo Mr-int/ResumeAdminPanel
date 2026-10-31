@@ -485,6 +485,7 @@ export function StudentDetail() {
   const accountStatus = studentAccountStatus(student, pendingByStudentId);
   const userId = studentUserId(student, pendingByStudentId);
   const canModerate = Boolean(userId) && isPendingApproval(accountStatus);
+  const canReject = Boolean(userId) && (isPendingApproval(accountStatus) || accountStatus === 'APPROVED');
   const emailVerified = studentEmailVerified(student, pendingByStudentId);
   const publicResumeUrl = studentResumeUrl(id);
 
@@ -568,9 +569,9 @@ export function StudentDetail() {
         </p>
         {approvalMsg?.type === 'ok' ? <div className="alert alert--success">{approvalMsg.text}</div> : null}
         {approvalMsg?.type === 'err' ? <div className="alert alert--error">{approvalMsg.text}</div> : null}
-        {canModerate ? (
+        {canModerate || canReject ? (
           <div className="form-row">
-            {emailVerified === false ? (
+            {canModerate && emailVerified === false ? (
               <button
                 type="button"
                 className="btn btn--ghost"
@@ -580,7 +581,7 @@ export function StudentDetail() {
                 Подтвердить почту
               </button>
             ) : null}
-            {emailVerified === true ? (
+            {canModerate && emailVerified === true ? (
               <button
                 type="button"
                 className="btn btn--ghost"
@@ -590,32 +591,36 @@ export function StudentDetail() {
                 Снять подтверждение
               </button>
             ) : null}
-            <button
-              type="button"
-              className="btn btn--primary"
-              disabled={approvalLoading}
-              onClick={handleApproveAccount}
-            >
-              Одобрить
-            </button>
-            <button
-              type="button"
-              className="btn btn--danger"
-              disabled={approvalLoading}
-              onClick={() => {
-                setApprovalMsg(null);
-                setRejectOpen(true);
-              }}
-            >
-              Отклонить
-            </button>
+            {canModerate ? (
+              <button
+                type="button"
+                className="btn btn--primary"
+                disabled={approvalLoading}
+                onClick={handleApproveAccount}
+              >
+                Одобрить
+              </button>
+            ) : null}
+            {canReject ? (
+              <button
+                type="button"
+                className="btn btn--danger"
+                disabled={approvalLoading}
+                onClick={() => {
+                  setApprovalMsg(null);
+                  setRejectOpen(true);
+                }}
+              >
+                Отклонить
+              </button>
+            ) : null}
           </div>
         ) : (
           <p className="page__lead" style={{ margin: 0 }}>
             Действия доступны только для аккаунтов на модерации.
           </p>
         )}
-        {canModerate && rejectOpen ? (
+        {canReject && rejectOpen ? (
           <AccountRejectForm
             title="Отклонение аккаунта"
             submitting={approvalLoading}

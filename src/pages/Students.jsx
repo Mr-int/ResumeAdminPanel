@@ -80,6 +80,7 @@ export function Students() {
   const [approvalMsg, setApprovalMsg] = useState(null);
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectOneUserId, setRejectOneUserId] = useState(null);
   const [createForm, setCreateForm] = useState({
     city: '',
     hhLink: '',
@@ -439,7 +440,32 @@ export function Students() {
   function openBulkReject() {
     if (!selectedPendingTargets().length) return;
     setApprovalMsg(null);
+    setRejectOneUserId(null);
     setRejectOpen(true);
+  }
+
+  function openRejectOne(userId) {
+    if (!userId) return;
+    setApprovalMsg(null);
+    setRejectOpen(false);
+    setRejectOneUserId(userId);
+  }
+
+  async function handleRejectOne(body) {
+    if (!rejectOneUserId) return;
+    setApprovalLoading(true);
+    setApprovalMsg(null);
+    try {
+      await accountApi.rejectAccount(rejectOneUserId, body);
+      setApprovalMsg({ type: 'ok', text: 'Аккаунт отклонён' });
+      setRejectOneUserId(null);
+      await loadPending();
+      await load();
+    } catch (e) {
+      setApprovalMsg({ type: 'err', text: e.message });
+    } finally {
+      setApprovalLoading(false);
+    }
   }
 
   async function handleBulkReject(body) {
@@ -739,6 +765,14 @@ export function Students() {
             onCancel={() => setRejectOpen(false)}
           />
         ) : null}
+        {rejectOneUserId ? (
+          <AccountRejectForm
+            title="Отклонение аккаунта"
+            submitting={approvalLoading}
+            onSubmit={handleRejectOne}
+            onCancel={() => setRejectOneUserId(null)}
+          />
+        ) : null}
         {loading ? (
           <p style={{ color: 'var(--text-muted)', margin: '0.75rem 0 0' }}>Загрузка…</p>
         ) : (
@@ -840,6 +874,16 @@ export function Students() {
                               onClick={() => handleApproveOne(s.id, meta.userId)}
                             >
                               Одобрить
+                            </button>
+                          ) : null}
+                          {meta.status === 'APPROVED' && meta.userId ? (
+                            <button
+                              type="button"
+                              className="btn btn--danger btn--small"
+                              disabled={approvalLoading || deletingId != null}
+                              onClick={() => openRejectOne(meta.userId)}
+                            >
+                              Отклонить
                             </button>
                           ) : null}
                           <Link
