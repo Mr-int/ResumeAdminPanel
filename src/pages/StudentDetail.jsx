@@ -563,7 +563,7 @@ export function StudentDetail() {
         <h2 className="panel__title">Модерация аккаунта</h2>
         <p style={{ margin: '0 0 0.75rem' }}>
           <StatusBadge variant={accountStatusVariant(accountStatus)}>
-            {labelOf(ACCOUNT_STATUS_LABELS, accountStatus, accountStatus)}
+            {labelOf(ACCOUNT_STATUS_LABELS, accountStatus)}
           </StatusBadge>
         </p>
         {approvalMsg?.type === 'ok' ? <div className="alert alert--success">{approvalMsg.text}</div> : null}

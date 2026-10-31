@@ -807,7 +807,7 @@ export function Students() {
                         <td>{s.course}</td>
                         <td>
                           <StatusBadge variant={accountStatusVariant(meta.status)}>
-                            {labelOf(ACCOUNT_STATUS_LABELS, meta.status, meta.status)}
+                            {labelOf(ACCOUNT_STATUS_LABELS, meta.status)}
                           </StatusBadge>
                         </td>
                         <td>
