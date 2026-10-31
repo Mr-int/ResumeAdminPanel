@@ -46,9 +46,9 @@ function RequireAuth() {
 }
 
 function RequireAdmin() {
-  const { isRecruiter } = useAuth();
-  if (isRecruiter) {
-    return <Navigate to="/vacancies" replace />;
+  const { isAdmin } = useAuth();
+  if (!isAdmin) {
+    return <Navigate to="/login" replace />;
   }
   return <Outlet />;
 }
@@ -58,16 +58,16 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route element={<RequireAuth />}>
-        <Route element={<Layout />}>
-          <Route
-            path="/vacancies"
-            element={
-              <LazyPage>
-                <Vacancies />
-              </LazyPage>
-            }
-          />
-          <Route element={<RequireAdmin />}>
+        <Route element={<RequireAdmin />}>
+          <Route element={<Layout />}>
+            <Route
+              path="/vacancies"
+              element={
+                <LazyPage>
+                  <Vacancies />
+                </LazyPage>
+              }
+            />
             <Route
               path="/"
               element={

@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { SITE_BASE_URL } from '../config.js';
 import * as authApi from '../api/auth.js';
 import { resetRecruiterDirectory } from '../lib/recruiterDirectory.js';
 import { resetReferenceCache } from '../lib/referenceCache.js';
@@ -41,16 +42,21 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let cancelled = false;
+    let redirecting = false;
     (async () => {
       try {
         const session = await authApi.restoreSession();
-        if (!cancelled) {
-          resetUnauthorizedRedirect();
-          setRole(session.role);
-          setRealm(session.realm);
-          setUser(session.user);
-          setAuthenticated(true);
+        if (cancelled) return;
+        if (session?.redirectToSite) {
+          redirecting = true;
+          window.location.replace(SITE_BASE_URL);
+          return;
         }
+        resetUnauthorizedRedirect();
+        setRole(session.role);
+        setRealm(session.realm);
+        setUser(session.user);
+        setAuthenticated(true);
       } catch {
         if (!cancelled) {
           setRole(null);
@@ -59,7 +65,7 @@ export function AuthProvider({ children }) {
           setAuthenticated(false);
         }
       } finally {
-        if (!cancelled) setReady(true);
+        if (!cancelled && !redirecting) setReady(true);
       }
     })();
     return () => {
