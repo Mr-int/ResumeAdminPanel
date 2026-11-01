@@ -8,7 +8,7 @@ function Card({ children, onDelete, deleteDisabled, recordId }) {
       <div className="extended-record-card__main">{children}</div>
       <div className="extended-record-card__actions">
         {recordId != null ? (
-          <span className="extended-record-card__ref" title="Внутренний идентификатор в API">
+          <span className="extended-record-card__ref" title="Номер записи">
             запись #{recordId}
           </span>
         ) : null}

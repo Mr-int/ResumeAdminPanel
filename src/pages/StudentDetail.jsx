@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useEffectWithAbort } from '../hooks/useEffectWithAbort.js';
 import * as studentsApi from '../api/students.js';
+import * as requestsApi from '../api/requests.js';
 import * as portfolioApi from '../api/portfolio.js';
 import * as experienceApi from '../api/experience.js';
 import * as institutionApi from '../api/institutions.js';
@@ -16,6 +17,9 @@ import {
   buildInstitutionCreateBody,
 } from '../utils/experienceInstitutionPayload.js';
 import { AccountRejectForm } from '../components/AccountRejectForm.jsx';
+import { ProfileChecklist, ProfileMeter } from '../components/ProfileReadiness.jsx';
+import { deleteStudentWithLinks } from '../lib/deleteStudentWithLinks.js';
+import { checksFilled, detailProfileChecks } from '../lib/studentProfileChecks.js';
 import { SkillPicker, StudentPhotoBlock } from '../components/SkillPicker.jsx';
 import { StudentCreateExtendedBlocks } from '../components/StudentCreateExtendedBlocks.jsx';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
@@ -43,6 +47,7 @@ const emptyExtDraft = () => ({
 
 export function StudentDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [student, setStudent] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -77,6 +82,8 @@ export function StudentDetail() {
   const [approvalMsg, setApprovalMsg] = useState(null);
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteStatus, setDeleteStatus] = useState(null);
 
   function readSkillsIdsFromStudentDto(data, skillsList) {
     if (!data || typeof data !== 'object') return [];
@@ -428,7 +435,7 @@ export function StudentDetail() {
       return hasAnyValue;
     });
     if (!rows.length) {
-      setExtendedMsg({ type: 'err', text: 'Добавьте хотя бы одну строку institution' });
+      setExtendedMsg({ type: 'err', text: 'Добавьте хотя бы одну строку обучения' });
       return;
     }
     setCommitting((c) => ({ ...c, institution: true }));
@@ -487,6 +494,12 @@ export function StudentDetail() {
   const canModerate = Boolean(userId) && isPendingApproval(accountStatus);
   const canReject = Boolean(userId) && (isPendingApproval(accountStatus) || accountStatus === 'APPROVED');
   const emailVerified = studentEmailVerified(student, pendingByStudentId);
+  const profileChecks = detailProfileChecks(student, emailVerified, {
+    portfolios,
+    experiences,
+    institutions,
+  });
+  const profileReady = checksFilled(profileChecks).complete && canModerate;
   const publicResumeUrl = studentResumeUrl(id);
 
   async function handleEmailVerified(nextVerified) {
@@ -526,6 +539,27 @@ export function StudentDetail() {
     }
   }
 
+  async function handleDeleteStudent() {
+    if (!student?.id || deleting) return;
+    const name = `${student.firstName ?? ''} ${student.lastName ?? ''}`.trim() || 'студента';
+    if (!window.confirm(`Удалить «${name}»? Действие нельзя отменить.`)) return;
+    setDeleting(true);
+    setDeleteStatus(null);
+    setApprovalMsg(null);
+    try {
+      await deleteStudentWithLinks(
+        student.id,
+        { studentsApi, requestsApi, portfolioApi, experienceApi, institutionApi },
+        setDeleteStatus,
+      );
+      navigate('/students', { replace: true });
+    } catch (e) {
+      setDeleteStatus(null);
+      setApprovalMsg({ type: 'err', text: e.message || 'Не удалось удалить студента' });
+      setDeleting(false);
+    }
+  }
+
   async function handleRejectAccount(body) {
     if (!userId) return;
     setApprovalLoading(true);
@@ -562,42 +596,21 @@ export function StudentDetail() {
 
       <div className="panel panel--accent">
         <h2 className="panel__title">Модерация аккаунта</h2>
-        <p className="page__lead" style={{ marginTop: 0 }}>
-          Одобрить можно только из статуса «На модерации» и только если почта подтверждена.
-          Иначе сервер ответит «Студент ещё не подтвердил почту» или «Анкета неполная: …».
-          Для одобрения нужны фото, портфолио, опыт, образование, описание от 30 символов,
-          имя, фамилия, специальность, курс, не меньше 5 навыков, тип занятости и город.
-          «Подтвердить почту» статус само не меняет.
-        </p>
         <p style={{ margin: '0 0 0.75rem' }}>
           <StatusBadge variant={accountStatusVariant(accountStatus)}>
             {labelOf(ACCOUNT_STATUS_LABELS, accountStatus)}
           </StatusBadge>
         </p>
+        <ProfileMeter
+          checks={profileChecks}
+          ready={profileReady}
+          caption={profileReady ? 'Анкету можно одобрить.' : 'Зелёная шкала значит, что анкета полная и ждёт модерации.'}
+        />
+        <ProfileChecklist checks={profileChecks} />
         {approvalMsg?.type === 'ok' ? <div className="alert alert--success">{approvalMsg.text}</div> : null}
         {approvalMsg?.type === 'err' ? <div className="alert alert--error">{approvalMsg.text}</div> : null}
         {canModerate || canReject ? (
           <div className="form-row">
-            {canModerate && emailVerified === false ? (
-              <button
-                type="button"
-                className="btn btn--ghost"
-                disabled={approvalLoading}
-                onClick={() => handleEmailVerified(true)}
-              >
-                Подтвердить почту
-              </button>
-            ) : null}
-            {canModerate && emailVerified === true ? (
-              <button
-                type="button"
-                className="btn btn--ghost"
-                disabled={approvalLoading}
-                onClick={() => handleEmailVerified(false)}
-              >
-                Снять подтверждение
-              </button>
-            ) : null}
             {canModerate ? (
               <button
                 type="button"
@@ -624,7 +637,7 @@ export function StudentDetail() {
           </div>
         ) : (
           <p className="page__lead" style={{ margin: 0 }}>
-            Действия доступны только для аккаунтов на модерации.
+            Этот аккаунт уже отклонён.
           </p>
         )}
         {canReject && rejectOpen ? (
@@ -638,7 +651,7 @@ export function StudentDetail() {
       </div>
 
       <div className="panel">
-        <h2 className="panel__title">Профиль (фото + PUT /student/{'{id}'})</h2>
+        <h2 className="panel__title">Профиль</h2>
         {optionsError ? <div className="alert alert--error">Справочники (навыки/специальности): {optionsError}</div> : null}
         <div className="profile-edit-layout">
           <div className="profile-edit-layout__photo">
@@ -748,7 +761,7 @@ export function StudentDetail() {
           setForm={setExtDraft}
           showLead={false}
           editMode
-          editLeadText="Добавляйте записи уже после создания студента (когда есть ID)."
+          editLeadText="Новые записи появятся в анкете после сохранения."
           companyOptions={companyOptions}
           existingPortfolios={portfolios}
           onDeletePortfolio={handleDeletePortfolio}
@@ -767,6 +780,55 @@ export function StudentDetail() {
           committingInstitution={committing.institution}
         />
         ) : null}
+      </div>
+
+      <div className="panel">
+        <h2 className="panel__title">Верификация почты</h2>
+        <p className="page__lead" style={{ marginTop: 0 }}>
+          Подтверждение почты не меняет статус аккаунта.
+        </p>
+        {userId ? (
+          <div className="form-row">
+            {emailVerified === false ? (
+              <button
+                type="button"
+                className="btn btn--primary"
+                disabled={approvalLoading}
+                onClick={() => handleEmailVerified(true)}
+              >
+                Подтвердить почту
+              </button>
+            ) : null}
+            {emailVerified === true ? (
+              <button
+                type="button"
+                className="btn btn--ghost"
+                disabled={approvalLoading}
+                onClick={() => handleEmailVerified(false)}
+              >
+                Снять подтверждение
+              </button>
+            ) : null}
+            {emailVerified == null ? (
+              <p className="page__lead" style={{ margin: 0 }}>Статус почты неизвестен.</p>
+            ) : null}
+          </div>
+        ) : (
+          <p className="page__lead" style={{ margin: 0 }}>У карточки нет учётной записи.</p>
+        )}
+      </div>
+
+      <div className="panel">
+        <h2 className="panel__title">Удаление</h2>
+        {deleteStatus ? <div className="alert">{deleteStatus}</div> : null}
+        <button
+          type="button"
+          className="btn btn--danger"
+          disabled={deleting}
+          onClick={handleDeleteStudent}
+        >
+          {deleting ? 'Удаление…' : 'Удалить'}
+        </button>
       </div>
 
     </div>

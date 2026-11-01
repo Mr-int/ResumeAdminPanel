@@ -105,7 +105,7 @@ export function Vacancies() {
     } catch (e) {
       if (isRecruiter && e.status === 403) {
         setError(
-          'Нет доступа к списку вакансий. Оформите профиль работодателя (GET /recruiter/me не должен возвращать 404).'
+          'Нет доступа к списку вакансий. Сначала заполните профиль работодателя.'
         );
       } else {
         setError(e.message);
@@ -518,7 +518,7 @@ export function Vacancies() {
                     setCreateForm((p) => ({ ...p, useOnboarding: e.target.checked }))
                   }
                 />
-                Первая вакансия (onboarding API)
+                Первая вакансия работодателя
               </label>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
                 <input
