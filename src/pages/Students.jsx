@@ -736,6 +736,13 @@ export function Students() {
       {approvalMsg?.type === 'err' ? <div className="alert alert--error">{approvalMsg.text}</div> : null}
 
       <div className="panel">
+        <p className="page__lead" style={{ marginTop: 0 }}>
+          Одобрить можно только из статуса «На модерации» и только если почта подтверждена.
+          Иначе сервер ответит «Студент ещё не подтвердил почту» или «Анкета неполная: …».
+          Для одобрения нужны фото, портфолио, опыт, образование, описание от 30 символов,
+          имя, фамилия, специальность, курс, не меньше 5 навыков, тип занятости и город.
+          «Подтвердить почту» статус само не меняет.
+        </p>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
           <h2 className="panel__title" style={{ margin: 0 }}>Карточки</h2>
           <div className="form-row" style={{ margin: 0 }}>

@@ -562,6 +562,13 @@ export function StudentDetail() {
 
       <div className="panel panel--accent">
         <h2 className="panel__title">Модерация аккаунта</h2>
+        <p className="page__lead" style={{ marginTop: 0 }}>
+          Одобрить можно только из статуса «На модерации» и только если почта подтверждена.
+          Иначе сервер ответит «Студент ещё не подтвердил почту» или «Анкета неполная: …».
+          Для одобрения нужны фото, портфолио, опыт, образование, описание от 30 символов,
+          имя, фамилия, специальность, курс, не меньше 5 навыков, тип занятости и город.
+          «Подтвердить почту» статус само не меняет.
+        </p>
         <p style={{ margin: '0 0 0.75rem' }}>
           <StatusBadge variant={accountStatusVariant(accountStatus)}>
             {labelOf(ACCOUNT_STATUS_LABELS, accountStatus)}
