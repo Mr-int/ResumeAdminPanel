@@ -46,3 +46,7 @@ export function uploadStudentPhoto(id, file) {
   body.append('avatarFile', file);
   return apiFetch(`/student/photo/${id}`, { method: 'POST', body });
 }
+
+export function deleteStudentPhoto(id) {
+  return apiFetch(`/student/photo/${id}`, { method: 'DELETE' });
+}

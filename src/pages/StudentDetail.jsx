@@ -316,6 +316,23 @@ export function StudentDetail() {
     }
   }
 
+  async function handlePhotoDelete() {
+    if (!student?.imagePath || photoUploading) return;
+    if (!window.confirm('Удалить фото? В анкете снова будет «нет фото».')) return;
+    setMediaMsg(null);
+    setPhotoUploading(true);
+    try {
+      await studentsApi.deleteStudentPhoto(id);
+      setPhotoFile(null);
+      setMediaMsg({ type: 'ok', text: 'Фото удалено' });
+      await loadStudent(undefined, () => true, { silent: true });
+    } catch (e) {
+      setMediaMsg({ type: 'err', text: e.message });
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
   async function commitPortfolios() {
     setExtendedMsg(null);
     const rows = extDraft.portfolioRows.filter((r) => r.name?.trim());
@@ -676,6 +693,16 @@ export function StudentDetail() {
                 <button type="submit" className="btn btn--primary" disabled={photoUploading}>
                   {photoUploading ? 'Загрузка…' : 'Загрузить / сменить фото'}
                 </button>
+                {student.imagePath ? (
+                  <button
+                    type="button"
+                    className="btn btn--danger"
+                    disabled={photoUploading}
+                    onClick={handlePhotoDelete}
+                  >
+                    Удалить фото
+                  </button>
+                ) : null}
               </form>
             </StudentPhotoBlock>
             <p className="page__lead" style={{ margin: '0.75rem 0 0' }}>
@@ -725,7 +752,14 @@ export function StudentDetail() {
               </div>
               <div className="form-row">
                 <div className="field"><label>Город</label><input value={form.city} onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))} /></div>
-                <div className="field"><label>Email</label><input type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} /></div>
+                <div className="field">
+                  <label>Email</label>
+                  <input type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} />
+                  <p className="page__lead" style={{ margin: '0.35rem 0 0' }}>
+                    Так указывают почту старым анкетам, где её не было. Пустое поле адрес не стирает.
+                    Подтверждение почты включается отдельно, в блоке «Верификация почты».
+                  </p>
+                </div>
                 <div className="field"><label>Телефон</label><input value={form.phoneNumber} onChange={(e) => setForm((p) => ({ ...p, phoneNumber: e.target.value }))} /></div>
                 <div className="field"><label>Telegram</label><input value={form.telegramUsername} onChange={(e) => setForm((p) => ({ ...p, telegramUsername: e.target.value }))} /></div>
               </div>
