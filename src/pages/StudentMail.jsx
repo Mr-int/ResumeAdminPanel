@@ -374,8 +374,26 @@ export function StudentMail() {
       <form className="panel panel--accent" onSubmit={handleSend}>
         <h2 className="panel__title">Письмо</h2>
         <p className="page__lead" style={{ marginTop: 0 }}>
-          HTML и подстановка имени не работают. Переносы строк сохраняются.
+          HTML не работает, переносы строк сохраняются.
           Адрес берёт сервер: почта регистрации, если её нет — email карточки.
+          В теме и тексте слова в двойных скобках заменяются отдельно для каждого получателя.
+          Незнакомое {'{{слово}}'} остаётся как написано.
+        </p>
+        <ul className="page__lead" style={{ marginTop: 0 }}>
+          <li>{'{{firstName}}'} — имя</li>
+          <li>{'{{lastName}}'} — фамилия</li>
+          <li>{'{{name}}'} — имя и фамилия</li>
+          <li>{'{{username}}'} — логин</li>
+          <li>{'{{email}}'} — почта, на которую ушло письмо</li>
+          <li>{'{{course}}'} — курс цифрой: 1–5</li>
+          <li>{'{{busyness}}'} — free, freelance, employed или project_work</li>
+          <li>{'{{speciality}}'} — название специальности</li>
+          <li>{'{{studentId}}'} — id карточки</li>
+        </ul>
+        <p className="page__lead" style={{ marginTop: 0 }}>
+          «Здравствуйте, {'{{firstName}}'}. Вы на {'{{course}}'} курсе, специальность {'{{speciality}}'}.»
+          для Ивана, 2 курса, «Дизайн» уйдёт так:
+          «Здравствуйте, Иван. Вы на 2 курсе, специальность Дизайн.»
         </p>
         <div className="field">
           <label htmlFor="mail-subject">Тема</label>

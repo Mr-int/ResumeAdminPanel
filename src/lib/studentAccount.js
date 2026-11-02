@@ -10,8 +10,8 @@ export function studentAccountStatus(student, pendingByStudentId) {
   const direct = student?.accountStatus ?? student?.user?.accountStatus;
   if (direct) return direct;
   const pending = pendingByStudentId?.get(String(student?.id));
-  if (pending) return pending.accountStatus ?? 'PENDING_APPROVAL';
-  return 'APPROVED';
+  if (pending?.accountStatus) return pending.accountStatus;
+  return null;
 }
 
 export function studentEmailVerified(student, pendingByStudentId) {

@@ -53,17 +53,17 @@ export function Dashboard() {
     <div className="page">
       <PageHeader
         title="Главная"
-        lead="Сводка состояния системы и быстрый переход к разделам админ-панели."
+        lead="Сводка и переход к разделам."
       />
 
       <div className="stats-grid" style={{ marginBottom: '1.25rem' }}>
         <div className="stat-card">
-          <p className="stat-card__label">API</p>
+          <p className="stat-card__label">Сервер</p>
           <p className="stat-card__value" style={{ fontSize: '1.1rem' }}>
             {ok === null ? '…' : ok ? 'Доступен' : 'Недоступен'}
           </p>
           <p className="stat-card__hint">
-            {ok === null ? 'Загрузка сводки' : ok ? 'Админ-эндпоинты отвечают' : err}
+            {ok === null ? 'Загрузка' : ok ? 'Связь есть' : err}
           </p>
         </div>
         <div className="stat-card">
@@ -74,18 +74,17 @@ export function Dashboard() {
           </p>
         </div>
         <div className="stat-card">
-          <p className="stat-card__label">Базовый URL</p>
+          <p className="stat-card__label">Адрес сервера</p>
           <p className="stat-card__value" style={{ fontSize: '0.85rem', wordBreak: 'break-all' }}>
             {API_BASE}
           </p>
-          <p className="stat-card__hint">Cookie-сессия, credentials: include</p>
+          <p className="stat-card__hint">Сессия хранится в cookie</p>
         </div>
       </div>
 
       {ok === false ? (
         <div className="alert alert--error">
-          Не удалось связаться с API. Убедитесь, что backend запущен и{' '}
-          <code>VITE_API_URL</code> указан верно.
+          Не удалось связаться с сервером. Проверьте, что он запущен.
         </div>
       ) : null}
 

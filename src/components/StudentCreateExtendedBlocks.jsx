@@ -408,7 +408,7 @@ export function StudentCreateExtendedBlocks({
 
       <div className="extended-block">
         <div className="extended-block__head">
-          <h3 className="extended-block__title">Опыт (experience)</h3>
+          <h3 className="extended-block__title">Опыт</h3>
           <button
             type="button"
             className="btn btn--ghost btn--small"
@@ -692,7 +692,7 @@ export function StudentCreateExtendedBlocks({
 
       <div className="extended-block">
         <div className="extended-block__head">
-          <h3 className="extended-block__title">Учебное заведение (institution)</h3>
+          <h3 className="extended-block__title">Обучение</h3>
           <button
             type="button"
             className="btn btn--ghost btn--small"
@@ -720,7 +720,7 @@ export function StudentCreateExtendedBlocks({
             <div key={idx} className="extended-block__row">
               <div className="form-row">
                 <div className="field" style={{ minWidth: 200, flex: 1 }}>
-                  <label>Education (заведение)</label>
+                  <label>Учебное заведение</label>
                   <select
                     value={row.educationId ?? ''}
                     onChange={(e) =>
@@ -734,7 +734,7 @@ export function StudentCreateExtendedBlocks({
                     <option value="">Не выбрано</option>
                     {(educationOptions ?? []).map((ed) => (
                       <option key={ed.id} value={String(ed.id)}>
-                        {ed.institution || `Education #${ed.id}`} (ID: {ed.id})
+                        {ed.institution || 'Без названия'}
                       </option>
                     ))}
                   </select>
@@ -805,7 +805,7 @@ export function StudentCreateExtendedBlocks({
                 <div key={kid} className="extended-block__row extended-block__row--saved">
                   <div className="form-row">
                     <div className="field" style={{ minWidth: 200, flex: 1 }}>
-                      <label>Education (заведение)</label>
+                      <label>Учебное заведение</label>
                       <select
                         disabled={!canEdit}
                         value={current.educationId ?? ''}
@@ -824,7 +824,7 @@ export function StudentCreateExtendedBlocks({
                         <option value="">Не выбрано</option>
                         {(educationOptions ?? []).map((ed) => (
                           <option key={ed.id} value={String(ed.id)}>
-                            {ed.institution || `Education #${ed.id}`} (ID: {ed.id})
+                            {ed.institution || 'Без названия'}
                           </option>
                         ))}
                       </select>
@@ -904,7 +904,7 @@ export function StudentCreateExtendedBlocks({
 
       <div className="extended-block">
         <div className="extended-block__head">
-          <h3 className="extended-block__title">Education</h3>
+          <h3 className="extended-block__title">Справочник заведений</h3>
           <button
             type="button"
             className="btn btn--ghost btn--small"
@@ -1001,7 +1001,7 @@ export function StudentCreateExtendedBlocks({
         ) : null}
 
         {editMode && existingEducations?.length ? (
-          <SavedRecordsSection count={existingEducations.length} label="Уже в справочнике — education">
+          <SavedRecordsSection count={existingEducations.length} label="Уже в справочнике">
             {existingEducations.map((raw) => {
               const row = normalizeEducation(raw);
               const kid = row.id != null ? `ed-${row.id}` : `ed-${row.institution}`;

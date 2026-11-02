@@ -3,13 +3,11 @@ import { useEffectWithAbort } from '../hooks/useEffectWithAbort.js';
 import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { Link, useNavigate } from 'react-router-dom';
 import * as studentsApi from '../api/students.js';
-import * as requestsApi from '../api/requests.js';
-import * as portfolioApi from '../api/portfolio.js';
-import * as experienceApi from '../api/experience.js';
-import * as institutionApi from '../api/institutions.js';
 import * as accountApi from '../api/accountApprovals.js';
 import { getSkillsOptions, getSpecialityOptions } from '../lib/referenceCache.js';
 import { AccountRejectForm } from '../components/AccountRejectForm.jsx';
+import { ProfileMeter } from '../components/ProfileReadiness.jsx';
+import { listProfileChecks } from '../lib/studentProfileChecks.js';
 import { SkillPicker } from '../components/SkillPicker.jsx';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
 import {
@@ -73,13 +71,12 @@ export function Students() {
   const [skillsOptions, setSkillsOptions] = useState([]);
   const [specialityOptions, setSpecialityOptions] = useState([]);
   const [optionsError, setOptionsError] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
-  const [deleteStatus, setDeleteStatus] = useState(null);
   const [pendingByStudentId, setPendingByStudentId] = useState(() => new Map());
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [approvalMsg, setApprovalMsg] = useState(null);
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectOneUserId, setRejectOneUserId] = useState(null);
   const [createForm, setCreateForm] = useState({
     city: '',
     hhLink: '',
@@ -138,74 +135,6 @@ export function Students() {
 
   useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
   useEffectWithAbort((_signal, isActive) => loadPending(isActive), [loadPending]);
-
-  async function cascadeDeleteStudent(studentId) {
-    const sid = String(studentId);
-    const safeList = (res) => {
-      const v = res?.data?.data ?? res?.data ?? [];
-      return Array.isArray(v) ? v : [];
-    };
-
-    async function deleteAllByFilter(filterFn, deleteFn, filter) {
-      for (let i = 0; i < 10; i += 1) {
-        const { data } = await filterFn(filter, 0, 200);
-        const rows = safeList({ data });
-        if (!rows.length) return;
-        for (const r of rows) {
-          const rid =
-            (r && typeof r === 'object' && 'id' in r ? r.id : r) ??
-            (r && typeof r === 'object' && r.id ? r.id : null);
-
-          const idStr = rid == null ? '' : String(rid).trim();
-          if (!idStr || idStr.toLowerCase() === 'nan' || idStr === '[object Object]') continue;
-          await deleteFn(idStr);
-        }
-      }
-    }
-
-    await deleteAllByFilter(requestsApi.filterRequests, requestsApi.deleteRequest, { studentId: sid });
-    await deleteAllByFilter(portfolioApi.filterPortfolio, portfolioApi.deletePortfolio, { studentId: sid });
-    await deleteAllByFilter(experienceApi.filterExperience, experienceApi.deleteExperience, { studentId: sid });
-    await deleteAllByFilter(institutionApi.filterInstitutions, institutionApi.deleteInstitution, { studentId: sid });
-  }
-
-  async function handleDelete(student) {
-    const id = student?.id;
-    if (id == null) return;
-    const name = studentDisplayName(student);
-    const email = studentEmail(student);
-    const label = email ? `«${name}» (${email})` : `«${name}»`;
-    if (!window.confirm(`Удалить ${label}? Действие нельзя отменить.`)) return;
-
-    setDeletingId(id);
-    setError(null);
-    setDeleteStatus(null);
-    try {
-      await studentsApi.deleteStudent(id);
-      await load();
-      await loadPending();
-    } catch (e) {
-      const msg = String(e?.message ?? '');
-      if (msg.includes('409') || msg.toLowerCase().includes('conflict')) {
-        try {
-          setDeleteStatus('Удаляем связанные данные (заявки, портфолио, опыт)…');
-          await cascadeDeleteStudent(id);
-          await studentsApi.deleteStudent(id);
-          setDeleteStatus(null);
-          await load();
-          await loadPending();
-          return;
-        } catch (e2) {
-          setDeleteStatus(null);
-          setError(e2.message);
-          return;
-        }
-      }
-      setError(msg || 'Ошибка удаления');
-    } finally {
-      setDeletingId(null);
-    }
-  }
 
   useEffect(() => {
     if (!creating) return;
@@ -439,7 +368,32 @@ export function Students() {
   function openBulkReject() {
     if (!selectedPendingTargets().length) return;
     setApprovalMsg(null);
+    setRejectOneUserId(null);
     setRejectOpen(true);
+  }
+
+  function openRejectOne(userId) {
+    if (!userId) return;
+    setApprovalMsg(null);
+    setRejectOpen(false);
+    setRejectOneUserId(userId);
+  }
+
+  async function handleRejectOne(body) {
+    if (!rejectOneUserId) return;
+    setApprovalLoading(true);
+    setApprovalMsg(null);
+    try {
+      await accountApi.rejectAccount(rejectOneUserId, body);
+      setApprovalMsg({ type: 'ok', text: 'Аккаунт отклонён' });
+      setRejectOneUserId(null);
+      await loadPending();
+      await load();
+    } catch (e) {
+      setApprovalMsg({ type: 'err', text: e.message });
+    } finally {
+      setApprovalLoading(false);
+    }
   }
 
   async function handleBulkReject(body) {
@@ -705,11 +659,13 @@ export function Students() {
       </div>
 
       {error ? <div className="alert alert--error">{error}</div> : null}
-      {deleteStatus ? <div className="alert">{deleteStatus}</div> : null}
       {approvalMsg?.type === 'ok' ? <div className="alert alert--success">{approvalMsg.text}</div> : null}
       {approvalMsg?.type === 'err' ? <div className="alert alert--error">{approvalMsg.text}</div> : null}
 
       <div className="panel">
+        <p className="page__lead" style={{ marginTop: 0 }}>
+          Портфолио, опыт и образование видны в карточке.
+        </p>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
           <h2 className="panel__title" style={{ margin: 0 }}>Карточки</h2>
           <div className="form-row" style={{ margin: 0 }}>
@@ -737,6 +693,14 @@ export function Students() {
             submitting={approvalLoading}
             onSubmit={handleBulkReject}
             onCancel={() => setRejectOpen(false)}
+          />
+        ) : null}
+        {rejectOneUserId ? (
+          <AccountRejectForm
+            title="Отклонение аккаунта"
+            submitting={approvalLoading}
+            onSubmit={handleRejectOne}
+            onCancel={() => setRejectOneUserId(null)}
           />
         ) : null}
         {loading ? (
@@ -776,7 +740,6 @@ export function Students() {
                 <tbody>
                   {rows.map((s) => {
                     const email = studentEmail(s);
-                    const isDeleting = deletingId === s.id;
                     const meta = rowMeta(s);
                     const checked = selectedIds.has(String(s.id));
                     return (
@@ -807,57 +770,21 @@ export function Students() {
                         <td>{s.course}</td>
                         <td>
                           <StatusBadge variant={accountStatusVariant(meta.status)}>
-                            {labelOf(ACCOUNT_STATUS_LABELS, meta.status, meta.status)}
+                            {labelOf(ACCOUNT_STATUS_LABELS, meta.status)}
                           </StatusBadge>
+                          <ProfileMeter
+                            checks={listProfileChecks(s, meta.emailVerified)}
+                            caption=""
+                          />
                         </td>
                         <td>
-                          <div className="table-actions">
-                          {meta.selectable && meta.emailVerified === false ? (
-                            <button
-                              type="button"
-                              className="btn btn--ghost btn--small"
-                              disabled={approvalLoading || deletingId != null}
-                              onClick={() => handleEmailVerified(meta.userId, true)}
-                            >
-                              Подтвердить почту
-                            </button>
-                          ) : null}
-                          {meta.selectable && meta.emailVerified === true ? (
-                            <button
-                              type="button"
-                              className="btn btn--ghost btn--small"
-                              disabled={approvalLoading || deletingId != null}
-                              onClick={() => handleEmailVerified(meta.userId, false)}
-                            >
-                              Снять подтверждение
-                            </button>
-                          ) : null}
-                          {meta.selectable ? (
-                            <button
-                              type="button"
-                              className="btn btn--primary btn--small"
-                              disabled={approvalLoading || deletingId != null}
-                              onClick={() => handleApproveOne(s.id, meta.userId)}
-                            >
-                              Одобрить
-                            </button>
-                          ) : null}
                           <Link
                             className="btn btn--ghost"
                             to={`/students/${s.id}`}
                             style={{ textDecoration: 'none' }}
                           >
-                            Открыть
+                            Открыть резюме
                           </Link>
-                          <button
-                            type="button"
-                            className="btn btn--danger"
-                            disabled={isDeleting || deletingId != null}
-                            onClick={() => handleDelete(s)}
-                          >
-                            {isDeleting ? 'Удаление…' : 'Удалить'}
-                          </button>
-                          </div>
                         </td>
                       </tr>
                     );

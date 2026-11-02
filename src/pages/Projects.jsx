@@ -10,7 +10,6 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { FlashMessages } from '../components/ui/FlashMessages.jsx';
 import { DateTimeField } from '../components/ui/DateTimeField.jsx';
-import { StatusBadge } from '../components/ui/StatusBadge.jsx';
 import { SortableTable } from '../components/SortableTable.jsx';
 
 const emptyCreate = () => ({
@@ -20,7 +19,6 @@ const emptyCreate = () => ({
   body: '',
   images: [],
   skillIds: [],
-  visibleToAnonymous: true,
   publishedFrom: '',
   publishedTo: '',
 });
@@ -72,7 +70,7 @@ export function Projects() {
           }))
           .filter((img) => img.imagePath || img.imageUrl),
         skillIds: (createForm.skillIds ?? []).map(Number).filter((id) => !Number.isNaN(id)),
-        visibleToAnonymous: createForm.visibleToAnonymous,
+        visibleToAnonymous: false,
         publishedFrom: toApiDateTime(createForm.publishedFrom),
         publishedTo: toApiDateTime(createForm.publishedTo),
       };
@@ -93,19 +91,6 @@ export function Projects() {
       await projectsApi.deleteProject(id);
       setMsg({ type: 'ok', text: 'Проект удалён' });
       await load();
-    } catch (e) {
-      setError(e.message);
-    }
-  }
-
-  async function handleVisibleToggle(project, checked) {
-    setMsg(null);
-    try {
-      await projectsApi.updateProject(project.id, { visibleToAnonymous: checked });
-      setRows((prev) =>
-        prev.map((p) => (p.id === project.id ? { ...p, visibleToAnonymous: checked } : p)),
-      );
-      setMsg({ type: 'ok', text: 'Видимость на главной обновлена' });
     } catch (e) {
       setError(e.message);
     }
@@ -134,7 +119,7 @@ export function Projects() {
     <div className="page projects-admin">
       <PageHeader
         title="Проекты ленты"
-        lead="Кейсы и работы студентов на главной странице сайта. Порядок, публикация и привязка участников."
+        lead="Кейсы и работы студентов. Порядок, публикация и привязка участников."
       />
 
       <div className="panel panel--accent projects-admin__create-panel">
@@ -207,23 +192,6 @@ export function Projects() {
               />
             </div>
             <div className="form-row">
-              <div className="field projects-admin__checkbox-field">
-                <label className="projects-admin__checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={createForm.visibleToAnonymous}
-                    onChange={(e) =>
-                      setCreateForm((p) => ({
-                        ...p,
-                        visibleToAnonymous: e.target.checked,
-                      }))
-                    }
-                  />
-                  Показывать на главной
-                </label>
-              </div>
-            </div>
-            <div className="form-row">
               <DateTimeField
                 id="proj-create-from"
                 label="Публикация с"
@@ -288,7 +256,6 @@ export function Projects() {
                 <th>Заголовок</th>
                 <th>Раздел</th>
                 <th>Навыки</th>
-                <th>На главной</th>
                 <th>Публикация</th>
               </>
             }
@@ -310,19 +277,6 @@ export function Projects() {
                       <span className="project-table-skills__empty">—</span>
                     )}
                   </div>
-                </td>
-                <td>
-                  <label className="projects-admin__visibility">
-                    <input
-                      type="checkbox"
-                      className="projects-admin__visibility-input"
-                      checked={!!p.visibleToAnonymous}
-                      onChange={(e) => handleVisibleToggle(p, e.target.checked)}
-                    />
-                    <StatusBadge variant={p.visibleToAnonymous ? 'success' : 'default'}>
-                      {p.visibleToAnonymous ? 'на главной' : 'скрыт'}
-                    </StatusBadge>
-                  </label>
                 </td>
                 <td className="cell-muted projects-admin__dates-cell">
                   <span>{fromApiDateTime(p.publishedFrom) || '—'}</span>
