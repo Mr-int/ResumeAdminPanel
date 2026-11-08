@@ -26,6 +26,7 @@ import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { DateField } from '../components/ui/DateTimeField.jsx';
 import { StatusBadge } from '../components/ui/StatusBadge.jsx';
+import { StudentEventFeed } from '../components/StudentEventFeed.jsx';
 import * as accountApi from '../api/accountApprovals.js';
 import { studentResumeUrl } from '../config.js';
 import { ACCOUNT_STATUS_LABELS, labelOf } from '../lib/labels.js';
@@ -873,6 +874,8 @@ export function StudentDetail() {
           <p className="page__lead" style={{ margin: 0 }}>У карточки нет учётной записи.</p>
         )}
       </div>
+
+      <StudentEventFeed studentId={id} />
 
       <div className="panel">
         <h2 className="panel__title">Удаление</h2>

@@ -18,6 +18,9 @@ import { Storage } from './pages/Storage.jsx';
 const Dashboard = lazy(() =>
   import('./pages/Dashboard.jsx').then((m) => ({ default: m.Dashboard }))
 );
+const Analytics = lazy(() =>
+  import('./pages/Analytics.jsx').then((m) => ({ default: m.Analytics }))
+);
 const Vacancies = lazy(() =>
   import('./pages/Vacancies.jsx').then((m) => ({ default: m.Vacancies }))
 );
@@ -73,6 +76,14 @@ export default function App() {
               element={
                 <LazyPage>
                   <Dashboard />
+                </LazyPage>
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                <LazyPage>
+                  <Analytics />
                 </LazyPage>
               }
             />
