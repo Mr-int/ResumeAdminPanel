@@ -19,9 +19,18 @@ function sharedChecks(student, emailVerified) {
   ];
 }
 
-/** Поля, которые есть в строке списка. */
-export function listProfileChecks(student, emailVerified) {
-  return sharedChecks(student, emailVerified);
+function withRecords(base, records) {
+  return [base[0], ...records, ...base.slice(1)];
+}
+
+/** Поля строки списка: анкета и три флага из очереди одобрений. */
+export function listProfileChecks(student, emailVerified, flags) {
+  const records = [
+    { id: 'portfolio', label: 'Портфолио', ok: flags?.hasPortfolio === true },
+    { id: 'experience', label: 'Опыт', ok: flags?.hasExperience === true },
+    { id: 'education', label: 'Образование', ok: flags?.hasEducation === true },
+  ];
+  return withRecords(sharedChecks(student, emailVerified), records);
 }
 
 /** Полный набор для одобрения: поля списка плюс портфолио, опыт и образование. */
@@ -32,8 +41,7 @@ export function detailProfileChecks(student, emailVerified, extra) {
     { id: 'experience', label: 'Опыт', ok: (extra?.experiences?.length ?? 0) > 0 },
     { id: 'education', label: 'Образование', ok: (extra?.institutions?.length ?? 0) > 0 },
   ];
-  const photo = base[0];
-  return [photo, ...records, ...base.slice(1)];
+  return withRecords(base, records);
 }
 
 export function checksFilled(checks) {

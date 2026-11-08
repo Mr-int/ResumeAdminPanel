@@ -53,6 +53,9 @@ export async function loadPendingStudentApprovals(fetchOptions = {}) {
         userId: user.id,
         accountStatus: user.accountStatus || null,
         emailVerified: user.emailVerified === true,
+        hasPortfolio: user.hasPortfolio === true,
+        hasExperience: user.hasExperience === true,
+        hasEducation: user.hasEducation === true,
       });
     }
     const totalPages = data?.totalPages ?? 1;

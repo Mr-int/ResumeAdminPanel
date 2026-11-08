@@ -111,7 +111,7 @@ export function Students() {
   const [findString, setFindString] = useState('');
   const debouncedFindString = useDebouncedValue(findString);
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(PAGE_SIZES[1]);
+  const [pageSize, setPageSize] = useState(100);
   const [sort, setSort] = useState({ key: null, dir: 'asc' });
   const [courseFilter, setCourseFilter] = useState([]);
   const [statusFilter, setStatusFilter] = useState([]);
@@ -124,6 +124,7 @@ export function Students() {
   const [specialityOptions, setSpecialityOptions] = useState([]);
   const [optionsError, setOptionsError] = useState(null);
   const [pendingByStudentId, setPendingByStudentId] = useState(() => new Map());
+  const [approvalsReady, setApprovalsReady] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [approvalMsg, setApprovalMsg] = useState(null);
   const [approvalLoading, setApprovalLoading] = useState(false);
@@ -157,6 +158,8 @@ export function Students() {
       if (isActive()) setPendingByStudentId(pending);
     } catch {
       if (isActive()) setPendingByStudentId(new Map());
+    } finally {
+      if (isActive()) setApprovalsReady(true);
     }
   }, []);
 
@@ -169,14 +172,35 @@ export function Students() {
       const filter = {};
       if (debouncedFindString.trim()) filter.findString = debouncedFindString.trim();
       if (courseFilter.length) filter.course = courseFilter;
-      if (statusFilter.length) filter.accountStatuses = statusFilter;
       if (sort.key && SORT_FIELDS[sort.key]) {
         filter.useDefaultRanking = false;
         filter.sortBy = SORT_FIELDS[sort.key];
         filter.sortDirection = sort.dir === 'asc' ? 'ASC' : 'DESC';
       }
-      const { data: res } = await studentsApi.filterStudents(filter, page, pageSize);
-      if (isActive()) setData(res);
+      if (!statusFilter.length) {
+        const { data: res } = await studentsApi.filterStudents(filter, page, pageSize);
+        if (isActive()) setData(res ? { ...res, clientStatus: false } : null);
+        return;
+      }
+      const size = 100;
+      const all = [];
+      for (let current = 0; current < 500; current += 1) {
+        if (!isActive()) return;
+        const { data: res } = await studentsApi.filterStudents(filter, current, size);
+        const chunk = res?.data ?? [];
+        all.push(...chunk);
+        const serverPages = res?.totalPages ?? 1;
+        if (current + 1 >= serverPages || !chunk.length) break;
+      }
+      if (isActive()) {
+        setData({
+          data: all,
+          page: 0,
+          totalPages: 1,
+          totalElements: all.length,
+          clientStatus: true,
+        });
+      }
     } catch (e) {
       if (isActive()) {
         setError(e.message);
@@ -185,7 +209,14 @@ export function Students() {
     } finally {
       if (isActive()) setLoading(false);
     }
-  }, [debouncedFindString, page, pageSize, sort, courseFilter, statusFilter]);
+  }, [
+    debouncedFindString,
+    statusFilter.length ? 0 : page,
+    statusFilter.length ? null : pageSize,
+    sort,
+    courseFilter,
+    statusFilter,
+  ]);
 
   useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
   useEffectWithAbort((_signal, isActive) => loadPending(isActive), [loadPending]);
@@ -303,15 +334,36 @@ export function Students() {
     }
   }
 
-  const totalPages = data?.totalPages ?? 0;
-  const rows = data?.data ?? [];
+  const statusActive = statusFilter.length > 0 && data?.clientStatus === true;
+  const sourceRows = data?.data ?? [];
+  const matchedRows = statusActive
+    ? sourceRows.filter((student) => statusFilter.includes(studentAccountStatus(student, pendingByStudentId)))
+    : sourceRows;
+  const rows = statusActive ? matchedRows.slice(page * pageSize, (page + 1) * pageSize) : sourceRows;
+  const totalElements = statusActive ? matchedRows.length : (data?.totalElements ?? 0);
+  const totalPages = statusActive
+    ? Math.ceil(matchedRows.length / pageSize)
+    : (data?.totalPages ?? 0);
+  const modeReady = statusFilter.length > 0
+    ? data?.clientStatus === true
+    : data == null || data.clientStatus !== true;
+  const listPending = loading || !modeReady || (statusFilter.length > 0 && !approvalsReady);
 
   function rowMeta(student) {
+    const entry = pendingByStudentId.get(String(student?.id));
     const status = studentAccountStatus(student, pendingByStudentId);
     const userId = studentUserId(student, pendingByStudentId);
     const selectable = Boolean(userId) && isPendingApproval(status);
     const emailVerified = studentEmailVerified(student, pendingByStudentId);
-    return { status, userId, selectable, emailVerified };
+    return {
+      status,
+      userId,
+      selectable,
+      emailVerified,
+      hasPortfolio: entry?.hasPortfolio === true,
+      hasExperience: entry?.hasExperience === true,
+      hasEducation: entry?.hasEducation === true,
+    };
   }
 
   const selectableRows = rows.filter((s) => rowMeta(s).selectable);
@@ -778,9 +830,6 @@ export function Students() {
             ))}
           </ChipRow>
         </div>
-        <p className="page__lead" style={{ marginTop: 0 }}>
-          Портфолио, опыт и образование видны в карточке.
-        </p>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
           <h2 className="panel__title" style={{ margin: 0 }}>Карточки</h2>
           <div className="form-row" style={{ margin: 0 }}>
@@ -818,7 +867,7 @@ export function Students() {
             onCancel={() => setRejectOneUserId(null)}
           />
         ) : null}
-        {loading ? (
+        {listPending ? (
           <p style={{ color: 'var(--text-muted)', margin: '0.75rem 0 0' }}>Загрузка…</p>
         ) : (
           <>
@@ -888,7 +937,7 @@ export function Students() {
                             {labelOf(ACCOUNT_STATUS_LABELS, meta.status)}
                           </StatusBadge>
                           <ProfileMeter
-                            checks={listProfileChecks(s, meta.emailVerified)}
+                            checks={listProfileChecks(s, meta.emailVerified, meta)}
                             caption=""
                           />
                         </td>
@@ -909,8 +958,8 @@ export function Students() {
             </div>
             <div className="pager">
               <span>
-                Стр. {data ? data.page + 1 : 1} из {Math.max(totalPages, 1)} · всего{' '}
-                {data?.totalElements ?? 0}
+                Стр. {(statusActive ? page : (data?.page ?? page)) + 1} из {Math.max(totalPages, 1)} · всего{' '}
+                {totalElements}
               </span>
               <label className="pager__size">
                 На странице
@@ -940,7 +989,7 @@ export function Students() {
                 <button
                   type="button"
                   className="btn btn--ghost"
-                  disabled={totalPages && page >= totalPages - 1}
+                  disabled={!totalPages || page >= totalPages - 1}
                   onClick={() => setPage((p) => p + 1)}
                 >
                   Вперёд
