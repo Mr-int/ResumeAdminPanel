@@ -70,6 +70,9 @@ function publicSitePrefix() {
   return '';
 }
 
+/** Тестовая площадка `/plt` и локальный Vite. Боевая сборка без этого префикса. */
+export const isTestAdmin = publicSitePrefix() !== '';
+
 export function studentResumeUrl(studentId) {
   return `${SITE_BASE_URL}${publicSitePrefix()}/studentsResume/${studentId}`;
 }
