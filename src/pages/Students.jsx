@@ -120,6 +120,7 @@ export function Students() {
   const queryStatuses = statusesFromSearch(searchParams);
   const queryStatusKey = queryStatuses.join(',');
   const queryGaps = searchParams.get('gaps') === '1';
+  const queryReady = searchParams.get('ready') === '1';
   const [findString, setFindString] = useState('');
   const debouncedFindString = useDebouncedValue(findString);
   const [page, setPage] = useState(0);
@@ -128,6 +129,7 @@ export function Students() {
   const [courseFilter, setCourseFilter] = useState([]);
   const [statusFilter, setStatusFilter] = useState(queryStatuses);
   const [gapsOnly, setGapsOnly] = useState(queryGaps);
+  const [readyOnly, setReadyOnly] = useState(queryReady);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -176,7 +178,7 @@ export function Students() {
     }
   }, []);
 
-  const clientQuery = statusFilter.length > 0 || gapsOnly;
+  const clientQuery = statusFilter.length > 0 || gapsOnly || readyOnly;
   const load = useCallback(async (isActive = () => true) => {
     if (isActive()) {
       setError(null);
@@ -191,7 +193,7 @@ export function Students() {
         filter.sortBy = SORT_FIELDS[sort.key];
         filter.sortDirection = sort.dir === 'asc' ? 'ASC' : 'DESC';
       }
-      if (!statusFilter.length && !gapsOnly) {
+      if (!statusFilter.length && !gapsOnly && !readyOnly) {
         const { data: res } = await studentsApi.filterStudents(filter, page, pageSize);
         if (isActive()) setData(res ? { ...res, clientStatus: false } : null);
         return;
@@ -231,6 +233,7 @@ export function Students() {
     courseFilter,
     statusFilter,
     gapsOnly,
+    readyOnly,
   ]);
 
   useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
@@ -239,8 +242,9 @@ export function Students() {
   useEffect(() => {
     setStatusFilter(queryStatusKey ? queryStatusKey.split(',') : []);
     setGapsOnly(queryGaps);
+    setReadyOnly(queryReady && !queryGaps);
     setPage(0);
-  }, [queryStatusKey, queryGaps]);
+  }, [queryStatusKey, queryGaps, queryReady]);
 
   useEffect(() => {
     if (!creating) return;
@@ -355,20 +359,22 @@ export function Students() {
     }
   }
 
-  const clientList = (statusFilter.length > 0 || gapsOnly) && data?.clientStatus === true;
+  const clientList = (statusFilter.length > 0 || gapsOnly || readyOnly) && data?.clientStatus === true;
   const sourceRows = data?.data ?? [];
   const matchedRows = clientList
     ? sourceRows.filter((student) => {
         const status = studentAccountStatus(student, pendingByStudentId);
         if (statusFilter.length && !statusFilter.includes(status)) return false;
-        if (!gapsOnly) return true;
+        if (!gapsOnly && !readyOnly) return true;
         const entry = pendingByStudentId.get(String(student?.id));
         const checks = listProfileChecks(student, studentEmailVerified(student, pendingByStudentId), {
           hasPortfolio: entry?.hasPortfolio === true,
           hasExperience: entry?.hasExperience === true,
           hasEducation: entry?.hasEducation === true,
         });
-        return !checksFilled(checks).complete;
+        const complete = checksFilled(checks).complete;
+        if (gapsOnly) return !complete;
+        return complete;
       })
     : sourceRows;
   const rows = clientList ? matchedRows.slice(page * pageSize, (page + 1) * pageSize) : sourceRows;
@@ -376,7 +382,7 @@ export function Students() {
   const totalPages = clientList
     ? Math.ceil(matchedRows.length / pageSize)
     : (data?.totalPages ?? 0);
-  const wantsClient = statusFilter.length > 0 || gapsOnly;
+  const wantsClient = statusFilter.length > 0 || gapsOnly || readyOnly;
   const modeReady = wantsClient
     ? data?.clientStatus === true
     : data == null || data.clientStatus !== true;
@@ -455,6 +461,7 @@ export function Students() {
     if (next.length) params.set('status', next.join(','));
     else params.delete('status');
     params.delete('gaps');
+    params.delete('ready');
     setSearchParams(params, { replace: true });
   }
 

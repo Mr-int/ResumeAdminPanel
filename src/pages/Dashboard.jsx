@@ -136,7 +136,13 @@ export function Dashboard() {
                 {bucket == null ? (
                   'Загрузка'
                 ) : (
-                  <Link to={`${statusUrl}&gaps=1`}>{bucket.gaps} с нехваткой полей</Link>
+                  <>
+                    <Link to={`${statusUrl}&gaps=1`}>{bucket.gaps} с нехваткой полей</Link>
+                    {' · '}
+                    <Link to={`${statusUrl}&ready=1`}>
+                      {Math.max(0, bucket.total - bucket.gaps)} всё заполнено
+                    </Link>
+                  </>
                 )}
               </p>
             </div>

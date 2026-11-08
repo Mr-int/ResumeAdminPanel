@@ -31,18 +31,18 @@
 }
 
 .theme-test {
-  --bg-root: #14110e;
-  --bg-elevated: #1f1a15;
-  --bg-sidebar: #181410;
-  --bg-panel: #1c1814;
-  --bg-muted: #241c16;
-  --text: #f4efe6;
-  --text-secondary: #cbbba8;
-  --text-muted: #8d7f70;
-  --accent: #e08a3c;
-  --accent-dim: #c4742a;
-  --accent-rgb: 224, 138, 60;
-  --title-tint: #f3d2b0;
+  --bg-root: #101612;
+  --bg-elevated: #161d18;
+  --bg-sidebar: #121815;
+  --bg-panel: #18201b;
+  --bg-muted: #1e2822;
+  --text: #e7f0ea;
+  --text-secondary: #b7c6bc;
+  --text-muted: #7d8f84;
+  --accent: #7dba8a;
+  --accent-dim: #5d9470;
+  --accent-rgb: 125, 186, 138;
+  --title-tint: #d5eadc;
 }
 
 *,
