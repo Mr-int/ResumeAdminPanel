@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useEffectWithAbort } from '../hooks/useEffectWithAbort.js';
 import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import * as studentsApi from '../api/students.js';
 import * as accountApi from '../api/accountApprovals.js';
 import { getSkillsOptions, getSpecialityOptions } from '../lib/referenceCache.js';
 import { AccountRejectForm } from '../components/AccountRejectForm.jsx';
 import { ProfileMeter } from '../components/ProfileReadiness.jsx';
-import { listProfileChecks } from '../lib/studentProfileChecks.js';
+import { checksFilled, listProfileChecks } from '../lib/studentProfileChecks.js';
 import { SkillPicker } from '../components/SkillPicker.jsx';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
 import {
@@ -26,6 +26,14 @@ import {
   studentEmailVerified,
   studentUserId,
 } from '../lib/studentAccount.js';
+
+const STATUS_QUERY = new Set(['APPROVED', 'PENDING_APPROVAL', 'REJECTED']);
+
+function statusesFromSearch(params) {
+  const raw = params.get('status');
+  if (!raw) return [];
+  return raw.split(',').filter((item) => STATUS_QUERY.has(item));
+}
 
 const PAGE_SIZES = [10, 25, 50, 100, 200];
 
@@ -108,13 +116,18 @@ function studentEmail(student) {
 
 export function Students() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryStatuses = statusesFromSearch(searchParams);
+  const queryStatusKey = queryStatuses.join(',');
+  const queryGaps = searchParams.get('gaps') === '1';
   const [findString, setFindString] = useState('');
   const debouncedFindString = useDebouncedValue(findString);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(100);
   const [sort, setSort] = useState({ key: null, dir: 'asc' });
   const [courseFilter, setCourseFilter] = useState([]);
-  const [statusFilter, setStatusFilter] = useState([]);
+  const [statusFilter, setStatusFilter] = useState(queryStatuses);
+  const [gapsOnly, setGapsOnly] = useState(queryGaps);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -163,6 +176,7 @@ export function Students() {
     }
   }, []);
 
+  const clientQuery = statusFilter.length > 0 || gapsOnly;
   const load = useCallback(async (isActive = () => true) => {
     if (isActive()) {
       setError(null);
@@ -177,7 +191,7 @@ export function Students() {
         filter.sortBy = SORT_FIELDS[sort.key];
         filter.sortDirection = sort.dir === 'asc' ? 'ASC' : 'DESC';
       }
-      if (!statusFilter.length) {
+      if (!statusFilter.length && !gapsOnly) {
         const { data: res } = await studentsApi.filterStudents(filter, page, pageSize);
         if (isActive()) setData(res ? { ...res, clientStatus: false } : null);
         return;
@@ -211,15 +225,22 @@ export function Students() {
     }
   }, [
     debouncedFindString,
-    statusFilter.length ? 0 : page,
-    statusFilter.length ? null : pageSize,
+    clientQuery ? 0 : page,
+    clientQuery ? null : pageSize,
     sort,
     courseFilter,
     statusFilter,
+    gapsOnly,
   ]);
 
   useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
   useEffectWithAbort((_signal, isActive) => loadPending(isActive), [loadPending]);
+
+  useEffect(() => {
+    setStatusFilter(queryStatusKey ? queryStatusKey.split(',') : []);
+    setGapsOnly(queryGaps);
+    setPage(0);
+  }, [queryStatusKey, queryGaps]);
 
   useEffect(() => {
     if (!creating) return;
@@ -334,20 +355,32 @@ export function Students() {
     }
   }
 
-  const statusActive = statusFilter.length > 0 && data?.clientStatus === true;
+  const clientList = (statusFilter.length > 0 || gapsOnly) && data?.clientStatus === true;
   const sourceRows = data?.data ?? [];
-  const matchedRows = statusActive
-    ? sourceRows.filter((student) => statusFilter.includes(studentAccountStatus(student, pendingByStudentId)))
+  const matchedRows = clientList
+    ? sourceRows.filter((student) => {
+        const status = studentAccountStatus(student, pendingByStudentId);
+        if (statusFilter.length && !statusFilter.includes(status)) return false;
+        if (!gapsOnly) return true;
+        const entry = pendingByStudentId.get(String(student?.id));
+        const checks = listProfileChecks(student, studentEmailVerified(student, pendingByStudentId), {
+          hasPortfolio: entry?.hasPortfolio === true,
+          hasExperience: entry?.hasExperience === true,
+          hasEducation: entry?.hasEducation === true,
+        });
+        return !checksFilled(checks).complete;
+      })
     : sourceRows;
-  const rows = statusActive ? matchedRows.slice(page * pageSize, (page + 1) * pageSize) : sourceRows;
-  const totalElements = statusActive ? matchedRows.length : (data?.totalElements ?? 0);
-  const totalPages = statusActive
+  const rows = clientList ? matchedRows.slice(page * pageSize, (page + 1) * pageSize) : sourceRows;
+  const totalElements = clientList ? matchedRows.length : (data?.totalElements ?? 0);
+  const totalPages = clientList
     ? Math.ceil(matchedRows.length / pageSize)
     : (data?.totalPages ?? 0);
-  const modeReady = statusFilter.length > 0
+  const wantsClient = statusFilter.length > 0 || gapsOnly;
+  const modeReady = wantsClient
     ? data?.clientStatus === true
     : data == null || data.clientStatus !== true;
-  const listPending = loading || !modeReady || (statusFilter.length > 0 && !approvalsReady);
+  const listPending = loading || !modeReady || (wantsClient && !approvalsReady);
 
   function rowMeta(student) {
     const entry = pendingByStudentId.get(String(student?.id));
@@ -417,8 +450,12 @@ export function Students() {
   }
 
   function changeStatusFilter(next) {
-    setStatusFilter(next);
     setPage(0);
+    const params = new URLSearchParams(searchParams);
+    if (next.length) params.set('status', next.join(','));
+    else params.delete('status');
+    params.delete('gaps');
+    setSearchParams(params, { replace: true });
   }
 
   async function handleEmailVerified(userId, emailVerified) {
@@ -958,7 +995,7 @@ export function Students() {
             </div>
             <div className="pager">
               <span>
-                Стр. {(statusActive ? page : (data?.page ?? page)) + 1} из {Math.max(totalPages, 1)} · всего{' '}
+                Стр. {(clientList ? page : (data?.page ?? page)) + 1} из {Math.max(totalPages, 1)} · всего{' '}
                 {totalElements}
               </span>
               <label className="pager__size">
