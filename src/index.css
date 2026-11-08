@@ -290,6 +290,124 @@ a {
   color: var(--success);
 }
 
+.student-chip-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+  margin: 0 0 0.85rem;
+}
+
+.student-chip-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.student-chip-row__label {
+  flex: 0 0 6.5rem;
+  padding-top: 0.45rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.student-chip-row__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.student-chip {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 5px;
+  min-height: 36px;
+  padding: 0 0.85rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.student-chip__mark {
+  display: inline-block;
+  width: 0.9em;
+  margin-left: 0.2rem;
+  text-align: center;
+}
+
+.student-chip--active {
+  color: #fff;
+  border-color: transparent;
+  background: var(--accent);
+}
+
+.student-chip--course-1.student-chip--active {
+  background: linear-gradient(135deg, #00ffdd 0.64%, #00a2ff 99.36%);
+}
+
+.student-chip--course-2.student-chip--active {
+  background: radial-gradient(49.36% 49.36% at 50% 50%, #00a400 13.46%, #00ff51 100%);
+}
+
+.student-chip--course-3.student-chip--active {
+  background: conic-gradient(from 47.52deg at 50% 50%, #ff5558 0deg, #ff8c00 360deg);
+}
+
+.student-chip--course-4.student-chip--active {
+  background: conic-gradient(from 90.96deg at 50% 50%, #e95a57 0deg, #e53bcf 270deg, #3e8eff 360deg);
+}
+
+.student-chip--course-5.student-chip--active {
+  background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+  color: #1a1a1a;
+}
+
+.student-chip--status-pending.student-chip--active {
+  background: rgba(245, 158, 11, 0.22);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.student-chip--status-approved.student-chip--active {
+  background: rgba(34, 197, 94, 0.22);
+  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.student-chip--status-rejected.student-chip--active {
+  background: rgba(239, 68, 68, 0.22);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+@media (max-width: 900px) {
+  .student-chip-row {
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .student-chip-row__label {
+    flex-basis: auto;
+    padding-top: 0;
+  }
+
+  .student-chip {
+    min-height: 32px;
+    padding: 0 0.65rem;
+    font-size: 0.8rem;
+  }
+}
+
 .btn:disabled,
 .btn:disabled:hover {
   opacity: 0.55;
@@ -1548,6 +1666,7 @@ table.data tbody tr:hover td {
 
 .panel {
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+  min-width: 0;
 }
 
 .panel__title {

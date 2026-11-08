@@ -36,6 +36,56 @@ const SORT_FIELDS = {
   status: 'ACCOUNT_STATUS',
 };
 
+const COURSE_OPTIONS = [
+  { id: 'FIRST', label: '1', tone: '1' },
+  { id: 'SECOND', label: '2', tone: '2' },
+  { id: 'THIRD', label: '3', tone: '3' },
+  { id: 'FOURTH', label: '4', tone: '4' },
+  { id: 'FIFTH', label: '5', tone: '5' },
+];
+
+const STATUS_OPTIONS = [
+  { id: 'PENDING_APPROVAL', label: 'На модерации', tone: 'pending' },
+  { id: 'APPROVED', label: 'Одобрен', tone: 'approved' },
+  { id: 'REJECTED', label: 'Отклонён', tone: 'rejected' },
+];
+
+const SORT_OPTIONS = [
+  { id: 'name', label: 'ФИО' },
+  { id: 'email', label: 'Почта' },
+  { id: 'course', label: 'Курс' },
+  { id: 'status', label: 'Статус' },
+];
+
+function toggleChoice(current, value) {
+  if (current.length === 0) return [value];
+  if (current.includes(value)) return current.filter((item) => item !== value);
+  return [...current, value];
+}
+
+function ChipRow({ label, children }) {
+  return (
+    <div className="student-chip-row">
+      <span className="student-chip-row__label">{label}</span>
+      <div className="student-chip-row__items">{children}</div>
+    </div>
+  );
+}
+
+function ChoiceChip({ active, tone, onClick, children }) {
+  const toneClass = tone ? ` student-chip--${tone}` : '';
+  return (
+    <button
+      type="button"
+      className={`student-chip${toneClass}${active ? ' student-chip--active' : ''}`}
+      aria-pressed={active}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
 function SortHeader({ label, sortKey, sort, onSort }) {
   const active = sort.key === sortKey;
   const mark = active ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '';
@@ -63,6 +113,8 @@ export function Students() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(PAGE_SIZES[1]);
   const [sort, setSort] = useState({ key: null, dir: 'asc' });
+  const [courseFilter, setCourseFilter] = useState([]);
+  const [statusFilter, setStatusFilter] = useState([]);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -116,6 +168,8 @@ export function Students() {
     try {
       const filter = {};
       if (debouncedFindString.trim()) filter.findString = debouncedFindString.trim();
+      if (courseFilter.length) filter.course = courseFilter;
+      if (statusFilter.length) filter.accountStatuses = statusFilter;
       if (sort.key && SORT_FIELDS[sort.key]) {
         filter.useDefaultRanking = false;
         filter.sortBy = SORT_FIELDS[sort.key];
@@ -131,7 +185,7 @@ export function Students() {
     } finally {
       if (isActive()) setLoading(false);
     }
-  }, [debouncedFindString, page, pageSize, sort]);
+  }, [debouncedFindString, page, pageSize, sort, courseFilter, statusFilter]);
 
   useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
   useEffectWithAbort((_signal, isActive) => loadPending(isActive), [loadPending]);
@@ -296,11 +350,22 @@ export function Students() {
 
   function handleSort(key) {
     setSort((prev) => {
+      if (key == null) return { key: null, dir: 'asc' };
       if (prev.key === key) {
         return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
       }
       return { key, dir: 'asc' };
     });
+    setPage(0);
+  }
+
+  function changeCourseFilter(next) {
+    setCourseFilter(next);
+    setPage(0);
+  }
+
+  function changeStatusFilter(next) {
+    setStatusFilter(next);
     setPage(0);
   }
 
@@ -663,6 +728,56 @@ export function Students() {
       {approvalMsg?.type === 'err' ? <div className="alert alert--error">{approvalMsg.text}</div> : null}
 
       <div className="panel">
+        <div className="student-chip-rows">
+          <ChipRow label="Курс">
+            <ChoiceChip active={courseFilter.length === 0} onClick={() => changeCourseFilter([])}>
+              Все
+            </ChoiceChip>
+            {COURSE_OPTIONS.map((course) => (
+              <ChoiceChip
+                key={course.id}
+                tone={`course-${course.tone}`}
+                active={courseFilter.includes(course.id)}
+                onClick={() => changeCourseFilter(toggleChoice(courseFilter, course.id))}
+              >
+                {course.label}
+              </ChoiceChip>
+            ))}
+          </ChipRow>
+          <ChipRow label="Статус">
+            <ChoiceChip active={statusFilter.length === 0} onClick={() => changeStatusFilter([])}>
+              Все
+            </ChoiceChip>
+            {STATUS_OPTIONS.map((status) => (
+              <ChoiceChip
+                key={status.id}
+                tone={`status-${status.tone}`}
+                active={statusFilter.includes(status.id)}
+                onClick={() => changeStatusFilter(toggleChoice(statusFilter, status.id))}
+              >
+                {status.label}
+              </ChoiceChip>
+            ))}
+          </ChipRow>
+          <ChipRow label="Сортировка">
+            <ChoiceChip active={sort.key == null} onClick={() => handleSort(null)}>
+              Как в каталоге
+              <span className="student-chip__mark" />
+            </ChoiceChip>
+            {SORT_OPTIONS.map((option) => (
+              <ChoiceChip
+                key={option.id}
+                active={sort.key === option.id}
+                onClick={() => handleSort(option.id)}
+              >
+                {option.label}
+                <span className="student-chip__mark">
+                  {sort.key === option.id ? (sort.dir === 'asc' ? '↑' : '↓') : ''}
+                </span>
+              </ChoiceChip>
+            ))}
+          </ChipRow>
+        </div>
         <p className="page__lead" style={{ marginTop: 0 }}>
           Портфолио, опыт и образование видны в карточке.
         </p>
