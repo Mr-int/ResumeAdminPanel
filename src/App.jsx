@@ -9,6 +9,7 @@ import { Skills } from './pages/Skills.jsx';
 import { Specialities } from './pages/Specialities.jsx';
 import { Companies } from './pages/Companies.jsx';
 import { Students } from './pages/Students.jsx';
+import { Employers } from './pages/Employers.jsx';
 import { StudentMail } from './pages/StudentMail.jsx';
 import { RecruiterRegistrations } from './pages/RecruiterRegistrations.jsx';
 import { Projects } from './pages/Projects.jsx';
@@ -88,6 +89,7 @@ export default function App() {
               }
             />
             <Route path="/students" element={<Students />} />
+            <Route path="/employers" element={<Employers />} />
             <Route path="/mail" element={<StudentMail />} />
             <Route
               path="/students/:id"

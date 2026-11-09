@@ -17,6 +17,7 @@ const ADMIN_NAV_GROUPS = [
     title: 'Пользователи',
     items: [
       { to: '/students', label: 'Студенты' },
+      { to: '/employers', label: 'Работодатели' },
       { to: '/mail', label: 'Рассылка' },
     ],
   },
