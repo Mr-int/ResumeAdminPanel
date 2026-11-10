@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useEffectWithAbort } from '../hooks/useEffectWithAbort.js';
 import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import * as studentsApi from '../api/students.js';
 import * as accountApi from '../api/accountApprovals.js';
 import { getSkillsOptions, getSpecialityOptions } from '../lib/referenceCache.js';
 import { AccountRejectForm } from '../components/AccountRejectForm.jsx';
 import { ProfileMeter } from '../components/ProfileReadiness.jsx';
-import { listProfileChecks } from '../lib/studentProfileChecks.js';
+import { checksFilled, listProfileChecks } from '../lib/studentProfileChecks.js';
 import { SkillPicker } from '../components/SkillPicker.jsx';
 import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
 import {
@@ -27,6 +27,14 @@ import {
   studentUserId,
 } from '../lib/studentAccount.js';
 
+const STATUS_QUERY = new Set(['APPROVED', 'PENDING_APPROVAL', 'REJECTED']);
+
+function statusesFromSearch(params) {
+  const raw = params.get('status');
+  if (!raw) return [];
+  return raw.split(',').filter((item) => STATUS_QUERY.has(item));
+}
+
 const PAGE_SIZES = [10, 25, 50, 100, 200];
 
 const SORT_FIELDS = {
@@ -35,6 +43,56 @@ const SORT_FIELDS = {
   course: 'COURSE',
   status: 'ACCOUNT_STATUS',
 };
+
+const COURSE_OPTIONS = [
+  { id: 'FIRST', label: '1', tone: '1' },
+  { id: 'SECOND', label: '2', tone: '2' },
+  { id: 'THIRD', label: '3', tone: '3' },
+  { id: 'FOURTH', label: '4', tone: '4' },
+  { id: 'FIFTH', label: '5', tone: '5' },
+];
+
+const STATUS_OPTIONS = [
+  { id: 'PENDING_APPROVAL', label: 'На модерации', tone: 'pending' },
+  { id: 'APPROVED', label: 'Одобрен', tone: 'approved' },
+  { id: 'REJECTED', label: 'Отклонён', tone: 'rejected' },
+];
+
+const SORT_OPTIONS = [
+  { id: 'name', label: 'ФИО' },
+  { id: 'email', label: 'Почта' },
+  { id: 'course', label: 'Курс' },
+  { id: 'status', label: 'Статус' },
+];
+
+function toggleChoice(current, value) {
+  if (current.length === 0) return [value];
+  if (current.includes(value)) return current.filter((item) => item !== value);
+  return [...current, value];
+}
+
+function ChipRow({ label, children }) {
+  return (
+    <div className="student-chip-row">
+      <span className="student-chip-row__label">{label}</span>
+      <div className="student-chip-row__items">{children}</div>
+    </div>
+  );
+}
+
+function ChoiceChip({ active, tone, onClick, children }) {
+  const toneClass = tone ? ` student-chip--${tone}` : '';
+  return (
+    <button
+      type="button"
+      className={`student-chip${toneClass}${active ? ' student-chip--active' : ''}`}
+      aria-pressed={active}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
 
 function SortHeader({ label, sortKey, sort, onSort }) {
   const active = sort.key === sortKey;
@@ -58,11 +116,20 @@ function studentEmail(student) {
 
 export function Students() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryStatuses = statusesFromSearch(searchParams);
+  const queryStatusKey = queryStatuses.join(',');
+  const queryGaps = searchParams.get('gaps') === '1';
+  const queryReady = searchParams.get('ready') === '1';
   const [findString, setFindString] = useState('');
   const debouncedFindString = useDebouncedValue(findString);
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(PAGE_SIZES[1]);
+  const [pageSize, setPageSize] = useState(100);
   const [sort, setSort] = useState({ key: null, dir: 'asc' });
+  const [courseFilter, setCourseFilter] = useState([]);
+  const [statusFilter, setStatusFilter] = useState(queryStatuses);
+  const [gapsOnly, setGapsOnly] = useState(queryGaps);
+  const [readyOnly, setReadyOnly] = useState(queryReady);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -72,6 +139,7 @@ export function Students() {
   const [specialityOptions, setSpecialityOptions] = useState([]);
   const [optionsError, setOptionsError] = useState(null);
   const [pendingByStudentId, setPendingByStudentId] = useState(() => new Map());
+  const [approvalsReady, setApprovalsReady] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [approvalMsg, setApprovalMsg] = useState(null);
   const [approvalLoading, setApprovalLoading] = useState(false);
@@ -105,9 +173,12 @@ export function Students() {
       if (isActive()) setPendingByStudentId(pending);
     } catch {
       if (isActive()) setPendingByStudentId(new Map());
+    } finally {
+      if (isActive()) setApprovalsReady(true);
     }
   }, []);
 
+  const clientQuery = statusFilter.length > 0 || gapsOnly || readyOnly;
   const load = useCallback(async (isActive = () => true) => {
     if (isActive()) {
       setError(null);
@@ -116,13 +187,36 @@ export function Students() {
     try {
       const filter = {};
       if (debouncedFindString.trim()) filter.findString = debouncedFindString.trim();
+      if (courseFilter.length) filter.course = courseFilter;
       if (sort.key && SORT_FIELDS[sort.key]) {
         filter.useDefaultRanking = false;
         filter.sortBy = SORT_FIELDS[sort.key];
         filter.sortDirection = sort.dir === 'asc' ? 'ASC' : 'DESC';
       }
-      const { data: res } = await studentsApi.filterStudents(filter, page, pageSize);
-      if (isActive()) setData(res);
+      if (!statusFilter.length && !gapsOnly && !readyOnly) {
+        const { data: res } = await studentsApi.filterStudents(filter, page, pageSize);
+        if (isActive()) setData(res ? { ...res, clientStatus: false } : null);
+        return;
+      }
+      const size = 100;
+      const all = [];
+      for (let current = 0; current < 500; current += 1) {
+        if (!isActive()) return;
+        const { data: res } = await studentsApi.filterStudents(filter, current, size);
+        const chunk = res?.data ?? [];
+        all.push(...chunk);
+        const serverPages = res?.totalPages ?? 1;
+        if (current + 1 >= serverPages || !chunk.length) break;
+      }
+      if (isActive()) {
+        setData({
+          data: all,
+          page: 0,
+          totalPages: 1,
+          totalElements: all.length,
+          clientStatus: true,
+        });
+      }
     } catch (e) {
       if (isActive()) {
         setError(e.message);
@@ -131,10 +225,26 @@ export function Students() {
     } finally {
       if (isActive()) setLoading(false);
     }
-  }, [debouncedFindString, page, pageSize, sort]);
+  }, [
+    debouncedFindString,
+    clientQuery ? 0 : page,
+    clientQuery ? null : pageSize,
+    sort,
+    courseFilter,
+    statusFilter,
+    gapsOnly,
+    readyOnly,
+  ]);
 
   useEffectWithAbort((_signal, isActive) => load(isActive), [load]);
   useEffectWithAbort((_signal, isActive) => loadPending(isActive), [loadPending]);
+
+  useEffect(() => {
+    setStatusFilter(queryStatusKey ? queryStatusKey.split(',') : []);
+    setGapsOnly(queryGaps);
+    setReadyOnly(queryReady && !queryGaps);
+    setPage(0);
+  }, [queryStatusKey, queryGaps, queryReady]);
 
   useEffect(() => {
     if (!creating) return;
@@ -249,15 +359,50 @@ export function Students() {
     }
   }
 
-  const totalPages = data?.totalPages ?? 0;
-  const rows = data?.data ?? [];
+  const clientList = (statusFilter.length > 0 || gapsOnly || readyOnly) && data?.clientStatus === true;
+  const sourceRows = data?.data ?? [];
+  const matchedRows = clientList
+    ? sourceRows.filter((student) => {
+        const status = studentAccountStatus(student, pendingByStudentId);
+        if (statusFilter.length && !statusFilter.includes(status)) return false;
+        if (!gapsOnly && !readyOnly) return true;
+        const entry = pendingByStudentId.get(String(student?.id));
+        const checks = listProfileChecks(student, studentEmailVerified(student, pendingByStudentId), {
+          hasPortfolio: entry?.hasPortfolio === true,
+          hasExperience: entry?.hasExperience === true,
+          hasEducation: entry?.hasEducation === true,
+        });
+        const complete = checksFilled(checks).complete;
+        if (gapsOnly) return !complete;
+        return complete;
+      })
+    : sourceRows;
+  const rows = clientList ? matchedRows.slice(page * pageSize, (page + 1) * pageSize) : sourceRows;
+  const totalElements = clientList ? matchedRows.length : (data?.totalElements ?? 0);
+  const totalPages = clientList
+    ? Math.ceil(matchedRows.length / pageSize)
+    : (data?.totalPages ?? 0);
+  const wantsClient = statusFilter.length > 0 || gapsOnly || readyOnly;
+  const modeReady = wantsClient
+    ? data?.clientStatus === true
+    : data == null || data.clientStatus !== true;
+  const listPending = loading || !modeReady || (wantsClient && !approvalsReady);
 
   function rowMeta(student) {
+    const entry = pendingByStudentId.get(String(student?.id));
     const status = studentAccountStatus(student, pendingByStudentId);
     const userId = studentUserId(student, pendingByStudentId);
     const selectable = Boolean(userId) && isPendingApproval(status);
     const emailVerified = studentEmailVerified(student, pendingByStudentId);
-    return { status, userId, selectable, emailVerified };
+    return {
+      status,
+      userId,
+      selectable,
+      emailVerified,
+      hasPortfolio: entry?.hasPortfolio === true,
+      hasExperience: entry?.hasExperience === true,
+      hasEducation: entry?.hasEducation === true,
+    };
   }
 
   const selectableRows = rows.filter((s) => rowMeta(s).selectable);
@@ -296,12 +441,28 @@ export function Students() {
 
   function handleSort(key) {
     setSort((prev) => {
+      if (key == null) return { key: null, dir: 'asc' };
       if (prev.key === key) {
         return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
       }
       return { key, dir: 'asc' };
     });
     setPage(0);
+  }
+
+  function changeCourseFilter(next) {
+    setCourseFilter(next);
+    setPage(0);
+  }
+
+  function changeStatusFilter(next) {
+    setPage(0);
+    const params = new URLSearchParams(searchParams);
+    if (next.length) params.set('status', next.join(','));
+    else params.delete('status');
+    params.delete('gaps');
+    params.delete('ready');
+    setSearchParams(params, { replace: true });
   }
 
   async function handleEmailVerified(userId, emailVerified) {
@@ -663,9 +824,56 @@ export function Students() {
       {approvalMsg?.type === 'err' ? <div className="alert alert--error">{approvalMsg.text}</div> : null}
 
       <div className="panel">
-        <p className="page__lead" style={{ marginTop: 0 }}>
-          Портфолио, опыт и образование видны в карточке.
-        </p>
+        <div className="student-chip-rows">
+          <ChipRow label="Курс">
+            <ChoiceChip active={courseFilter.length === 0} onClick={() => changeCourseFilter([])}>
+              Все
+            </ChoiceChip>
+            {COURSE_OPTIONS.map((course) => (
+              <ChoiceChip
+                key={course.id}
+                tone={`course-${course.tone}`}
+                active={courseFilter.includes(course.id)}
+                onClick={() => changeCourseFilter(toggleChoice(courseFilter, course.id))}
+              >
+                {course.label}
+              </ChoiceChip>
+            ))}
+          </ChipRow>
+          <ChipRow label="Статус">
+            <ChoiceChip active={statusFilter.length === 0} onClick={() => changeStatusFilter([])}>
+              Все
+            </ChoiceChip>
+            {STATUS_OPTIONS.map((status) => (
+              <ChoiceChip
+                key={status.id}
+                tone={`status-${status.tone}`}
+                active={statusFilter.includes(status.id)}
+                onClick={() => changeStatusFilter(toggleChoice(statusFilter, status.id))}
+              >
+                {status.label}
+              </ChoiceChip>
+            ))}
+          </ChipRow>
+          <ChipRow label="Сортировка">
+            <ChoiceChip active={sort.key == null} onClick={() => handleSort(null)}>
+              Как в каталоге
+              <span className="student-chip__mark" />
+            </ChoiceChip>
+            {SORT_OPTIONS.map((option) => (
+              <ChoiceChip
+                key={option.id}
+                active={sort.key === option.id}
+                onClick={() => handleSort(option.id)}
+              >
+                {option.label}
+                <span className="student-chip__mark">
+                  {sort.key === option.id ? (sort.dir === 'asc' ? '↑' : '↓') : ''}
+                </span>
+              </ChoiceChip>
+            ))}
+          </ChipRow>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
           <h2 className="panel__title" style={{ margin: 0 }}>Карточки</h2>
           <div className="form-row" style={{ margin: 0 }}>
@@ -703,7 +911,7 @@ export function Students() {
             onCancel={() => setRejectOneUserId(null)}
           />
         ) : null}
-        {loading ? (
+        {listPending ? (
           <p style={{ color: 'var(--text-muted)', margin: '0.75rem 0 0' }}>Загрузка…</p>
         ) : (
           <>
@@ -773,7 +981,7 @@ export function Students() {
                             {labelOf(ACCOUNT_STATUS_LABELS, meta.status)}
                           </StatusBadge>
                           <ProfileMeter
-                            checks={listProfileChecks(s, meta.emailVerified)}
+                            checks={listProfileChecks(s, meta.emailVerified, meta)}
                             caption=""
                           />
                         </td>
@@ -794,8 +1002,8 @@ export function Students() {
             </div>
             <div className="pager">
               <span>
-                Стр. {data ? data.page + 1 : 1} из {Math.max(totalPages, 1)} · всего{' '}
-                {data?.totalElements ?? 0}
+                Стр. {(clientList ? page : (data?.page ?? page)) + 1} из {Math.max(totalPages, 1)} · всего{' '}
+                {totalElements}
               </span>
               <label className="pager__size">
                 На странице
@@ -825,7 +1033,7 @@ export function Students() {
                 <button
                   type="button"
                   className="btn btn--ghost"
-                  disabled={totalPages && page >= totalPages - 1}
+                  disabled={!totalPages || page >= totalPages - 1}
                   onClick={() => setPage((p) => p + 1)}
                 >
                   Вперёд

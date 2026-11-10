@@ -26,6 +26,7 @@ import { TextAreaWithToolbar } from '../components/TextAreaWithToolbar.jsx';
 import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { DateField } from '../components/ui/DateTimeField.jsx';
 import { StatusBadge } from '../components/ui/StatusBadge.jsx';
+import { StudentEventFeed } from '../components/StudentEventFeed.jsx';
 import * as accountApi from '../api/accountApprovals.js';
 import { studentResumeUrl } from '../config.js';
 import { ACCOUNT_STATUS_LABELS, labelOf } from '../lib/labels.js';
@@ -518,6 +519,8 @@ export function StudentDetail() {
   });
   const profileReady = checksFilled(profileChecks).complete && canModerate;
   const publicResumeUrl = studentResumeUrl(id);
+  const catalogVisible = student.catalogVisible === true;
+  const canShowCatalog = accountStatus === 'APPROVED';
 
   async function handleEmailVerified(nextVerified) {
     if (!userId) return;
@@ -531,6 +534,19 @@ export function StudentDetail() {
       });
       const pending = await accountApi.loadPendingStudentApprovals();
       setPendingByStudentId(pending);
+    } catch (e) {
+      setApprovalMsg({ type: 'err', text: e.message });
+    } finally {
+      setApprovalLoading(false);
+    }
+  }
+
+  async function handleCatalogVisible(nextVisible) {
+    setApprovalLoading(true);
+    setApprovalMsg(null);
+    try {
+      await studentsApi.patchStudent(id, { catalogVisible: nextVisible });
+      await loadStudent(undefined, () => true, { silent: true });
     } catch (e) {
       setApprovalMsg({ type: 'err', text: e.message });
     } finally {
@@ -626,37 +642,44 @@ export function StudentDetail() {
         <ProfileChecklist checks={profileChecks} />
         {approvalMsg?.type === 'ok' ? <div className="alert alert--success">{approvalMsg.text}</div> : null}
         {approvalMsg?.type === 'err' ? <div className="alert alert--error">{approvalMsg.text}</div> : null}
-        {canModerate || canReject ? (
-          <div className="form-row">
-            {canModerate ? (
-              <button
-                type="button"
-                className="btn btn--primary"
-                disabled={approvalLoading}
-                onClick={handleApproveAccount}
-              >
-                Одобрить
-              </button>
-            ) : null}
-            {canReject ? (
-              <button
-                type="button"
-                className="btn btn--danger"
-                disabled={approvalLoading}
-                onClick={() => {
-                  setApprovalMsg(null);
-                  setRejectOpen(true);
-                }}
-              >
-                Отклонить
-              </button>
-            ) : null}
-          </div>
-        ) : (
-          <p className="page__lead" style={{ margin: 0 }}>
+        <div className="form-row">
+          {canModerate ? (
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={approvalLoading}
+              onClick={handleApproveAccount}
+            >
+              Одобрить
+            </button>
+          ) : null}
+          {canReject ? (
+            <button
+              type="button"
+              className="btn btn--danger"
+              disabled={approvalLoading}
+              onClick={() => {
+                setApprovalMsg(null);
+                setRejectOpen(true);
+              }}
+            >
+              Отклонить
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="btn btn--ghost"
+            disabled={approvalLoading || (!catalogVisible && !canShowCatalog)}
+            onClick={() => handleCatalogVisible(!catalogVisible)}
+          >
+            {catalogVisible ? 'Скрыть анкету' : 'Показать анкету'}
+          </button>
+        </div>
+        {!canModerate && !canReject ? (
+          <p className="page__lead" style={{ margin: '0.75rem 0 0' }}>
             Этот аккаунт уже отклонён.
           </p>
-        )}
+        ) : null}
         {canReject && rejectOpen ? (
           <AccountRejectForm
             title="Отклонение аккаунта"
@@ -851,6 +874,8 @@ export function StudentDetail() {
           <p className="page__lead" style={{ margin: 0 }}>У карточки нет учётной записи.</p>
         )}
       </div>
+
+      <StudentEventFeed studentId={id} />
 
       <div className="panel">
         <h2 className="panel__title">Удаление</h2>

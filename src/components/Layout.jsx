@@ -8,12 +8,16 @@ import './Layout.css';
 const ADMIN_NAV_GROUPS = [
   {
     title: 'Обзор',
-    items: [{ to: '/', label: 'Главная', end: true }],
+    items: [
+      { to: '/', label: 'Главная', end: true },
+      { to: '/analytics', label: 'Аналитика' },
+    ],
   },
   {
     title: 'Пользователи',
     items: [
       { to: '/students', label: 'Студенты' },
+      { to: '/employers', label: 'Работодатели' },
       { to: '/mail', label: 'Рассылка' },
     ],
   },

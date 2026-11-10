@@ -21,6 +21,28 @@ export function listStudentAccounts(page, size, fetchOptions = {}) {
   });
 }
 
+export function listRecruiterAccounts({
+  page = 0,
+  size = 100,
+  findString,
+  accountStatus,
+  emailVerified,
+  city,
+  sortBy,
+  sortDirection,
+} = {}) {
+  const p = new URLSearchParams();
+  p.set('page', String(page));
+  p.set('size', String(size));
+  if (findString) p.set('findString', findString);
+  if (accountStatus) p.set('accountStatus', accountStatus);
+  if (emailVerified != null) p.set('emailVerified', String(emailVerified));
+  if (city) p.set('city', city);
+  if (sortBy) p.set('sortBy', sortBy);
+  if (sortDirection) p.set('sortDirection', sortDirection);
+  return apiFetch(`/admin/account-approvals/recruiters?${p.toString()}`, { method: 'GET' });
+}
+
 export function approveAccount(userId) {
   return apiFetch(`/admin/account-approvals/${userId}/approve`, { method: 'POST' });
 }
@@ -53,6 +75,9 @@ export async function loadPendingStudentApprovals(fetchOptions = {}) {
         userId: user.id,
         accountStatus: user.accountStatus || null,
         emailVerified: user.emailVerified === true,
+        hasPortfolio: user.hasPortfolio === true,
+        hasExperience: user.hasExperience === true,
+        hasEducation: user.hasEducation === true,
       });
     }
     const totalPages = data?.totalPages ?? 1;

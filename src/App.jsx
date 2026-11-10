@@ -9,6 +9,7 @@ import { Skills } from './pages/Skills.jsx';
 import { Specialities } from './pages/Specialities.jsx';
 import { Companies } from './pages/Companies.jsx';
 import { Students } from './pages/Students.jsx';
+import { Employers } from './pages/Employers.jsx';
 import { StudentMail } from './pages/StudentMail.jsx';
 import { RecruiterRegistrations } from './pages/RecruiterRegistrations.jsx';
 import { Projects } from './pages/Projects.jsx';
@@ -17,6 +18,9 @@ import { Storage } from './pages/Storage.jsx';
 
 const Dashboard = lazy(() =>
   import('./pages/Dashboard.jsx').then((m) => ({ default: m.Dashboard }))
+);
+const Analytics = lazy(() =>
+  import('./pages/Analytics.jsx').then((m) => ({ default: m.Analytics }))
 );
 const Vacancies = lazy(() =>
   import('./pages/Vacancies.jsx').then((m) => ({ default: m.Vacancies }))
@@ -76,7 +80,16 @@ export default function App() {
                 </LazyPage>
               }
             />
+            <Route
+              path="/analytics"
+              element={
+                <LazyPage>
+                  <Analytics />
+                </LazyPage>
+              }
+            />
             <Route path="/students" element={<Students />} />
+            <Route path="/employers" element={<Employers />} />
             <Route path="/mail" element={<StudentMail />} />
             <Route
               path="/students/:id"
