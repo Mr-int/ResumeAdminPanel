@@ -27,6 +27,7 @@ import { LoadingBlock } from '../components/ui/LoadingBlock.jsx';
 import { DateField } from '../components/ui/DateTimeField.jsx';
 import { StatusBadge } from '../components/ui/StatusBadge.jsx';
 import { StudentEventFeed } from '../components/StudentEventFeed.jsx';
+import { ProfileChanges } from '../components/ProfileChanges.jsx';
 import * as accountApi from '../api/accountApprovals.js';
 import { studentResumeUrl } from '../config.js';
 import { ACCOUNT_STATUS_LABELS, labelOf } from '../lib/labels.js';
@@ -640,6 +641,13 @@ export function StudentDetail() {
           caption={profileReady ? 'Анкету можно одобрить.' : 'Зелёная шкала значит, что анкета полная и ждёт модерации.'}
         />
         <ProfileChecklist checks={profileChecks} />
+        <ProfileChanges
+          studentId={id}
+          student={student}
+          experiences={experiences}
+          institutions={institutions}
+          portfolios={portfolios}
+        />
         {approvalMsg?.type === 'ok' ? <div className="alert alert--success">{approvalMsg.text}</div> : null}
         {approvalMsg?.type === 'err' ? <div className="alert alert--error">{approvalMsg.text}</div> : null}
         <div className="form-row">
