@@ -654,6 +654,7 @@ export function StudentDetail() {
           experiences={experiences}
           institutions={institutions}
           portfolios={portfolios}
+          companies={companyOptions}
         />
         {approvalMsg?.type === 'ok' ? <div className="alert alert--success">{approvalMsg.text}</div> : null}
         {approvalMsg?.type === 'err' ? <div className="alert alert--error">{approvalMsg.text}</div> : null}

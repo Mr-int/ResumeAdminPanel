@@ -12,6 +12,10 @@ export function deleteEducation(id) {
   return apiFetch(`/education/${id}`, { method: 'DELETE' });
 }
 
+export function getEducation(id) {
+  return apiFetch(`/education/${id}`, { method: 'GET' });
+}
+
 export function filterEducation(filter, page = 0, size = 50, sort) {
   const q = pageableQuery(page, size, sort);
   return apiFetch(`/education/filter${q}`, {
