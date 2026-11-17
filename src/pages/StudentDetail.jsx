@@ -7,6 +7,7 @@ import * as portfolioApi from '../api/portfolio.js';
 import * as experienceApi from '../api/experience.js';
 import * as institutionApi from '../api/institutions.js';
 import { getCompaniesOptions, getSkillsOptions, getSpecialityOptions } from '../lib/referenceCache.js';
+import { listAllCities } from '../api/cities.js';
 import { compressImageForUpload } from '../utils/compressImage.js';
 import {
   contactFieldsFromStudentDto,
@@ -61,6 +62,7 @@ export function StudentDetail() {
   const [photoUploading, setPhotoUploading] = useState(false);
   const [skillsOptions, setSkillsOptions] = useState([]);
   const [specialityOptions, setSpecialityOptions] = useState([]);
+  const [cityOptions, setCityOptions] = useState([]);
   const [companyOptions, setCompanyOptions] = useState([]);
   const [optionsError, setOptionsError] = useState(null);
   const [extendedMsg, setExtendedMsg] = useState(null);
@@ -76,7 +78,7 @@ export function StudentDetail() {
     institution: false,
   });
   const [form, setForm] = useState({
-    city: '', hhLink: '', birthDate: '', bio: '', course: 'NEW', busyness: 'FREE',
+    city: '', cityId: '', hhLink: '', birthDate: '', bio: '', course: 'NEW', busyness: 'FREE',
     firstName: '', lastName: '', email: '', phoneNumber: '', telegramUsername: '',
     specialityId: '', skillsIds: [],
   });
@@ -132,7 +134,9 @@ export function StudentDetail() {
       if (match) specialityId = String(match.id);
     }
     setForm({
-      city: data.city ?? '', hhLink: data.hhLink ?? '', birthDate: data.birthDate ?? '',
+      city: data.city ?? '',
+      cityId: data.cityId != null ? String(data.cityId) : '',
+      hhLink: data.hhLink ?? '', birthDate: data.birthDate ?? '',
       bio: data.bio ?? '', course: data.course ?? 'NEW', busyness: data.busyness ?? 'FREE',
       firstName: data.firstName ?? '', lastName: data.lastName ?? '',
       email: contact.email,
@@ -203,17 +207,19 @@ export function StudentDetail() {
     }
     if (isActive()) setExtendedLoading(true);
     try {
-      const [{ data }, specList, skillsList, companiesList] = await Promise.all([
+      const [{ data }, specList, skillsList, companiesList, cityList] = await Promise.all([
         studentsApi.getStudent(id, fetchOpts(signal)),
         getSpecialityOptions(),
         getSkillsOptions(),
         getCompaniesOptions(),
+        listAllCities(),
       ]);
       if (!isActive()) return;
       setStudent(data);
       setSpecialityOptions(specList);
       setSkillsOptions(skillsList);
       setCompanyOptions(companiesList);
+      setCityOptions(cityList);
       applyStudentToForm(data, specList, skillsList);
       if (!silent && isActive()) setLoading(false);
       await loadExtendedExisting(id, signal, isActive);
@@ -267,8 +273,9 @@ export function StudentDetail() {
         .filter((x) => Number.isInteger(x) && x >= 0);
       if (form.specialityId === '') throw new Error('Выберите специальность');
 
+      if (form.city && !form.cityId) throw new Error('Выберите город из справочника');
       await studentsApi.updateStudent(id, {
-        city: form.city || undefined,
+        cityId: form.cityId ? Number(form.cityId) : undefined,
         hhLink: form.hhLink || undefined,
         birthDate: form.birthDate,
         bio: form.bio || undefined,
@@ -782,7 +789,21 @@ export function StudentDetail() {
                 />
               </div>
               <div className="form-row">
-                <div className="field"><label>Город</label><input value={form.city} onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))} /></div>
+                <div className="field">
+                  <label htmlFor="student-city">Город</label>
+                  <select
+                    id="student-city"
+                    value={form.cityId}
+                    onChange={(e) => setForm((p) => ({ ...p, cityId: e.target.value }))}
+                  >
+                    <option value="">
+                      {form.city && !form.cityId ? `${form.city} — нет в справочнике` : 'Не выбран'}
+                    </option>
+                    {cityOptions.map((city) => (
+                      <option key={city.id} value={String(city.id)}>{city.name}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="field">
                   <label>Email</label>
                   <input type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} />

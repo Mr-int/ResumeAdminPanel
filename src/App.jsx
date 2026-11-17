@@ -7,6 +7,7 @@ import { Recruiters } from './pages/Recruiters.jsx';
 import { Requests } from './pages/Requests.jsx';
 import { Skills } from './pages/Skills.jsx';
 import { Specialities } from './pages/Specialities.jsx';
+import { Cities } from './pages/Cities.jsx';
 import { Companies } from './pages/Companies.jsx';
 import { Students } from './pages/Students.jsx';
 import { Employers } from './pages/Employers.jsx';
@@ -101,6 +102,7 @@ export default function App() {
             />
             <Route path="/skills" element={<Skills />} />
             <Route path="/specialities" element={<Specialities />} />
+            <Route path="/cities" element={<Cities />} />
             <Route path="/companies" element={<Companies />} />
             <Route path="/recruiters" element={<Recruiters />} />
             <Route path="/requests" element={<Requests />} />
