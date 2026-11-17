@@ -55,6 +55,8 @@ const COURSE_OPTIONS = [
 
 const STATUS_OPTIONS = [
   { id: 'PENDING_APPROVAL', label: 'На модерации', tone: 'pending' },
+  { id: 'REGISTRATION', label: 'Регистрация', tone: 'registration' },
+  { id: 'IN_REVISION', label: 'Доработка', tone: 'revision' },
   { id: 'APPROVED', label: 'Одобрен', tone: 'approved' },
   { id: 'REJECTED', label: 'Отклонён', tone: 'rejected' },
 ];

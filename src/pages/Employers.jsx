@@ -3,13 +3,17 @@ import * as accountApi from '../api/accountApprovals.js';
 import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { PageHeader } from '../components/ui/PageHeader.jsx';
 import { StatusBadge } from '../components/ui/StatusBadge.jsx';
-import { ACCOUNT_STATUS_LABELS, labelOf } from '../lib/labels.js';
+import { ACCOUNT_STATUS_LABELS, COOPERATION_FORMAT_LABELS, labelOf } from '../lib/labels.js';
 import { accountStatusVariant, isPendingApproval } from '../lib/studentAccount.js';
+import { getRecruiterDirectory } from '../lib/recruiterDirectory.js';
+import { ApiPhoto } from '../components/ui/ApiPhoto.jsx';
 
 const PAGE_SIZE = 100;
 
 const STATUS_OPTIONS = [
   { id: 'PENDING_APPROVAL', label: 'На модерации', tone: 'pending' },
+  { id: 'REGISTRATION', label: 'Регистрация', tone: 'registration' },
+  { id: 'IN_REVISION', label: 'Доработка', tone: 'revision' },
   { id: 'APPROVED', label: 'Одобрен', tone: 'approved' },
   { id: 'REJECTED', label: 'Отклонён', tone: 'rejected' },
 ];
@@ -67,6 +71,12 @@ function SortHeader({ label, sortKey, sort, onSort }) {
   );
 }
 
+function yesNo(value) {
+  if (value === true) return 'да';
+  if (value === false) return 'нет';
+  return 'нет';
+}
+
 function fullName(row) {
   return [row.firstName, row.middleName, row.lastName].filter(Boolean).join(' ') || row.name || '—';
 }
@@ -85,22 +95,27 @@ export function Employers() {
   const [loading, setLoading] = useState(false);
   const [actionId, setActionId] = useState(null);
   const [msg, setMsg] = useState(null);
+  const [recruitersById, setRecruitersById] = useState({});
 
   const load = useCallback(async () => {
     setError(null);
     setLoading(true);
     try {
-      const { data: res } = await accountApi.listRecruiterAccounts({
-        page,
-        size: PAGE_SIZE,
-        findString: debouncedFind.trim() || undefined,
-        city: debouncedCity.trim() || undefined,
-        accountStatus: status || undefined,
-        emailVerified: email === 'yes' ? true : email === 'no' ? false : undefined,
-        sortBy: sort.key ? SORT_FIELDS[sort.key] : undefined,
-        sortDirection: sort.key ? (sort.dir === 'asc' ? 'ASC' : 'DESC') : undefined,
-      });
+      const [{ data: res }, directory] = await Promise.all([
+        accountApi.listRecruiterAccounts({
+          page,
+          size: PAGE_SIZE,
+          findString: debouncedFind.trim() || undefined,
+          city: debouncedCity.trim() || undefined,
+          accountStatus: status || undefined,
+          emailVerified: email === 'yes' ? true : email === 'no' ? false : undefined,
+          sortBy: sort.key ? SORT_FIELDS[sort.key] : undefined,
+          sortDirection: sort.key ? (sort.dir === 'asc' ? 'ASC' : 'DESC') : undefined,
+        }),
+        getRecruiterDirectory().catch(() => ({})),
+      ]);
       setData(res);
+      setRecruitersById(directory || {});
     } catch (e) {
       setError(e.message);
       setData(null);
@@ -267,6 +282,9 @@ export function Employers() {
                     <th>Телефон</th>
                     <th>Telegram</th>
                     <th>Город</th>
+                    <th>Формат</th>
+                    <th>Заявка</th>
+                    <th>Фото</th>
                     <th>Почта подтверждена</th>
                     <th>
                       <SortHeader label="Статус" sortKey="status" sort={sort} onSort={handleSort} />
@@ -281,6 +299,7 @@ export function Employers() {
                   {rows.map((row) => {
                     const pending = isPendingApproval(row.accountStatus);
                     const busy = actionId === row.id;
+                    const card = row.recruiterId ? recruitersById[row.recruiterId] : null;
                     return (
                       <tr key={row.id}>
                         <td>{row.companyName || '—'}</td>
@@ -290,6 +309,13 @@ export function Employers() {
                         <td>{row.phoneNumber || '—'}</td>
                         <td>{row.telegramUsername || '—'}</td>
                         <td>{row.city || '—'}</td>
+                        <td>{labelOf(COOPERATION_FORMAT_LABELS, card?.cooperationFormat, 'нет')}</td>
+                        <td>{yesNo(card?.readyToRequestStudents)}</td>
+                        <td>
+                          {card?.imagePath ? (
+                            <ApiPhoto imagePath={card.imagePath} className="avatar" alt="" />
+                          ) : 'нет'}
+                        </td>
                         <td>{row.emailVerified ? 'Да' : 'Нет'}</td>
                         <td>
                           <StatusBadge variant={accountStatusVariant(row.accountStatus)}>

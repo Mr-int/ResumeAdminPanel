@@ -60,6 +60,16 @@ export const ACCOUNT_STATUS_LABELS = {
   PENDING_APPROVAL: 'На модерации',
   APPROVED: 'Одобрен',
   REJECTED: 'Отклонён',
+  REGISTRATION: 'Регистрация',
+  IN_REVISION: 'Доработка',
+};
+
+export const COOPERATION_FORMAT_LABELS = {
+  SEMESTER_PROJECT: 'Проект на семестр',
+  SUMMER_PRACTICE: 'Летняя практика',
+  INTERNSHIP: 'Стажировка',
+  VACANCY: 'Вакансия',
+  OTHER: 'Другое',
 };
 
 export const REGISTRATION_STATUS_LABELS = {
