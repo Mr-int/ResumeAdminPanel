@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import * as studentsAdminApi from '../api/studentsAdmin.js';
+import { filterCompanies } from '../api/companies.js';
 import { getEducation } from '../api/education.js';
 import { COURSE_LABELS, labelOf } from '../lib/labels.js';
+import { pageItems, pageTotalPages } from '../lib/pageable.js';
 
 const BUSYNESS_LABELS = {
   FREE: 'Свободен',
@@ -100,6 +102,7 @@ function recordId(item, key) {
 
 function companyTitle(companyId, companies) {
   if (companyId == null || companyId === '' || Number(companyId) === 0) return '';
+  if (companies instanceof Map) return companies.get(String(companyId)) || '';
   const found = (companies ?? []).find((item) => String(item.id) === String(companyId));
   return found?.name || '';
 }
@@ -124,7 +127,7 @@ function experienceView(item, companies) {
     title: [position, company].filter(Boolean).join(', ') || 'Опыт',
     fields: [
       ['Должность', position],
-      ['Компания', company || item?.companyId],
+      ['Компания', company],
       ['Описание', inner.additionalInfo],
       ['Начало', inner.startDate],
       ['Конец', inner.endDate],
@@ -141,7 +144,7 @@ function educationView(item, schools) {
     signature: `${item?.educationId ?? ''}|${inner.startYear ?? ''}`,
     title: [school, years(inner.startYear, inner.endYear)].filter(Boolean).join(', ') || 'Учёба',
     fields: [
-      ['Заведение', school || item?.educationId],
+      ['Заведение', school],
       ['Начало', inner.startYear],
       ['Конец', inner.endYear],
       ['Тип', inner.educationType, EDUCATION_TYPE_LABELS],
@@ -164,15 +167,13 @@ function portfolioView(item) {
   };
 }
 
-function fieldText(label, value, labels) {
-  return `${label}: ${show(value, labels)}`;
-}
-
-function filledText(fields) {
-  return fields
-    .filter(([, value]) => !blank(value) && value !== 0)
-    .map(([label, value, labels]) => fieldText(label, value, labels))
-    .join('; ');
+function rowFrom(label, value, labels, side) {
+  const text = show(value, labels);
+  return {
+    label,
+    catalog: side === 'draft' ? 'нет' : text,
+    draft: side === 'catalog' ? 'нет' : text,
+  };
 }
 
 function diffRecords(published, draft, toView) {
@@ -203,29 +204,58 @@ function diffRecords(published, draft, toView) {
     usedPublished.add(previous);
   }
 
-  const lines = [];
+  const groups = [];
   for (const [previous, next] of pairs) {
-    const changed = next.fields.filter((field, index) => !same(previous.fields[index][1], field[1]));
-    if (!changed.length) continue;
-    lines.push({
-      title: next.title,
-      text: changed.map(([label, value, labels]) => {
-        const oldValue = previous.fields.find(([name]) => name === label);
-        return `${label}: ${show(oldValue?.[1], oldValue?.[2])} → ${show(value, labels)}`;
-      }).join('; '),
+    const rows = next.fields.flatMap((field, index) => {
+      if (same(previous.fields[index][1], field[1])) return [];
+      const [label, value, labels] = field;
+      const oldValue = previous.fields[index];
+      return [{
+        label,
+        catalog: show(oldValue?.[1], oldValue?.[2]),
+        draft: show(value, labels),
+      }];
     });
+    if (rows.length) groups.push({ title: next.title, rows });
   }
   for (const next of draftViews) {
     if (usedDraft.has(next)) continue;
-    const details = filledText(next.fields);
-    lines.push({ title: next.title, text: details ? `добавлен, ${details}` : 'добавлен' });
+    const rows = next.fields
+      .filter(([, value]) => !blank(value) && value !== 0)
+      .map(([label, value, labels]) => rowFrom(label, value, labels, 'draft'));
+    groups.push({ title: next.title, rows });
   }
   for (const previous of publishedViews) {
     if (usedPublished.has(previous)) continue;
-    const details = filledText(previous.fields);
-    lines.push({ title: previous.title, text: details ? `снят, было ${details}` : 'снят' });
+    const rows = previous.fields
+      .filter(([, value]) => !blank(value) && value !== 0)
+      .map(([label, value, labels]) => rowFrom(label, value, labels, 'catalog'));
+    groups.push({ title: previous.title, rows });
   }
-  return lines;
+  return groups;
+}
+
+async function loadCompanyNames(known, ids) {
+  const names = new Map();
+  for (const company of known ?? []) {
+    if (company?.id != null) names.set(String(company.id), company.name || '');
+  }
+  const missing = [...ids].filter((companyId) => companyId && !names.has(String(companyId)));
+  if (!missing.length) return names;
+  let page = 0;
+  while (missing.some((companyId) => !names.has(String(companyId)))) {
+    let data;
+    try {
+      ({ data } = await filterCompanies({}, page, 200, ['id,asc']));
+    } catch {
+      break;
+    }
+    const items = pageItems(data);
+    for (const item of items) names.set(String(item.id), item.name || '');
+    page += 1;
+    if (!items.length || page >= pageTotalPages(data) || page > 50) break;
+  }
+  return names;
 }
 
 function buildDiff(published, student, draftLists, companies, schools) {
@@ -300,11 +330,16 @@ export function ProfileChanges({
               return [String(schoolId), ''];
             }
           }));
+          const companyIds = new Set();
+          for (const item of [...(snapshot?.experience ?? []), ...(experiences ?? [])]) {
+            if (item?.companyId) companyIds.add(item.companyId);
+          }
+          const companyNames = await loadCompanyNames(companies, companyIds);
           if (cancelled) return;
           setState({
             mode: 'diff',
             ribbon,
-            diff: buildDiff(snapshot, student, { experiences, institutions, portfolios }, companies, new Map(schoolEntries)),
+            diff: buildDiff(snapshot, student, { experiences, institutions, portfolios }, companyNames, new Map(schoolEntries)),
           });
         } catch (error) {
           if (cancelled) return;
@@ -361,13 +396,31 @@ export function ProfileChanges({
           ))}
         </div>
       ) : null}
-      {sections.map(([title, lines]) => (
+      {sections.map(([title, groups]) => (
         <div key={title} className="profile-changes__group">
           <p className="profile-changes__group-title">{title}</p>
-          {lines.map((line) => (
-            <p className="profile-changes__line" key={`${line.kind}-${line.title}-${line.text}`}>
-              <strong>{line.title}.</strong> {line.text}
-            </p>
+          {groups.map((group, index) => (
+            <div className="profile-changes__record" key={`${group.title}-${index}`}>
+              <p className="profile-changes__record-title">{group.title}</p>
+              {group.rows.length ? (
+                <div className="profile-changes__fields">
+                  <div className="profile-changes__field profile-changes__field--head">
+                    <span />
+                    <span>В каталоге</span>
+                    <span>В черновике</span>
+                  </div>
+                  {group.rows.map((row) => (
+                    <div className="profile-changes__field" key={row.label}>
+                      <span className="profile-changes__label">{row.label}</span>
+                      <span>{row.catalog}</span>
+                      <span>{row.draft}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="page__lead" style={{ margin: 0 }}>Заполненных полей нет.</p>
+              )}
+            </div>
           ))}
         </div>
       ))}

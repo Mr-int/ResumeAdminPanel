@@ -3,14 +3,45 @@ import { DateTimeField } from './ui/DateTimeField.jsx';
 import { LoadingBlock } from './ui/LoadingBlock.jsx';
 import { AnalyticsEventList } from './AnalyticsEventList.jsx';
 import * as analyticsApi from '../api/analytics.js';
+import { getEducation } from '../api/education.js';
 import { defaultAnalyticsPeriod, toApiDateTime } from '../lib/analyticsEvents.js';
 
-export function StudentEventFeed({ studentId }) {
+export function StudentEventFeed({
+  studentId,
+  experiences,
+  institutions,
+  portfolios,
+  companies,
+}) {
   const [period, setPeriod] = useState(defaultAnalyticsPeriod);
   const [events, setEvents] = useState([]);
   const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [schools, setSchools] = useState(() => new Map());
+
+  useEffect(() => {
+    const schoolIds = [...new Set((institutions ?? []).map((item) => item?.educationId).filter(Boolean))];
+    if (!schoolIds.length) {
+      setSchools(new Map());
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(schoolIds.map(async (schoolId) => {
+        try {
+          const { data } = await getEducation(schoolId);
+          return [String(schoolId), data?.institution || ''];
+        } catch {
+          return [String(schoolId), ''];
+        }
+      }));
+      if (!cancelled) setSchools(new Map(entries));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [institutions]);
 
   const load = useCallback(async (nextPeriod) => {
     const from = toApiDateTime(nextPeriod.from);
@@ -65,7 +96,12 @@ export function StudentEventFeed({ studentId }) {
         </button>
       </form>
       {error ? <div className="alert alert--error">{error}</div> : null}
-      {loading ? <LoadingBlock text="Загрузка событий…" /> : <AnalyticsEventList events={events} />}
+      {loading ? <LoadingBlock text="Загрузка событий…" /> : (
+        <AnalyticsEventList
+          events={events}
+          records={{ experiences, institutions, portfolios, companies, schools }}
+        />
+      )}
       {truncated ? (
         <p className="page__lead">Показаны не все события периода.</p>
       ) : null}

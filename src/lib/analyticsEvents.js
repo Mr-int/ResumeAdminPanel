@@ -45,6 +45,43 @@ const ACTION_LABELS = {
   delete: 'Удалил',
 };
 
+const FIELD_LABELS = {
+  city: 'Город',
+  cityId: 'Город',
+  hhLink: 'Ссылка',
+  birthDate: 'Дата рождения',
+  bio: 'Описание',
+  imagePath: 'Фото',
+  course: 'Курс',
+  busyness: 'Занятость',
+  desiredBusyness: 'Желаемый формат',
+  jobSearchStatus: 'Статус поиска',
+  firstName: 'Имя',
+  lastName: 'Фамилия',
+  middleName: 'Отчество',
+  gender: 'Пол',
+  email: 'Почта',
+  phoneNumber: 'Телефон',
+  telegramUsername: 'Telegram',
+  specialityId: 'Специальность',
+  skillsIds: 'Навыки',
+  publicProfileConsent: 'Согласие на показ',
+  companyId: 'Компания',
+  position: 'Должность',
+  additionalInfo: 'Описание',
+  startDate: 'Начало',
+  endDate: 'Конец',
+  experienceType: 'Тип',
+  educationId: 'Заведение',
+  startYear: 'Начало',
+  endYear: 'Конец',
+  educationType: 'Тип',
+  direction: 'Направление',
+  educationLevel: 'Уровень',
+  name: 'Название',
+  link: 'Ссылка',
+};
+
 function pad(value) {
   return String(value).padStart(2, '0');
 }
@@ -83,15 +120,86 @@ function formatPayloadValue(value) {
   return String(value);
 }
 
-export function eventSummary(event) {
+function fieldLabel(code) {
+  return FIELD_LABELS[code] || String(code);
+}
+
+function sentenceLabel(label) {
+  if (!label) return '';
+  return label.charAt(0).toLowerCase() + label.slice(1);
+}
+
+export function profileChangeFieldLabels(event) {
+  const fields = event?.payload?.fields;
+  if (!Array.isArray(fields)) return [];
+  const seen = new Set();
+  const labels = [];
+  for (const code of fields) {
+    const label = fieldLabel(code);
+    if (seen.has(label)) continue;
+    seen.add(label);
+    labels.push(label);
+  }
+  return labels;
+}
+
+function nestedRecord(item, key) {
+  const inner = item?.[key];
+  return inner && typeof inner === 'object' ? inner : item ?? {};
+}
+
+function sameId(left, right) {
+  return left != null && right != null && String(left) === String(right);
+}
+
+function companyName(companyId, companies) {
+  if (companyId == null || companyId === '' || Number(companyId) === 0) return '';
+  const found = (companies ?? []).find((item) => sameId(item?.id, companyId));
+  return found?.name || '';
+}
+
+function yearSpan(start, end) {
+  const startEmpty = start == null || String(start).trim() === '';
+  const endEmpty = end == null || String(end).trim() === '';
+  if (startEmpty && endEmpty) return '';
+  return `${startEmpty ? '…' : start}–${endEmpty ? '…' : end}`;
+}
+
+export function profileRecordTitle(event, records) {
+  const payload = event?.payload ?? {};
+  const itemId = payload.itemId;
+  if (!records || itemId == null || itemId === '') return '';
+  if (payload.section === 'experience') {
+    const item = (records.experiences ?? []).find((entry) => sameId(nestedRecord(entry, 'experience').id, itemId));
+    if (!item) return '';
+    const inner = nestedRecord(item, 'experience');
+    return [inner.position, companyName(item.companyId, records.companies)].filter(Boolean).join(', ');
+  }
+  if (payload.section === 'education') {
+    const item = (records.institutions ?? []).find((entry) => sameId(nestedRecord(entry, 'institution').id, itemId));
+    if (!item) return '';
+    const inner = nestedRecord(item, 'institution');
+    const school = records.schools?.get(String(item.educationId)) || '';
+    return [school, yearSpan(inner.startYear, inner.endYear)].filter(Boolean).join(', ');
+  }
+  if (payload.section === 'portfolio') {
+    const item = (records.portfolios ?? []).find((entry) => sameId(entry?.id, itemId));
+    if (!item?.name) return '';
+    return item.name;
+  }
+  return '';
+}
+
+export function eventSummary(event, records) {
   const payload = event?.payload ?? {};
   if (event?.eventType === 'STUDENT_PROFILE_CHANGED') {
     const action = ACTION_LABELS[payload.action] || 'Изменил';
     const section = SECTION_LABELS[payload.section] || 'анкету';
-    const fields = Array.isArray(payload.fields) && payload.fields.length
-      ? `: ${payload.fields.join(', ')}`
-      : '';
-    return `${action} ${section}${fields}`;
+    const title = profileRecordTitle(event, records);
+    const subject = title ? `${section} «${title}»` : section;
+    const labels = profileChangeFieldLabels(event).map(sentenceLabel);
+    const fields = labels.length ? `: ${labels.join(', ')}` : '';
+    return `${action} ${subject}${fields}`;
   }
   if (event?.eventType === 'ACCOUNT_APPROVED') return 'Аккаунт одобрен';
   if (event?.eventType === 'ACCOUNT_REJECTED') {

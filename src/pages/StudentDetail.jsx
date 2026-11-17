@@ -905,7 +905,13 @@ export function StudentDetail() {
         )}
       </div>
 
-      <StudentEventFeed studentId={id} />
+      <StudentEventFeed
+        studentId={id}
+        experiences={experiences}
+        institutions={institutions}
+        portfolios={portfolios}
+        companies={companyOptions}
+      />
 
       <div className="panel">
         <h2 className="panel__title">Удаление</h2>
