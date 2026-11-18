@@ -30,6 +30,7 @@ const ADMIN_NAV_GROUPS = [
     items: [
       { to: '/skills', label: 'Навыки' },
       { to: '/specialities', label: 'Специальности' },
+      { to: '/cities', label: 'Города' },
     ],
   },
 ];

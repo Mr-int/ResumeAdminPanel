@@ -28,6 +28,8 @@ export function isPendingApproval(status) {
 export function accountStatusVariant(status) {
   if (status === 'APPROVED') return 'success';
   if (status === 'REJECTED') return 'danger';
+  if (status === 'REGISTRATION') return 'info';
+  if (status === 'IN_REVISION') return 'warning';
   if (isPendingApproval(status)) return 'pending';
   return 'default';
 }

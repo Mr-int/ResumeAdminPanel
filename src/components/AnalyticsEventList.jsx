@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { eventSummary, eventTypeLabel, formatOccurredAt } from '../lib/analyticsEvents.js';
+import { eventSummary, eventTypeLabel, formatOccurredAt, profileChangeFieldLabels } from '../lib/analyticsEvents.js';
 
 function payloadEntries(payload) {
   if (!payload || typeof payload !== 'object') return [];
@@ -14,7 +14,7 @@ function formatField(value) {
   return String(value);
 }
 
-export function AnalyticsEventList({ events, showStudentLink = false }) {
+export function AnalyticsEventList({ events, showStudentLink = false, records }) {
   const [openId, setOpenId] = useState(null);
   if (!events?.length) {
     return <p className="page__lead" style={{ margin: 0 }}>За период событий нет.</p>;
@@ -23,8 +23,11 @@ export function AnalyticsEventList({ events, showStudentLink = false }) {
     <div className="event-list">
       {events.map((event) => {
         const open = openId === event.id;
-        const entries = payloadEntries(event.payload);
+        const profileChange = event.eventType === 'STUDENT_PROFILE_CHANGED';
+        const entries = profileChange ? [] : payloadEntries(event.payload);
+        const fieldLabels = profileChange ? profileChangeFieldLabels(event) : [];
         const studentId = event.payload?.studentId;
+        const summary = eventSummary(event, records);
         return (
           <article className="event-row" key={event.id}>
             <button
@@ -38,7 +41,7 @@ export function AnalyticsEventList({ events, showStudentLink = false }) {
               </time>
               <span className="event-row__copy">
                 <span className="event-row__type">{eventTypeLabel(event.eventType)}</span>
-                <span className="event-row__summary">{eventSummary(event)}</span>
+                <span className="event-row__summary">{summary}</span>
                 <span className="event-row__path">{event.path || '—'}</span>
               </span>
             </button>
@@ -49,7 +52,18 @@ export function AnalyticsEventList({ events, showStudentLink = false }) {
                     <Link to={`/students/${studentId}`}>Открыть анкету</Link>
                   </p>
                 ) : null}
-                {entries.length ? (
+                {profileChange ? (
+                  <>
+                    <p className="event-row__summary">{summary}</p>
+                    {fieldLabels.length ? (
+                      <ul className="event-row__labels">
+                        {fieldLabels.map((label) => <li key={label}>{label}</li>)}
+                      </ul>
+                    ) : (
+                      <p className="page__lead" style={{ margin: 0 }}>Поля не указаны.</p>
+                    )}
+                  </>
+                ) : entries.length ? (
                   <dl className="event-row__fields">
                     {entries.map(([key, value]) => (
                       <div key={key}>

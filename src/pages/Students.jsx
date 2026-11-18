@@ -5,6 +5,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import * as studentsApi from '../api/students.js';
 import * as accountApi from '../api/accountApprovals.js';
 import { getSkillsOptions, getSpecialityOptions } from '../lib/referenceCache.js';
+import { listAllCities } from '../api/cities.js';
 import { AccountRejectForm } from '../components/AccountRejectForm.jsx';
 import { ProfileMeter } from '../components/ProfileReadiness.jsx';
 import { checksFilled, listProfileChecks } from '../lib/studentProfileChecks.js';
@@ -54,6 +55,8 @@ const COURSE_OPTIONS = [
 
 const STATUS_OPTIONS = [
   { id: 'PENDING_APPROVAL', label: 'На модерации', tone: 'pending' },
+  { id: 'REGISTRATION', label: 'Регистрация', tone: 'registration' },
+  { id: 'IN_REVISION', label: 'Доработка', tone: 'revision' },
   { id: 'APPROVED', label: 'Одобрен', tone: 'approved' },
   { id: 'REJECTED', label: 'Отклонён', tone: 'rejected' },
 ];
@@ -137,6 +140,7 @@ export function Students() {
   const [createMsg, setCreateMsg] = useState(null);
   const [skillsOptions, setSkillsOptions] = useState([]);
   const [specialityOptions, setSpecialityOptions] = useState([]);
+  const [cityOptions, setCityOptions] = useState([]);
   const [optionsError, setOptionsError] = useState(null);
   const [pendingByStudentId, setPendingByStudentId] = useState(() => new Map());
   const [approvalsReady, setApprovalsReady] = useState(false);
@@ -146,7 +150,7 @@ export function Students() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectOneUserId, setRejectOneUserId] = useState(null);
   const [createForm, setCreateForm] = useState({
-    city: '',
+    cityId: '',
     hhLink: '',
     birthDate: '',
     bio: '',
@@ -253,13 +257,15 @@ export function Students() {
     async function loadOptions() {
       setOptionsError(null);
       try {
-        const [skillsList, specList] = await Promise.all([
+        const [skillsList, specList, cityList] = await Promise.all([
           getSkillsOptions(),
           getSpecialityOptions(),
+          listAllCities(),
         ]);
         if (!cancelled) {
           setSkillsOptions(skillsList);
           setSpecialityOptions(specList);
+          setCityOptions(cityList);
         }
       } catch (e) {
         if (!cancelled) setOptionsError(e.message);
@@ -310,7 +316,7 @@ export function Students() {
       }
 
       const payload = {
-        city: createForm.city || undefined,
+        ...(createForm.cityId ? { cityId: Number(createForm.cityId) } : {}),
         hhLink: createForm.hhLink || undefined,
         birthDate: createForm.birthDate,
         bio: createForm.bio || undefined,
@@ -331,7 +337,7 @@ export function Students() {
       setCreateMsg({ type: 'ok', text: 'Студент создан. Открываю карточку…' });
 
       setCreateForm({
-        city: '',
+        cityId: '',
         hhLink: '',
         birthDate: '',
         bio: '',
@@ -718,13 +724,19 @@ export function Students() {
             </div>
             <div className="form-row">
               <div className="field">
-                <label>Город</label>
-                <input
-                  value={createForm.city}
+                <label htmlFor="student-create-city">Город</label>
+                <select
+                  id="student-create-city"
+                  value={createForm.cityId}
                   onChange={(e) =>
-                    setCreateForm((p) => ({ ...p, city: e.target.value }))
+                    setCreateForm((p) => ({ ...p, cityId: e.target.value }))
                   }
-                />
+                >
+                  <option value="">Не выбран</option>
+                  {cityOptions.map((city) => (
+                    <option key={city.id} value={String(city.id)}>{city.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="field">
                 <label>Email</label>

@@ -407,6 +407,18 @@ a {
   border-color: rgba(239, 68, 68, 0.45);
 }
 
+.student-chip--status-registration.student-chip--active {
+  background: rgba(var(--accent-rgb), 0.22);
+  color: #a5b4fc;
+  border-color: rgba(var(--accent-rgb), 0.45);
+}
+
+.student-chip--status-revision.student-chip--active {
+  background: rgba(251, 146, 60, 0.22);
+  color: #fdba74;
+  border-color: rgba(251, 146, 60, 0.45);
+}
+
 @media (max-width: 900px) {
   .student-chip-row {
     flex-direction: column;
@@ -2581,6 +2593,11 @@ table.data .cell-mono {
   margin: 0 0 0.55rem;
 }
 
+.event-row__labels {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+}
+
 @media (max-width: 900px) {
   .analytics-split {
     grid-template-columns: 1fr;
@@ -2596,5 +2613,104 @@ table.data .cell-mono {
     display: block;
     margin-bottom: 0.25rem;
   }
+}
+
+.profile-changes {
+  margin: 0.85rem 0 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
+.profile-changes__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.profile-changes__ribbon {
+  margin: 0 0 0.65rem;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.profile-changes__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.profile-changes__field {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  font-size: 0.88rem;
+}
+
+.profile-changes__field--head {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.profile-changes__label {
+  color: var(--text-secondary);
+}
+
+.profile-changes__group {
+  margin-top: 0.75rem;
+}
+
+.profile-changes__group-title {
+  margin: 0 0 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.profile-changes__record {
+  margin-top: 0.55rem;
+}
+
+.profile-changes__record-title {
+  margin: 0 0 0.3rem;
+  font-size: 0.88rem;
+}
+
+.skill-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.skill-tree__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.skill-tree__name {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.skill-tree__meta {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.skill-tree__actions {
+  display: flex;
+  gap: 0.4rem;
+  flex: 0 0 auto;
 }
 

@@ -20,3 +20,11 @@ export function sendStudentMail(body) {
     json: body,
   });
 }
+
+export function listStudentProfileVersions(id) {
+  return apiFetch(`/admin/students/${id}/profile-versions`, { method: 'GET' });
+}
+
+export function getPublishedSnapshot(id) {
+  return apiFetch(`/admin/students/${id}/published-snapshot`, { method: 'GET' });
+}
