@@ -29,6 +29,20 @@ export function vacancyStatusVariant(status) {
   return 'default';
 }
 
+export function recruitmentRequestStatusVariant(status) {
+  if (status === 'OPEN') return 'success';
+  if (status === 'CLOSED') return 'warning';
+  if (status === 'ARCHIVED') return 'default';
+  return 'default';
+}
+
+export function recruitmentResponseStatusVariant(status) {
+  if (status === 'ACCEPTED') return 'success';
+  if (status === 'REJECTED') return 'danger';
+  if (status === 'PENDING') return 'pending';
+  return 'default';
+}
+
 export function registrationStatusVariant(status) {
   if (status === 'APPROVED') return 'success';
   if (status === 'REJECTED') return 'danger';
