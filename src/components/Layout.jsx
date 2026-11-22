@@ -23,7 +23,10 @@ const ADMIN_NAV_GROUPS = [
   },
   {
     title: 'Контент',
-    items: [{ to: '/storage', label: 'Хранилище' }],
+    items: [
+      { to: '/projects', label: 'Проекты' },
+      { to: '/storage', label: 'Хранилище' },
+    ],
   },
   {
     title: 'Справочники',
