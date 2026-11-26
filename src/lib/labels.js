@@ -72,6 +72,18 @@ export const COOPERATION_FORMAT_LABELS = {
   OTHER: 'Другое',
 };
 
+export const RECRUITMENT_REQUEST_STATUS_LABELS = {
+  OPEN: 'Открыта',
+  CLOSED: 'Закрыта',
+  ARCHIVED: 'В архиве',
+};
+
+export const RECRUITMENT_RESPONSE_STATUS_LABELS = {
+  PENDING: 'Ждёт решения',
+  ACCEPTED: 'Принят',
+  REJECTED: 'Отказ',
+};
+
 export const REGISTRATION_STATUS_LABELS = {
   PENDING: 'На рассмотрении',
   APPROVED: 'Одобрена',

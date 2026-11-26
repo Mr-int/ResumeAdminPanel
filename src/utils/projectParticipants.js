@@ -1,7 +1,7 @@
 import { pageItems } from '../lib/pageable.js';
 import { filterValidUuids, isValidUuid, resolveStudentId } from './studentId.js';
 
-/** UUID из ответа `GET /admin/projects/{id}/students` (массив строк или page-обёртка). */
+/** UUID из ответа `GET /projects/{id}/students` (массив строк или page-обёртка). */
 export function normalizeStudentIdList(payload) {
   return filterValidUuids(
     pageItems(payload).map((item) => {
@@ -13,7 +13,7 @@ export function normalizeStudentIdList(payload) {
 
 /**
  * Участники проекта: карточки из `SiteProjectDTO.students` + UUID из отдельного GET.
- * OpenAPI: GET `/admin/projects/{id}/students` → `string[]` (uuid), не DTO.
+ * OpenAPI: GET `/projects/{id}/students` → `string[]` (uuid), не DTO.
  */
 export function mergeProjectParticipants(project, studentIdsPayload) {
   const embedded = Array.isArray(project?.students) ? project.students : [];

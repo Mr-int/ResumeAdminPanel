@@ -13,6 +13,8 @@ import { Students } from './pages/Students.jsx';
 import { Employers } from './pages/Employers.jsx';
 import { StudentMail } from './pages/StudentMail.jsx';
 import { RecruiterRegistrations } from './pages/RecruiterRegistrations.jsx';
+import { RecruitmentRequests } from './pages/RecruitmentRequests.jsx';
+import { RecruitmentRequestDetail } from './pages/RecruitmentRequestDetail.jsx';
 import { Projects } from './pages/Projects.jsx';
 import { ProjectDetail } from './pages/ProjectDetail.jsx';
 import { Storage } from './pages/Storage.jsx';
@@ -91,6 +93,8 @@ export default function App() {
             />
             <Route path="/students" element={<Students />} />
             <Route path="/employers" element={<Employers />} />
+            <Route path="/recruitment-requests" element={<RecruitmentRequests />} />
+            <Route path="/recruitment-requests/:id" element={<RecruitmentRequestDetail />} />
             <Route path="/mail" element={<StudentMail />} />
             <Route
               path="/students/:id"
